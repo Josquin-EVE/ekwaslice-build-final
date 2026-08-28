@@ -1,0 +1,2261 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EkwaSlice</title>
+    <script src="assets/vendor/tailwindcss.js"></script>
+    <script>
+        // Tokens de la charte graphique Ekwateur (Design System)
+        window.EKW_TW = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#17E7D0', 'primary-dark': '#12B5A3', 'primary-deep': '#074E47',
+                        cta: '#74F1E3', /* CTA / accent interactif (turquoise clair) */
+                        secondary: '#FFC969', 'secondary-dark': '#E6A22A',
+                        gold: '#FEDC5D', orange: '#FF931E', cream: '#FFF4DE',
+                        night: '#101c1e', /* le plus sombre : fond hors-carte / widget */
+                        line: '#1D393D', /* bordure principale des cartes/widgets (1px) */
+                        ink: '#132527', 'ink-deep': '#0F1A1C', 'ink-mid': '#1D383C', 'ink-light': '#2C5359',
+                        cloud: '#F8FBFB', mist: '#EEF5F6', soft: '#C0DDE2', muted: '#A0B8BC',
+                        elec: '#009A59', gas: '#2F80DE', elecmob: '#9A55E1',
+                        success: '#7BE87F', warning: '#FBAA6E', error: '#FFA3A3', info: '#82DCEF'
+                    },
+                    fontFamily: {
+                        display: ['Carnero', 'Georgia', 'serif'],
+                        body: ['"Gothic A1"', 'system-ui', 'sans-serif']
+                    },
+                    borderRadius: { btn: '32px', card: '16px', 'card-sm': '8px', tag: '300px' }
+                }
+            }
+        };
+        tailwind.config = window.EKW_TW;
+    </script>
+    <link rel="stylesheet" href="assets/vendor/fontawesome.css">
+    <link rel="icon" href="assets/logo.png">
+    <style>
+        /* =====================================================================
+           THÈME DU CHÂSSIS DE L'APP (pas le canvas) — ÉDITE ICI pour restyler.
+           Un seul endroit : change les valeurs des variables ci-dessous.
+           - Dark = valeurs par défaut sur :root
+           - Light (white mode) = valeurs sous html[data-app-theme="light"]
+           Le bouton lune/soleil du header bascule entre les deux.
+           Les règles plus bas remappent les classes Tailwind slate-* du châssis
+           vers ces variables (le contenu du #canvas n'est JAMAIS affecté).
+           ===================================================================== */
+        :root {
+            --app-bg-deep: #101c1e;
+            /* fond de l'espace de travail (centre) */
+            --app-panel: #0f172a;
+            /* panneaux profonds / bulles / inputs */
+            --app-surface: #1e293b;
+            /* header, barres latérales, modale */
+            --app-elevated: #334155;
+            /* boutons, steppers, tuiles */
+            --app-hover: #475569;
+            /* survol */
+            --app-border: #334155;
+            /* bordures */
+            --app-text: #f1f5f9;
+            /* texte principal / titres */
+            --app-text-2: #cbd5e1;
+            /* texte secondaire */
+            --app-text-dim: #94a3b8;
+            /* texte discret */
+            --app-text-faint: #64748b;
+            /* texte très discret */
+        }
+
+        html[data-app-theme="light"] {
+            --app-bg-deep: #e2e8f0;
+            --app-panel: #f1f5f9;
+            --app-surface: #ffffff;
+            --app-elevated: #eef2f6;
+            --app-hover: #dbe3ec;
+            --app-border: #cbd5e1;
+            --app-text: #0f172a;
+            --app-text-2: #1e293b;
+            --app-text-dim: #475569;
+            --app-text-faint: #64748b;
+        }
+
+        /* Remap des utilitaires slate-* du châssis (hors #canvas) */
+        .bg-slate-950:not(#canvas *) {
+            background-color: var(--app-bg-deep) !important;
+        }
+
+        .bg-slate-900:not(#canvas *) {
+            background-color: var(--app-panel) !important;
+        }
+
+        .bg-slate-800:not(#canvas *) {
+            background-color: var(--app-surface) !important;
+        }
+
+        .bg-slate-700:not(#canvas *),
+        .bg-slate-700\/50:not(#canvas *),
+        .bg-slate-700\/40:not(#canvas *) {
+            background-color: var(--app-elevated) !important;
+        }
+
+        .bg-slate-600:not(#canvas *) {
+            background-color: var(--app-hover) !important;
+        }
+
+        .hover\:bg-slate-700:hover:not(#canvas *),
+        .hover\:bg-slate-600:hover:not(#canvas *),
+        .hover\:bg-slate-800:hover:not(#canvas *) {
+            background-color: var(--app-hover) !important;
+        }
+
+        .border-slate-700:not(#canvas *),
+        .border-slate-600:not(#canvas *),
+        .border-slate-600\/50:not(#canvas *),
+        .border-slate-600\/40:not(#canvas *) {
+            border-color: var(--app-border) !important;
+        }
+
+        .text-white:not(button):not(a):not(#canvas *),
+        .text-slate-100:not(#canvas *),
+        .text-slate-200:not(#canvas *) {
+            color: var(--app-text) !important;
+        }
+
+        .text-slate-300:not(#canvas *) {
+            color: var(--app-text-2) !important;
+        }
+
+        .text-slate-400:not(#canvas *) {
+            color: var(--app-text-dim) !important;
+        }
+
+        .text-slate-500:not(#canvas *),
+        .text-slate-600:not(#canvas *) {
+            color: var(--app-text-faint) !important;
+        }
+
+        /* Polices Ekwateur — chargées en local (hors-ligne) */
+        @font-face {
+            font-family: 'Carnero';
+            src: url('assets/fonts/carnero-var.ttf') format('truetype');
+            font-weight: 300 900;
+            font-style: normal;
+            font-display: swap;
+        }
+
+        @font-face {
+            font-family: 'Carnero';
+            src: url('assets/fonts/carnero-var-italic.ttf') format('truetype');
+            font-weight: 300 900;
+            font-style: italic;
+            font-display: swap;
+        }
+
+        @font-face {
+            font-family: 'Gothic A1';
+            src: url('assets/fonts/gothic-a1-400.otf') format('opentype');
+            font-weight: 400;
+            font-style: normal;
+            font-display: swap;
+        }
+
+        @font-face {
+            font-family: 'Gothic A1';
+            src: url('assets/fonts/gothic-a1-600.otf') format('opentype');
+            font-weight: 600;
+            font-style: normal;
+            font-display: swap;
+        }
+
+        @font-face {
+            font-family: 'Gothic A1';
+            src: url('assets/fonts/gothic-a1-700.otf') format('opentype');
+            font-weight: 700;
+            font-style: normal;
+            font-display: swap;
+        }
+
+        /* Élément sélectionné : le visuel est porté par le cadre marching-ants (#ekw-marquee),
+           voir plus bas. Ici on garde juste le curseur. */
+        .ekw-selected {
+            cursor: pointer;
+        }
+
+        /* Cadre de sélection "marching ants" — pointillé alterné NOIR/BLANC (aucun vide)
+           → lisible en dark comme en light. Overlay fixe qui suit l'élément (marche aussi sur <img>). */
+        #ekw-marquee {
+            position: fixed;
+            pointer-events: none;
+            z-index: 70;
+            display: none;
+            border-radius: 3px;
+            background-image:
+                linear-gradient(90deg, #000 50%, #fff 50%),
+                linear-gradient(90deg, #000 50%, #fff 50%),
+                linear-gradient(0deg, #000 50%, #fff 50%),
+                linear-gradient(0deg, #000 50%, #fff 50%);
+            background-size: 12px 2px, 12px 2px, 2px 12px, 2px 12px;
+            background-repeat: repeat-x, repeat-x, repeat-y, repeat-y;
+            background-position: 0 0, 0 100%, 0 0, 100% 0;
+            animation: ekw-ants 0.7s linear infinite;
+        }
+
+        @keyframes ekw-ants {
+            to {
+                background-position: 12px 0, 12px 100%, 0 12px, 100% 12px;
+            }
+        }
+
+        #canvas [data-comp] {
+            cursor: pointer;
+        }
+
+        /* Élément en cours d'édition de texte */
+        .ekw-editing,
+        .ekw-editing * {
+            cursor: text !important;
+        }
+
+        .ekw-editing {
+            outline: 2px dashed #17E7D0 !important;
+            outline-offset: 3px;
+            background: rgba(23, 231, 208, 0.07);
+            border-radius: 4px;
+        }
+
+        .preview-canvas::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        .preview-canvas::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+
+<body class="bg-slate-900 text-slate-100 font-sans h-screen flex flex-col overflow-hidden">
+
+    <!-- Écran de garde : connexion au compte Claude -->
+    <div id="gate" class="fixed inset-0 z-[100] bg-slate-900 flex items-center justify-center p-6">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-md p-8 text-center shadow-2xl">
+            <div
+                class="w-14 h-14 mx-auto rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-400 mb-5">
+                <i id="gate-icon" class="fa-solid fa-spinner fa-spin text-2xl"></i>
+            </div>
+            <h2 id="gate-title" class="text-lg font-bold text-white mb-2">Vérification de la connexion…</h2>
+            <p id="gate-msg" class="text-sm text-slate-400 mb-5">Contrôle de votre compte Claude.</p>
+            <div id="gate-cmd"
+                class="hidden text-left bg-slate-950 border border-slate-700 rounded-xl p-3 mb-5 font-mono text-xs text-emerald-400 select-all whitespace-pre-wrap">
+            </div>
+            <button id="gate-btn" onclick="runGate()"
+                class="hidden w-full bg-secondary hover:brightness-110 text-ink-deep font-semibold py-2.5 rounded-xl transition">
+                Réessayer
+            </button>
+        </div>
+    </div>
+
+    <!-- Header -->
+    <header class="bg-slate-800 border-b border-slate-700 px-6 py-4 flex justify-between items-center shrink-0">
+        <div>
+            <h1 class="text-xl font-bold text-white flex items-center gap-2">
+                <img src="assets/logo.png" alt="EkwaSlice" class="w-9 h-9 rounded-lg object-cover"> EkwaSlice
+            </h1>
+        </div>
+        <div class="flex gap-3 items-center">
+            <button onclick="openImport()" title="Importer un composant depuis 21st.dev et l'adapter à Ekwateur"
+                class="px-4 py-2 text-sm bg-slate-700 hover:bg-slate-600 rounded-lg transition text-slate-200 font-medium">
+                <i class="fa-solid fa-cloud-arrow-down mr-2"></i>Importer 21st.dev
+            </button>
+            <button onclick="exportCode()"
+                class="px-4 py-2 text-sm bg-secondary hover:brightness-110 rounded-lg transition text-ink-deep font-semibold shadow-lg shadow-secondary/20">
+                <i class="fa-solid fa-code mr-2"></i>Exporter le Code
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <div class="flex flex-1 overflow-hidden">
+
+        <!-- Left Sidebar: Library -->
+        <aside class="w-80 bg-slate-800 border-r border-slate-700 flex flex-col shrink-0">
+            <!-- Vue bibliothèque (par défaut) -->
+            <div id="library-panel" class="flex flex-col flex-1 overflow-hidden">
+                <!-- Section : Bibliothèque de composants sauvegardés -->
+                <div class="p-4 border-b border-slate-700 flex flex-col" style="max-height:45%">
+                    <h2 class="font-semibold text-sm text-slate-300 uppercase tracking-wider mb-2">Bibliothèque</h2>
+                    <div id="comp-grid" class="flex flex-col gap-2 overflow-y-auto flex-1 pr-1"></div>
+                </div>
+                <!-- Section : Pictogrammes -->
+                <div class="p-4 pb-2">
+                    <h2 class="font-semibold text-sm text-slate-300 uppercase tracking-wider">Pictogrammes</h2>
+                </div>
+                <div class="px-4 pb-4 flex flex-col flex-1 overflow-hidden">
+                    <input id="picto-search" type="text" placeholder="Rechercher un picto…"
+                        oninput="renderPictoGrid(this.value)"
+                        class="w-full mb-2 bg-slate-900 border border-slate-600/50 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-primary">
+                    <div data-picto-grid class="grid grid-cols-4 gap-1.5 overflow-y-auto flex-1 pr-1"></div>
+                    <p class="text-[10px] text-slate-600 mt-1.5 leading-snug">Clic = insérer dans l'élément
+                        sélectionné (sinon nouveau bloc). Rendu local ; le code exporté pointe vers Prismic.</p>
+                </div>
+            </div><!-- /#library-panel -->
+
+            <!-- Vue éditeur : remplace la bibliothèque quand un élément est sélectionné -->
+            <div id="editor-panel" class="hidden flex-col flex-1 overflow-hidden">
+                <div class="p-4 border-b border-slate-700 flex items-center justify-between">
+                    <h2 class="font-semibold text-sm text-slate-200 flex items-center gap-2">
+                        <i class="fa-solid fa-sliders text-black"></i> Éditeur d'élément
+                    </h2>
+                    <button onclick="deselect()" title="Fermer — revenir aux pictogrammes"
+                        class="text-slate-400 hover:text-cloud text-sm px-2 py-1 rounded-lg hover:bg-slate-700">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <!-- Navigation dans l'arborescence (breadcrumb + flèches) -->
+                <div id="editor-nav" class="px-4 pt-2.5 pb-2.5 border-b border-slate-700 space-y-1.5">
+                    <div id="editor-crumbs"
+                        class="flex items-center gap-0.5 text-[11px] overflow-x-auto whitespace-nowrap"></div>
+                    <div class="flex items-center gap-1">
+                        <button data-nav="prev" title="Frère précédent"
+                            class="w-7 h-7 rounded-md bg-slate-700/50 text-slate-300 hover:bg-slate-700 hover:text-cloud transition text-xs disabled:opacity-30"><i
+                                class="fa-solid fa-chevron-left"></i></button>
+                        <button data-nav="parent" title="Parent"
+                            class="w-7 h-7 rounded-md bg-slate-700/50 text-slate-300 hover:bg-slate-700 hover:text-cloud transition text-xs disabled:opacity-30"><i
+                                class="fa-solid fa-chevron-up"></i></button>
+                        <button data-nav="child" title="Premier enfant"
+                            class="w-7 h-7 rounded-md bg-slate-700/50 text-slate-300 hover:bg-slate-700 hover:text-cloud transition text-xs disabled:opacity-30"><i
+                                class="fa-solid fa-chevron-down"></i></button>
+                        <button data-nav="next" title="Frère suivant"
+                            class="w-7 h-7 rounded-md bg-slate-700/50 text-slate-300 hover:bg-slate-700 hover:text-cloud transition text-xs disabled:opacity-30"><i
+                                class="fa-solid fa-chevron-right"></i></button>
+                        <span class="text-[10px] text-slate-500 ml-1">arborescence</span>
+                    </div>
+                </div>
+                <!-- Éditeur de texte, visuellement séparé (visible en édition de texte) -->
+                <div id="editor-format"
+                    class="hidden mx-4 mt-3 p-2 rounded-xl bg-slate-900 border border-slate-700 flex-wrap items-center gap-1">
+                </div>
+                <div id="editor-style" class="p-4 space-y-3 overflow-y-auto flex-1"></div>
+                <!-- Pictos accessibles pendant la sélection (remplacer / insérer) -->
+                <div class="border-t border-slate-700 p-3 shrink-0">
+                    <span class="text-[11px] font-medium text-slate-300 block mb-2">Pictogrammes</span>
+                    <input type="text" placeholder="Rechercher…" oninput="renderPictoGrid(this.value)"
+                        class="w-full mb-2 bg-slate-900 border border-slate-600/50 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-primary">
+                    <div data-picto-grid class="grid grid-cols-5 gap-1.5 max-h-40 overflow-y-auto pr-1"></div>
+                    <p class="text-[10px] text-slate-600 mt-1 leading-snug">Clic = remplace le picto sélectionné, sinon
+                        insère dans l'élément.</p>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Center: Interactive Preview Canvas -->
+        <main class="flex-1 bg-slate-950 p-6 flex flex-col overflow-hidden">
+            <div class="flex items-center gap-3 mb-3 shrink-0">
+                <!-- Toggle mode Édition / Aperçu -->
+                <div class="flex items-center gap-1 bg-slate-800 border border-slate-700 rounded-xl p-1 h-10">
+                    <button data-mode="edit" onclick="setMode('edit')" title="Édition"
+                        class="mode-btn px-3 py-1.5 rounded-lg text-xs transition text-slate-400">
+                        <i class="fa-solid fa-pen-ruler mr-1.5"></i>Édition
+                    </button>
+                    <button data-mode="preview" onclick="setMode('preview')" title="Aperçu web fidèle"
+                        class="mode-btn px-3 py-1.5 rounded-lg text-xs transition text-slate-400">
+                        <i class="fa-solid fa-play mr-1.5"></i>Aperçu
+                    </button>
+                </div>
+                <!-- Annuler / Rétablir -->
+                <div class="flex items-center gap-1 bg-slate-800 border border-slate-700 rounded-xl p-1 h-10">
+                    <button id="btn-undo" onclick="undo()" title="Annuler (Ctrl+Z)"
+                        class="w-8 h-8 rounded-lg text-xs transition text-slate-300 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"><i
+                            class="fa-solid fa-rotate-left"></i></button>
+                    <button id="btn-redo" onclick="redo()" title="Rétablir (Ctrl+Maj+Z)"
+                        class="w-8 h-8 rounded-lg text-xs transition text-slate-300 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"><i
+                            class="fa-solid fa-rotate-right"></i></button>
+                </div>
+
+                <!-- Gabarit de page (largeur du conteneur cible sur le site) -->
+                <div class="flex items-center gap-1.5 bg-slate-800 border border-slate-700 rounded-xl px-2.5 h-10"
+                    title="Largeur du conteneur de la page cible">
+                    <i class="fa-solid fa-ruler-horizontal text-slate-400 text-xs"></i>
+                    <select id="page-width" onchange="setPageWidth(this.value)"
+                        class="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer">
+                        <option value="1080">Common Page (1080px)</option>
+                        <option value="712">Article de blog (712px)</option>
+                    </select>
+                </div>
+
+                <div class="flex-1"></div>
+
+                <!-- Largeurs device (visibles en Aperçu) -->
+                <div id="width-chips"
+                    class="hidden items-center gap-1 bg-slate-800 border border-slate-700 rounded-xl p-1 h-10">
+                    <button data-w="desktop" onclick="setWidth('desktop')" title="Desktop"
+                        class="w-btn px-3 py-1.5 rounded-lg text-xs transition text-slate-400"><i
+                            class="fa-solid fa-display mr-1.5"></i>Desktop</button>
+                    <button data-w="tablet" onclick="setWidth('tablet')" title="Tablette 768px"
+                        class="w-btn px-3 py-1.5 rounded-lg text-xs transition text-slate-400"><i
+                            class="fa-solid fa-tablet-screen-button mr-1.5"></i>Tablette</button>
+                    <button data-w="mobile" onclick="setWidth('mobile')" title="Mobile 390px"
+                        class="w-btn px-3 py-1.5 rounded-lg text-xs transition text-slate-400"><i
+                            class="fa-solid fa-mobile-screen-button mr-1.5"></i>Mobile</button>
+                </div>
+
+                <!-- Barre d'actions de l'élément sélectionné (édition, ancrée à droite) -->
+                <div id="editor-actions"
+                    class="hidden items-center gap-1 bg-slate-800 border border-slate-700 rounded-xl p-1 h-10"></div>
+            </div>
+
+            <!-- Zone scrollable : le canvas prend la VRAIE largeur de page (712/1080), centré,
+                 et scrolle horizontalement si la fenêtre est trop étroite. -->
+            <div id="canvas-scroll" class="flex-1 min-h-0 overflow-auto">
+                <div id="canvas-fit" class="mx-auto">
+                    <div id="canvas"
+                        class="preview-canvas font-body w-full min-h-full bg-ink-mid rounded-2xl border-2 border-dashed border-slate-700 p-8 text-cloud space-y-8">
+                        <!-- Empty state -->
+                        <div id="empty-state" class="h-full flex flex-col items-center justify-center text-center p-8">
+                            <div
+                                class="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center text-slate-600 mb-4 border border-slate-700">
+                                <i class="fa-solid fa-plus text-xl"></i>
+                            </div>
+                            <h3 class="text-base font-semibold text-slate-400">Votre composant est vide</h3>
+                            <p class="text-xs text-slate-500 max-w-xs mt-1">Décris ton composant à Claude (panneau de
+                                droite) pour le générer, puis édite-le ici.</p>
+                        </div>
+                    </div>
+                </div><!-- /#canvas-fit -->
+            </div><!-- /#canvas-scroll -->
+
+            <!-- Aperçu responsive (iframe à la vraie largeur device) -->
+            <div id="device-stage"
+                class="hidden flex-1 bg-ink-deep rounded-2xl border-2 border-slate-700 overflow-auto flex justify-center p-4">
+                <iframe id="device-frame"
+                    class="bg-ink-mid rounded-xl shadow-2xl border border-slate-700 h-full transition-all duration-300"
+                    style="width:100%" title="Aperçu responsive"></iframe>
+            </div>
+        </main>
+
+        <!-- Right Sidebar: Global Design Tokens / Guidelines -->
+        <aside class="w-96 bg-slate-800 border-l border-slate-700 flex flex-col shrink-0">
+            <div class="p-4 border-b border-slate-700 flex items-center justify-between">
+                <h2 class="font-semibold text-sm text-slate-200 flex items-center gap-2">
+                    <img src="https://thesvg.org/icons/claude-code/color.svg" style="width: 20px; height: 20px;"
+                        alt="Claude Code">Claude Code
+                </h2>
+                <button onclick="newChat()" title="Nouvelle conversation"
+                    class="text-xs text-slate-400 hover:text-cloud transition px-2 py-1 rounded-lg hover:bg-slate-700">
+                    <i class="fa-solid fa-rotate-right mr-1"></i>Nouveau
+                </button>
+            </div>
+
+            <!-- Fil de conversation -->
+            <div id="chat-log" class="flex-1 overflow-y-auto p-4 space-y-4 text-sm">
+                <div id="chat-welcome" class="text-slate-500 text-xs leading-relaxed">
+
+                </div>
+            </div>
+
+            <!-- Saisie -->
+            <div class="p-3 border-t border-slate-700 shrink-0">
+                <!-- Puce d'élément ciblé -->
+                <div id="chat-context"
+                    class="hidden items-center gap-2 mb-2 bg-[#d97757]/10 border border-[#d97757]/40 rounded-xl px-2.5 py-1.5 text-xs text-black">
+
+                    <img src="https://thesvg.org/icons/claude-code/color.svg" alt="Claude" class="w-4 h-4 shrink-0">
+
+                    <span id="chat-context-label" class="text-black truncate flex-1">élément ciblé</span>
+
+                    <button onclick="clearTarget()" title="Retirer la cible"
+                        class="text-black hover:text-[#d97757] shrink-0">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+
+                <div
+                    class="flex items-end gap-2 bg-white border border-[#d97757]/40 rounded-2xl p-2 focus-within:ring-2 focus-within:ring-[#d97757]/40">
+
+                    <textarea id="chat-input" rows="1" placeholder="Message à Claude…"
+                        onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault(); sendChat();}"
+                        class="flex-1 bg-transparent resize-none max-h-40 px-2 py-1.5 text-sm text-slate-900 placeholder-slate-500 focus:outline-none"></textarea>
+
+                    <button id="chat-send" onclick="sendChat()"
+                        class="shrink-0 w-9 h-9 flex items-center justify-center bg-white text-gray-800 rounded-xl hover:bg-[#d97757] hover:text-white transition">
+                        <i class="fa-solid fa-arrow-up"></i>
+                    </button>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <!-- Modal Output Code -->
+    <div id="codeModal"
+        class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-6">
+        <div
+            class="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-3xl max-h-[80vh] flex flex-col overflow-hidden shadow-2xl">
+            <div class="p-4 border-b border-slate-700 flex justify-between items-center shrink-0">
+                <h3 class="font-semibold text-white text-base">Export Prismic</h3>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-white transition text-lg"><i
+                        class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="p-4 overflow-y-auto flex-1 space-y-4" style="background:#101c1e">
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-xs font-semibold text-slate-300">HTML</span>
+                        <button onclick="copyOut('html', this)"
+                            class="text-[11px] bg-secondary hover:brightness-110 text-ink-deep font-semibold px-2.5 py-1 rounded-lg transition"><i
+                                class="fa-regular fa-copy mr-1"></i>Copier</button>
+                    </div>
+                    <pre id="out-html"
+                        class="whitespace-pre-wrap select-all font-mono text-[11px] text-emerald-400 border border-slate-800 rounded-lg p-3 max-h-56 overflow-auto"
+                        style="background:#0F1A1C"></pre>
+                </div>
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-xs font-semibold text-slate-300">CSS</span>
+                        <button onclick="copyOut('css', this)"
+                            class="text-[11px] bg-secondary hover:brightness-110 text-ink-deep font-semibold px-2.5 py-1 rounded-lg transition"><i
+                                class="fa-regular fa-copy mr-1"></i>Copier</button>
+                    </div>
+                    <pre id="out-css"
+                        class="whitespace-pre-wrap select-all font-mono text-[11px] text-sky-300 border border-slate-800 rounded-lg p-3 max-h-56 overflow-auto"
+                        style="background:#0F1A1C"></pre>
+                </div>
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-xs font-semibold text-slate-300">JS</span>
+                        <button onclick="copyOut('js', this)"
+                            class="text-[11px] bg-secondary hover:brightness-110 text-ink-deep font-semibold px-2.5 py-1 rounded-lg transition"><i
+                                class="fa-regular fa-copy mr-1"></i>Copier</button>
+                    </div>
+                    <pre id="out-js"
+                        class="whitespace-pre-wrap select-all font-mono text-[11px] text-amber-300 border border-slate-800 rounded-lg p-3 max-h-40 overflow-auto"
+                        style="background:#0F1A1C"></pre>
+                </div>
+            </div>
+            <div class="p-4 border-t border-slate-700 bg-slate-900/50 flex justify-end gap-3 shrink-0">
+                <button onclick="closeModal()"
+                    class="px-4 py-2 text-xs bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 transition">Fermer</button>
+                <button onclick="copyOut('all', this)"
+                    class="px-4 py-2 text-xs bg-secondary text-ink-deep font-semibold rounded-lg hover:brightness-110 transition shadow-lg shadow-secondary/10"><i
+                        class="fa-solid fa-copy mr-1.5"></i>Tout copier</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Import 21st.dev -->
+    <div id="importModal"
+        class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-6">
+        <div
+            class="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden shadow-2xl">
+            <div class="p-4 border-b border-slate-700 flex justify-between items-center shrink-0">
+                <h3 class="font-semibold text-white text-base"><i
+                        class="fa-solid fa-cloud-arrow-down mr-2 text-primary"></i>Importer un composant 21st.dev</h3>
+                <button onclick="closeImport()" class="text-slate-400 hover:text-white transition text-lg"><i
+                        class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="p-4 overflow-y-auto flex-1 space-y-3">
+                <p class="text-xs text-slate-400 leading-relaxed">Sur 21st.dev, ouvre l'onglet <b>Code</b> du composant
+                    et copie <b>tout</b> (le fichier du composant + le démo). Colle ici : Claude le convertit en
+                    <b>HTML/JS vanilla</b> adapté à la charte Ekwateur (dark, pilules, pictos, tokens), puis l'insère
+                    dans le canvas.
+                </p>
+                <input id="import-url" type="text" placeholder="URL 21st.dev (optionnel, pour contexte)"
+                    class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-primary">
+                <textarea id="import-code" rows="12" spellcheck="false"
+                    placeholder="Colle ici le code du composant (React/TSX) + le démo…"
+                    class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-[11px] font-mono text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-primary resize-y"></textarea>
+                <p class="text-[10px] text-slate-500">Astuce : les composants simples (cartes, timelines, grilles) se
+                    convertissent le mieux. Les animations très complexes (framer-motion avancé) peuvent nécessiter un
+                    ajustement via le chat ensuite.</p>
+            </div>
+            <div class="p-4 border-t border-slate-700 bg-slate-900/50 flex justify-end gap-3 shrink-0">
+                <button onclick="closeImport()"
+                    class="px-4 py-2 text-xs bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 transition">Annuler</button>
+                <button id="import-go" onclick="importConvert()"
+                    class="px-4 py-2 text-xs bg-secondary text-ink-deep font-semibold rounded-lg hover:brightness-110 transition"><i
+                        class="fa-solid fa-wand-magic-sparkles mr-1.5"></i>Convertir & insérer</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Nommer le composant (sauvegarde bibliothèque) -->
+    <div id="saveModal"
+        class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] hidden items-center justify-center p-6">
+        <div
+            class="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-md flex flex-col overflow-hidden shadow-2xl">
+            <div class="p-4 border-b border-slate-700 flex justify-between items-center shrink-0">
+                <h3 class="font-semibold text-white text-base"><i
+                        class="fa-solid fa-floppy-disk mr-2 text-black"></i>Sauvegarder le composant</h3>
+                <button onclick="closeSaveModal()" class="text-slate-400 hover:text-white transition text-lg"><i
+                        class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="p-4 space-y-2">
+                <label class="text-xs font-medium text-slate-300">Nom du composant</label>
+                <input id="save-name-input" type="text" placeholder="Ex : Hero offre gaz" spellcheck="false"
+                    onkeydown="if(event.key==='Enter'){event.preventDefault();confirmSave();} if(event.key==='Escape'){closeSaveModal();}"
+                    class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-primary">
+            </div>
+            <div class="p-4 border-t border-slate-700 bg-slate-900/50 flex justify-end gap-3 shrink-0">
+                <button onclick="closeSaveModal()"
+                    class="px-4 py-2 text-xs bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 transition">Annuler</button>
+                <button onclick="confirmSave()"
+                    class="px-4 py-2 text-xs bg-secondary text-ink-deep font-semibold rounded-lg hover:brightness-110 transition"><i
+                        class="fa-solid fa-check mr-1.5"></i>Sauvegarder</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Logic -->
+    <script>
+        const canvas = document.getElementById('canvas');
+        const emptyState = document.getElementById('empty-state');
+        const codeModal = document.getElementById('codeModal');
+
+        // Fond du canvas = imite le fond du site Ekwateur. Change ici pour l'ajuster.
+        const SITE_BG = '#101c1e';
+        canvas.style.backgroundColor = SITE_BG;
+        { const f = document.getElementById('device-frame'); if (f) f.style.backgroundColor = SITE_BG; }
+
+
+        // Compteur d'usage cumulé de l'app (session courante uniquement)
+        let usageStats = { gen: 0, tokens: 0, cost: 0 };
+        function trackUsage(tokens, cost) {
+            usageStats.gen += 1;
+            usageStats.tokens += tokens;
+            usageStats.cost += cost;
+            const k = usageStats.tokens >= 1000
+                ? (usageStats.tokens / 1000).toFixed(1) + 'k'
+                : usageStats.tokens;
+            const el = document.getElementById('usage-text');
+            if (el) el.textContent =
+                `${usageStats.gen} gén · ${k} tokens · ~$${usageStats.cost.toFixed(2)}`;
+        }
+
+        function checkEmpty() {
+            const real = canvas.querySelectorAll(':scope > [data-comp]');
+            emptyState.style.display = real.length ? 'none' : 'flex';
+        }
+
+        // --- Éditeur low-code : sélection d'un élément + mini-toolbar ---
+        let sel = null;       // élément sélectionné
+        let editing = false;  // édition de texte en cours ?
+
+        // Prépare un slice monté : marqueur + nettoyage des artefacts
+        function mountSlice(el) {
+            el.dataset.comp = '1';
+            el.classList.add('relative');
+            el.querySelectorAll('button[onclick*="remove"], .drag-handle').forEach(b => b.remove());
+            el.querySelectorAll('[contenteditable]').forEach(n => n.removeAttribute('contenteditable'));
+            el.removeAttribute('contenteditable');
+            resolvePictos(el);
+        }
+
+        // Barre d'actions de l'élément — dockée dans le panneau gauche (position fixe)
+        const toolbar = document.getElementById('editor-actions');
+
+        toolbar.innerHTML = [
+            ['up', 'fa-arrow-up', 'Monter parmi les voisins'],
+            ['down', 'fa-arrow-down', 'Descendre parmi les voisins'],
+            ['edit', 'fa-keyboard', 'Éditer le texte'],
+            ['link', 'fa-link', 'Rendre cet élément cliquable (lien)'],
+            ['dup', 'fa-clone', 'Dupliquer'],
+            ['save', 'fa-floppy-disk', 'Sauvegarder dans ma bibliothèque'],
+            ['del', 'fa-trash', 'Supprimer'],
+            ['target', 'claude-logo', 'Cibler dans le chat Claude'],
+        ].map(([act, icon, title]) => {
+            const iconHtml = icon === 'claude-logo'
+                ? '<img src="https://thesvg.org/icons/claude-code/color.svg" alt="Claude" class="w-4 h-4">'
+                : '<i class="fa-solid ' + icon + '"></i>';
+
+            return '<button data-act="' + act + '" title="' + title + '" class="w-8 h-8 rounded-md bg-slate-700/50 text-slate-300 hover:bg-slate-700 hover:text-cloud transition text-xs flex items-center justify-center">'
+                + iconHtml +
+                '</button>';
+        }).join('');
+
+        // Barre de format riche — dockée, visible seulement pendant l'édition de texte
+        function fmtBtn(act, icon, title) {
+            return '<button data-fmt="' + act + '" title="' + title + '" '
+                + 'class="w-8 h-8 rounded-md text-slate-300 hover:bg-slate-700 hover:text-cloud transition text-xs">'
+                + '<i class="fa-solid ' + icon + '"></i></button>';
+        }
+        const EKW_COLORS = [
+            ['#17E7D0', 'Turquoise'], ['#FEDC5D', 'Or'], ['#FF931E', 'Orange'],
+            ['#F8FBFB', 'Blanc'], ['#009A59', 'Élec'], ['#2F80DE', 'Gaz']
+        ];
+        const formatbar = document.getElementById('editor-format');
+        formatbar.innerHTML =
+            '<span class="w-full text-[10px] font-medium text-slate-400 mb-1"><i class="fa-solid fa-font mr-1.5"></i>Éditeur de texte</span>'
+            + fmtBtn('bold', 'fa-bold', 'Gras') + fmtBtn('italic', 'fa-italic', 'Italique')
+            + fmtBtn('underline', 'fa-underline', 'Souligné')
+            + '<span class="w-px h-5 bg-slate-600 mx-0.5"></span>'
+            + EKW_COLORS.map(([hex, name]) =>
+                '<button data-color="' + hex + '" title="' + name + '" class="w-5 h-5 rounded-full border border-slate-500 mx-0.5 hover:scale-110 transition" style="background:' + hex + '"></button>'
+            ).join('')
+            + '<input type="color" data-fcolor-wheel title="Roue de couleur" class="w-6 h-6 p-0 rounded cursor-pointer bg-transparent border border-slate-500 mx-0.5 align-middle">'
+            + '<input type="text" data-fcolor-hex placeholder="#RRGGBB" spellcheck="false" class="w-[70px] bg-slate-950 border border-slate-600 rounded px-1.5 py-1 text-[11px] font-mono text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-primary">'
+            + '<span class="w-px h-5 bg-slate-600 mx-0.5"></span>'
+            + fmtBtn('link', 'fa-link', 'Lien hypertexte') + fmtBtn('nbsp', 'fa-link-slash', 'Espace insécable (mot lié)');
+
+        // --- Bulle d'insertion de lien (sauvegarde/restaure la sélection) ---
+        let linkOpen = false;
+        let linkMode = 'text'; // 'text' = lien sur sélection texte (execCommand) ; 'element' = wrap l'élément
+        let savedRange = null;
+        function saveRange() {
+            const s = window.getSelection();
+            if (s && s.rangeCount) savedRange = s.getRangeAt(0).cloneRange();
+        }
+        function restoreRange() {
+            if (!savedRange) return;
+            const s = window.getSelection();
+            s.removeAllRanges();
+            s.addRange(savedRange);
+        }
+        function anchorLink() {
+            let n = savedRange ? savedRange.startContainer : null;
+            while (n && n !== canvas) { if (n.nodeType === 1 && n.tagName === 'A') return n; n = n.parentNode; }
+            return null;
+        }
+        const linkBubble = document.createElement('div');
+        linkBubble.id = 'ekw-link';
+        linkBubble.className = 'fixed z-[96] hidden flex-col gap-2 bg-ink-deep border border-slate-600 rounded-lg shadow-2xl p-2 w-64';
+        linkBubble.innerHTML =
+            '<input id="ekw-link-input" type="text" placeholder="https://ekwateur.fr/…" '
+            + 'class="bg-slate-900 border border-slate-700 rounded-md px-2 py-1.5 text-xs text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary">'
+            + '<div class="flex items-center justify-between">'
+            + '<button data-link="remove" class="text-xs text-red-400 hover:text-red-300 px-1 py-1">Retirer le lien</button>'
+            + '<div class="flex gap-1">'
+            + '<button data-link="cancel" class="text-xs text-slate-400 hover:text-cloud px-2 py-1">Annuler</button>'
+            + '<button data-link="apply" class="text-xs bg-secondary text-ink-deep font-semibold px-3 py-1 rounded-md hover:brightness-110">Appliquer</button>'
+            + '</div></div>';
+        document.body.appendChild(linkBubble);
+
+        function openLinkBubble() {
+            saveRange();
+            linkMode = 'text';
+            linkOpen = true;
+            const a = anchorLink();
+            const input = document.getElementById('ekw-link-input');
+            input.value = a ? (a.getAttribute('href') || '') : '';
+            linkBubble.classList.remove('hidden'); linkBubble.classList.add('flex');
+            if (sel) {
+                const r = sel.getBoundingClientRect();
+                linkBubble.style.top = Math.max(8, r.top + 6) + 'px';
+                linkBubble.style.left = Math.min(window.innerWidth - 270, Math.max(8, r.left)) + 'px';
+            }
+            input.focus(); input.select();
+        }
+        // Lien sur l'ÉLÉMENT sélectionné (bloc, image, n'importe quoi) — pas seulement du texte.
+        function elementLinkAnchor() {
+            if (sel && sel.tagName === 'A') return sel;
+            const p = sel && sel.parentElement;
+            if (p && p.tagName === 'A' && p.childElementCount === 1 && !p.textContent.replace(sel.textContent, '').trim()) return p;
+            return null;
+        }
+        function openElementLink() {
+            if (!sel) return;
+            linkMode = 'element';
+            linkOpen = true;
+            const a = elementLinkAnchor();
+            const input = document.getElementById('ekw-link-input');
+            input.value = a ? (a.getAttribute('href') || '') : '';
+            linkBubble.classList.remove('hidden'); linkBubble.classList.add('flex');
+            const r = sel.getBoundingClientRect();
+            linkBubble.style.top = Math.max(8, r.top + 6) + 'px';
+            linkBubble.style.left = Math.min(window.innerWidth - 270, Math.max(8, r.left)) + 'px';
+            input.focus(); input.select();
+        }
+        function closeLinkBubble() {
+            linkOpen = false;
+            linkBubble.classList.add('hidden'); linkBubble.classList.remove('flex');
+        }
+        linkBubble.addEventListener('mousedown', (e) => {
+            // laisse l'input prendre le focus, mais empêche les boutons de le voler
+            if (e.target.closest('button')) e.preventDefault();
+        });
+        linkBubble.addEventListener('click', (e) => {
+            const b = e.target.closest('[data-link]'); if (!b) return;
+            const act = b.dataset.link;
+            if (act === 'cancel') { closeLinkBubble(); return; }
+            const url = document.getElementById('ekw-link-input').value.trim();
+            // --- Mode ÉLÉMENT : wrap/déwrap le bloc dans un <a display:contents> (cliquable, zéro impact layout) ---
+            if (linkMode === 'element') {
+                if (!sel) { closeLinkBubble(); return; }
+                const a = elementLinkAnchor();
+                if (act === 'apply' && url) {
+                    if (a) { a.setAttribute('href', url); }
+                    else {
+                        const link = document.createElement('a');
+                        link.setAttribute('href', url);
+                        link.style.display = 'contents'; // n'affecte pas la mise en page
+                        sel.parentNode.insertBefore(link, sel);
+                        link.appendChild(sel);
+                    }
+                } else if (act === 'remove' && a) {
+                    while (a.firstChild) a.parentNode.insertBefore(a.firstChild, a);
+                    a.remove();
+                }
+                closeLinkBubble();
+                positionMarquee();
+                return;
+            }
+            // --- Mode TEXTE (sélection dans l'éditeur) ---
+            if (sel) sel.focus();
+            restoreRange();
+            if (act === 'apply' && url) {
+                if (savedRange && !savedRange.collapsed) document.execCommand('createLink', false, url);
+                else document.execCommand('insertHTML', false, '<a href="' + url + '" class="underline text-primary">' + url + '</a>');
+            } else if (act === 'remove') {
+                document.execCommand('unlink'); // retire le <a>, GARDE le texte
+            }
+            closeLinkBubble();
+        });
+        document.getElementById('ekw-link-input').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); linkBubble.querySelector('[data-link="apply"]').click(); }
+            else if (e.key === 'Escape') { e.preventDefault(); closeLinkBubble(); if (sel) sel.focus(); }
+        });
+
+        // Sauve la sélection AVANT que le focus bouge ; n'empêche le focus que pour les boutons
+        // (les inputs roue/hex ont besoin du focus). Les inputs restaurent la sélection à l'application.
+        formatbar.addEventListener('mousedown', (e) => { saveRange(); if (e.target.tagName !== 'INPUT') e.preventDefault(); });
+        function applyTextColor(v) {
+            const wh = formatbar.querySelector('[data-fcolor-wheel]'), hx = formatbar.querySelector('[data-fcolor-hex]');
+            if (wh) wh.value = v; if (hx) hx.value = v;
+            if (sel) sel.focus();
+            restoreRange();
+            document.execCommand('foreColor', false, v);
+        }
+        formatbar.addEventListener('change', (e) => {
+            const w = e.target.matches('[data-fcolor-wheel]'), h = e.target.matches('[data-fcolor-hex]');
+            if (!w && !h) return;
+            let v = (e.target.value || '').trim();
+            if (h && !/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(v)) return;
+            applyTextColor(v);
+        });
+        formatbar.addEventListener('click', (e) => {
+            const col = e.target.closest('[data-color]');
+            if (col) { document.execCommand('foreColor', false, col.dataset.color); return; }
+            const b = e.target.closest('[data-fmt]'); if (!b) return;
+            const f = b.dataset.fmt;
+            if (f === 'bold') document.execCommand('bold');
+            else if (f === 'italic') document.execCommand('italic');
+            else if (f === 'underline') document.execCommand('underline');
+            else if (f === 'nbsp') document.execCommand('insertHTML', false, '&nbsp;');
+            else if (f === 'link') { openLinkBubble(); }
+        });
+
+        // --- Contrôles de style (marge / padding / bordure / arrondi / police) ---
+        // Petits fix rapides sans prompter Claude. Écrit des styles inline
+        // (précis, survivent à l'export, priment sur les classes Tailwind).
+        // Dockés dans le panneau gauche → position fixe, ne bougent jamais avec l'élément.
+        const SP_STEP = 2; // pas des boutons − / +
+        const styleColors = [
+            ['#17E7D0', 'Turquoise'], ['#FEDC5D', 'Or'], ['#FF931E', 'Orange'],
+            ['#2C5359', 'Ardoise'], ['#F8FBFB', 'Blanc'], ['#009A59', 'Élec'], ['#2F80DE', 'Gaz']
+        ];
+        const linkState = { margin: true, padding: true, border: true };
+
+        function spCap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+        function spProp(group, side) {
+            if (group === 'font') return 'fontSize';
+            if (group === 'radius') return 'borderRadius';
+            if (group === 'border') return side === 'all' ? 'borderWidth' : 'border' + spCap(side) + 'Width';
+            return group + (side === 'all' ? '' : spCap(side)); // margin / padding
+        }
+        function spRead(el, group, side) {
+            const p = spProp(group, side);
+            const v = el.style[p];
+            if (v && v.endsWith('px')) return Math.round(parseFloat(v)) || 0;
+            const c = getComputedStyle(el)[p];
+            const n = parseFloat(c); return isNaN(n) ? 0 : Math.round(n);
+        }
+        function spWriteSide(el, group, side, val) {
+            val = Math.max(0, val | 0);
+            if (group === 'font') { el.style.fontSize = val ? val + 'px' : ''; return; }
+            if (group === 'radius') { el.style.borderRadius = val + 'px'; return; }
+            if (group === 'width' || group === 'height') { el.style[group] = val ? val + 'px' : ''; return; }
+            if (group === 'border') {
+                const S = spCap(side);
+                el.style['border' + S + 'Width'] = val + 'px';
+                el.style['border' + S + 'Style'] = val > 0 ? 'solid' : '';
+                if (val > 0 && !el.style.borderColor && !el.style['border' + S + 'Color']) el.style.borderColor = '#2C5359';
+                return;
+            }
+            el.style[spProp(group, side)] = val + 'px'; // margin / padding
+        }
+        // Applique une valeur : si le groupe est "lié", écrit les 4 côtés
+        function spApply(group, side, val) {
+            if (!sel) return;
+            if (linkState[group] && group !== 'font' && group !== 'radius') {
+                ['top', 'right', 'bottom', 'left'].forEach(s => spWriteSide(sel, group, s, val));
+            } else {
+                spWriteSide(sel, group, side, val);
+            }
+        }
+        function spSetBorderColor(c) {
+            if (!sel) return;
+            if (c === 'none') {
+                ['Top', 'Right', 'Bottom', 'Left'].forEach(S => {
+                    sel.style['border' + S + 'Width'] = '0px';
+                    sel.style['border' + S + 'Style'] = '';
+                });
+                sel.style.borderColor = '';
+            } else {
+                sel.style.borderColor = c;
+                const anyW = ['top', 'right', 'bottom', 'left'].some(s => spRead(sel, 'border', s) > 0);
+                if (!anyW) { ['top', 'right', 'bottom', 'left'].forEach(s => spWriteSide(sel, 'border', s, 1)); }
+                else { ['top', 'right', 'bottom', 'left'].forEach(s => { if (spRead(sel, 'border', s) > 0) sel.style['border' + spCap(s) + 'Style'] = 'solid'; }); }
+            }
+            spSync();
+        }
+        function spSetBgColor(c) {
+            if (!sel) return;
+            sel.style.backgroundColor = (c === 'none') ? '' : c;
+            spSync();
+        }
+        function rgb2hex(s) {
+            if (!s) return '';
+            const m = s.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
+            if (!m) return '';
+            if (m[4] !== undefined && parseFloat(m[4]) === 0) return ''; // transparent
+            const h = n => ('0' + parseInt(n, 10).toString(16)).slice(-2);
+            return '#' + h(m[1]) + h(m[2]) + h(m[3]);
+        }
+        // Reflète la couleur courante dans la roue + hex (sauf si l'input est en focus)
+        function spSyncColorPickers() {
+            if (!sel) return;
+            const cs = getComputedStyle(sel);
+            [['border', cs.borderTopColor], ['bg', cs.backgroundColor]].forEach(([g, col]) => {
+                const hex = rgb2hex(col);
+                const w = styleBox.querySelector('[data-cwheel="' + g + '"]');
+                const h = styleBox.querySelector('[data-chex="' + g + '"]');
+                if (w && document.activeElement !== w && hex) w.value = hex;
+                if (h && document.activeElement !== h) h.value = hex || '';
+            });
+        }
+
+        function spStepper(group, side, label) {
+            return '<div class="flex items-center gap-1">'
+                + (label ? '<span class="w-4 text-[10px] text-slate-500 text-center">' + label + '</span>' : '')
+                + '<button data-sp-step="-1" data-sp-g="' + group + '" data-sp-s="' + side + '" class="w-6 h-6 rounded bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm leading-none">−</button>'
+                + '<input data-sp-in="1" data-sp-g="' + group + '" data-sp-s="' + side + '" type="number" min="0" class="w-11 h-6 bg-slate-900 border border-slate-700 rounded text-center text-xs text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary">'
+                + '<button data-sp-step="1" data-sp-g="' + group + '" data-sp-s="' + side + '" class="w-6 h-6 rounded bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm leading-none">+</button>'
+                + '</div>';
+        }
+        function spSpacingGroup(group, title) {
+            return '<div class="space-y-1.5" data-sp-group="' + group + '">'
+                + '<div class="flex items-center justify-between">'
+                + '<span class="text-[11px] font-medium text-slate-300">' + title + '</span>'
+                + '<button data-sp-link="' + group + '" title="Lier / délier les 4 côtés" class="w-6 h-6 rounded text-slate-400 hover:bg-slate-700 text-xs"><i class="fa-solid fa-link"></i></button>'
+                + '</div>'
+                + '<div data-sp-linked="' + group + '">' + spStepper(group, 'all', '') + '<span class="ml-1 text-[10px] text-slate-500">px · 4 côtés</span></div>'
+                + '<div data-sp-sides="' + group + '" class="hidden grid grid-cols-2 gap-1.5">'
+                + spStepper(group, 'top', 'H') + spStepper(group, 'right', 'D')
+                + spStepper(group, 'bottom', 'B') + spStepper(group, 'left', 'G')
+                + '</div>'
+                + '</div>';
+        }
+
+        // Rendu des contrôles dans le panneau gauche docké (#editor-style)
+        const styleBox = document.getElementById('editor-style');
+        styleBox.innerHTML =
+            spSpacingGroup('margin', 'Margin')
+            + '<div class="h-px bg-slate-700"></div>'
+            + spSpacingGroup('padding', 'Padding')
+            + '<div class="h-px bg-slate-700"></div>'
+            + spSpacingGroup('border', 'Épaisseur bordure')
+            + '<div class="flex items-center gap-1 flex-wrap">'
+            + '<span class="w-full text-[10px] text-slate-500 mb-0.5">Couleur bordure</span>'
+            + styleColors.map(([hex, name]) => '<button data-bcolor="' + hex + '" title="' + name + '" class="w-5 h-5 rounded-full border border-slate-500 hover:scale-110 transition" style="background:' + hex + '"></button>').join('')
+            + '<button data-bcolor="none" title="Sans bordure" class="w-5 h-5 rounded-full border border-slate-500 text-slate-300 text-[10px] flex items-center justify-center hover:bg-slate-700">∅</button>'
+            + '<input type="color" data-cwheel="border" title="Roue de couleur" class="w-6 h-6 p-0 rounded cursor-pointer bg-transparent border border-slate-500">'
+            + '<input type="text" data-chex="border" placeholder="#RRGGBB" spellcheck="false" class="w-[74px] bg-slate-950 border border-slate-600 rounded px-1.5 py-1 text-[11px] font-mono text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-primary">'
+            + '</div>'
+            + '<div class="h-px bg-slate-700"></div>'
+            + '<div class="space-y-1.5"><span class="text-[11px] font-medium text-slate-300">Arrondi des coins</span>'
+            + '<div>' + spStepper('radius', 'all', '') + '<span class="ml-1 text-[10px] text-slate-500">px</span></div></div>'
+            + '<div class="h-px bg-slate-700"></div>'
+            + '<div class="space-y-1.5"><span class="text-[11px] font-medium text-slate-300">Taille de police</span>'
+            + '<div>' + spStepper('font', 'all', '') + '<span class="ml-1 text-[10px] text-slate-500">px</span></div></div>'
+            + '<div class="h-px bg-slate-700"></div>'
+            + '<div class="flex items-center gap-1 flex-wrap">'
+            + '<span class="w-full text-[10px] text-slate-500 mb-0.5">Couleur de fond</span>'
+            + styleColors.map(([hex, name]) => '<button data-bgcolor="' + hex + '" title="' + name + '" class="w-5 h-5 rounded-full border border-slate-500 hover:scale-110 transition" style="background:' + hex + '"></button>').join('')
+            + '<button data-bgcolor="none" title="Sans fond" class="w-5 h-5 rounded-full border border-slate-500 text-slate-300 text-[10px] flex items-center justify-center hover:bg-slate-700">∅</button>'
+            + '<input type="color" data-cwheel="bg" title="Roue de couleur" class="w-6 h-6 p-0 rounded cursor-pointer bg-transparent border border-slate-500">'
+            + '<input type="text" data-chex="bg" placeholder="#RRGGBB" spellcheck="false" class="w-[74px] bg-slate-950 border border-slate-600 rounded px-1.5 py-1 text-[11px] font-mono text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-primary">'
+            + '</div>'
+            + '<div class="h-px bg-slate-700"></div>'
+            + '<div class="space-y-1.5"><span class="text-[11px] font-medium text-slate-300">Dimensions</span>'
+            + '<div class="grid grid-cols-2 gap-1.5">' + spStepper('width', 'all', 'L') + spStepper('height', 'all', 'H') + '</div>'
+            + '<span class="text-[10px] text-slate-500">px · 0 = auto (idéal SVG/picto)</span></div>'
+            + '<div class="h-px bg-slate-700"></div>'
+            + '<div class="space-y-1.5"><span class="text-[11px] font-medium text-slate-300">CSS personnalisé</span>'
+            + '<textarea id="css-editor" rows="4" spellcheck="false" placeholder="border: 2px solid #17E7D0;&#10;box-shadow: 0 8px 24px rgba(0,0,0,.35);&#10;background: linear-gradient(...);" '
+            + 'class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-2 text-[11px] font-mono leading-relaxed text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-primary resize-y"></textarea>'
+            + '<span class="text-[10px] text-slate-500 leading-snug">Style inline de l\'élément — édite librement (bordure, ombre, dégradé…). Appliqué en direct, synchro avec les contrôles ci-dessus.</span></div>';
+
+        function spSetInput(g, s, v) {
+            const i = styleBox.querySelector('input[data-sp-in][data-sp-g="' + g + '"][data-sp-s="' + s + '"]');
+            if (i) i.value = v;
+        }
+        function spSync() {
+            if (!sel) return;
+            ['margin', 'padding', 'border'].forEach(g => {
+                const linked = linkState[g];
+                styleBox.querySelector('[data-sp-linked="' + g + '"]').classList.toggle('hidden', !linked);
+                styleBox.querySelector('[data-sp-sides="' + g + '"]').classList.toggle('hidden', linked);
+                const lb = styleBox.querySelector('[data-sp-link="' + g + '"]');
+                lb.classList.toggle('text-primary', linked);
+                lb.classList.toggle('text-slate-400', !linked);
+                spSetInput(g, 'all', spRead(sel, g, 'top'));
+                ['top', 'right', 'bottom', 'left'].forEach(s => spSetInput(g, s, spRead(sel, g, s)));
+            });
+            spSetInput('radius', 'all', spRead(sel, 'radius', 'all'));
+            spSetInput('font', 'all', spRead(sel, 'font', 'all'));
+            spSetInput('width', 'all', spRead(sel, 'width', 'all'));
+            spSetInput('height', 'all', spRead(sel, 'height', 'all'));
+            spSyncColorPickers();
+            cssEditorSync();
+            positionMarquee();
+        }
+        // Reflète le style inline de l'élément dans la zone CSS (sauf si on y tape)
+        function cssEditorSync() {
+            const t = document.getElementById('css-editor');
+            if (t && sel && document.activeElement !== t) t.value = sel.style.cssText;
+        }
+
+        styleBox.addEventListener('mousedown', (e) => { if (e.target.closest('button')) e.preventDefault(); });
+        styleBox.addEventListener('click', (e) => {
+            const link = e.target.closest('[data-sp-link]');
+            if (link && sel) {
+                const g = link.dataset.spLink;
+                linkState[g] = !linkState[g];
+                if (linkState[g]) { // re-lier : aligne les 4 côtés sur le côté haut
+                    const v = spRead(sel, g, 'top');
+                    ['top', 'right', 'bottom', 'left'].forEach(s => spWriteSide(sel, g, s, v));
+                }
+                spSync(); return;
+            }
+            const step = e.target.closest('[data-sp-step]');
+            if (step && sel) {
+                const g = step.dataset.spG, s = step.dataset.spS, d = parseInt(step.dataset.spStep, 10);
+                spApply(g, s, Math.max(0, spRead(sel, g, s) + d * SP_STEP));
+                spSync(); return;
+            }
+            const bc = e.target.closest('[data-bcolor]');
+            if (bc && sel) { spSetBorderColor(bc.dataset.bcolor); return; }
+            const bg = e.target.closest('[data-bgcolor]');
+            if (bg && sel) { spSetBgColor(bg.dataset.bgcolor); return; }
+        });
+        styleBox.addEventListener('input', (e) => {
+            // Zone CSS libre : le texte EST le style inline de l'élément
+            if (e.target.id === 'css-editor') {
+                if (sel) { sel.style.cssText = e.target.value; spSync(); }
+                return;
+            }
+            // Roue de couleur / hex (bordure & fond)
+            if (e.target.matches('[data-cwheel]') && sel) {
+                const g = e.target.dataset.cwheel;
+                (g === 'border' ? spSetBorderColor : spSetBgColor)(e.target.value);
+                return;
+            }
+            if (e.target.matches('[data-chex]') && sel) {
+                const v = e.target.value.trim();
+                if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(v)) {
+                    const g = e.target.dataset.chex;
+                    (g === 'border' ? spSetBorderColor : spSetBgColor)(v);
+                }
+                return;
+            }
+            const i = e.target.closest('input[data-sp-in]'); if (!i || !sel) return;
+            let v = parseInt(i.value, 10); if (isNaN(v) || v < 0) v = 0;
+            spApply(i.dataset.spG, i.dataset.spS, v);
+        });
+
+        // Bascule bibliothèque <-> éditeur dans le panneau gauche
+        function showEditor() {
+            const lib = document.getElementById('library-panel');
+            lib.classList.add('hidden'); lib.classList.remove('flex');
+            const ed = document.getElementById('editor-panel');
+            ed.classList.remove('hidden'); ed.classList.add('flex');
+        }
+        function showLibrary() {
+            const ed = document.getElementById('editor-panel');
+            ed.classList.add('hidden'); ed.classList.remove('flex');
+            const lib = document.getElementById('library-panel');
+            lib.classList.remove('hidden'); lib.classList.add('flex');
+        }
+        // Barre d'actions au-dessus du canvas (visible seulement quand un élément est sélectionné)
+        function showActions(on) {
+            const t = document.getElementById('editor-actions');
+            if (!t) return;
+            t.classList.toggle('hidden', !on);
+            t.classList.toggle('flex', on);
+        }
+
+        // Cadre de sélection marching-ants — ENFANT du canvas (position:absolute) pour subir
+        // le MÊME zoom que l'élément → alignement garanti quel que soit le facteur de dézoom
+        // (contrairement à un overlay fixe + getBoundingClientRect, dont le comportement sous
+        // CSS zoom varie selon la version de Chromium). Positionné en coords LAYOUT (offsetLeft),
+        // indépendantes du zoom.
+        const marquee = document.createElement('div');
+        marquee.id = 'ekw-marquee';
+        document.body.appendChild(marquee); // hors canvas → jamais effacé par l'historique/innerHTML
+        // Le canvas est dézoomé via transform:scale → getBoundingClientRect renvoie toujours
+        // le rect VISUEL (viewport). Le marquee fixed suit donc directement le rect.
+        function positionMarquee() {
+            if (!sel || editing || !canvas.contains(sel)) { marquee.style.display = 'none'; return; }
+            const r = sel.getBoundingClientRect();
+            const p = 3;
+            marquee.style.left = (r.left - p) + 'px';
+            marquee.style.top = (r.top - p) + 'px';
+            marquee.style.width = (r.width + p * 2) + 'px';
+            marquee.style.height = (r.height + p * 2) + 'px';
+            marquee.style.display = 'block';
+        }
+        window.addEventListener('resize', positionMarquee);
+        window.addEventListener('scroll', positionMarquee, true); // suit le scroll du canvas
+
+        // --- Navigation dans l'arborescence (breadcrumb + flèches, façon DevTools) ---
+        function sliceRootOf(el) {
+            let n = el, root = el;
+            while (n && n !== canvas) { if (n.nodeType === 1 && n.hasAttribute && n.hasAttribute('data-comp')) root = n; n = n.parentElement; }
+            return root;
+        }
+        function navTarget(dir) {
+            if (!sel) return null;
+            const skip = e => e && (e.tagName === 'SCRIPT' || e.tagName === 'STYLE' || e.id === 'empty-state');
+            if (dir === 'parent') { const p = sel.parentElement; return (p && p !== canvas && p.closest && p.closest('[data-comp]')) ? p : null; }
+            if (dir === 'child') { let c = sel.firstElementChild; while (skip(c)) c = c.nextElementSibling; return c || null; }
+            if (dir === 'prev') { let s = sel.previousElementSibling; while (skip(s)) s = s.previousElementSibling; return s || null; }
+            if (dir === 'next') { let s = sel.nextElementSibling; while (skip(s)) s = s.nextElementSibling; return s || null; }
+            return null;
+        }
+        function renderNav() {
+            const cr = document.getElementById('editor-crumbs'); if (!cr) return;
+            if (!sel) { cr.innerHTML = ''; cr._path = null; return; }
+            const root = sliceRootOf(sel);
+            const path = []; let n = sel;
+            while (n) { path.unshift(n); if (n === root) break; const p = n.parentElement; if (!p || p === canvas) break; n = p; }
+            cr.innerHTML = path.map((el, i) => {
+                const cur = el === sel;
+                return (i ? '<span class="text-slate-600 px-0.5">›</span>' : '')
+                    + '<button data-crumb="' + i + '" class="px-1.5 py-0.5 rounded ' + (cur ? 'bg-primary text-ink-deep font-semibold' : 'text-slate-300 hover:bg-slate-700') + '">' + el.tagName.toLowerCase() + '</button>';
+            }).join('');
+            cr._path = path;
+            ['prev', 'parent', 'child', 'next'].forEach(d => { const b = document.querySelector('#editor-nav [data-nav="' + d + '"]'); if (b) b.disabled = !navTarget(d); });
+        }
+        document.getElementById('editor-nav').addEventListener('click', (e) => {
+            const crumb = e.target.closest('[data-crumb]');
+            if (crumb) { const p = document.getElementById('editor-crumbs')._path; const el = p && p[+crumb.dataset.crumb]; if (el) selectElement(el); return; }
+            const nav = e.target.closest('[data-nav]');
+            if (nav) { const t = navTarget(nav.dataset.nav); if (t) selectElement(t); return; }
+        });
+
+        function selectElement(el) {
+            if (!el || el === canvas || !el.closest || !el.closest('[data-comp]') || el.closest('#empty-state')) { deselect(); return; }
+            if (editing) stopEditing();
+            if (sel) sel.classList.remove('ekw-selected');
+            sel = el;
+            sel.classList.add('ekw-selected');
+            spSync();
+            showEditor();
+            showActions(true);
+            positionMarquee();
+            requestAnimationFrame(positionMarquee); // recale après reflow (panneau/zoom)
+            renderNav();
+        }
+
+        function deselect() {
+            if (editing) stopEditing();
+            if (sel) sel.classList.remove('ekw-selected');
+            sel = null;
+            showLibrary();
+            showActions(false);
+            positionMarquee();
+            renderNav();
+        }
+
+        canvas.addEventListener('click', (e) => {
+            if (editing) return;
+            if (!e.target.closest('[data-comp]')) { deselect(); return; }
+            e.stopPropagation();
+            selectElement(e.target);
+        });
+        // Double-clic sur un élément = édition inline directe
+        canvas.addEventListener('dblclick', (e) => {
+            if (!e.target.closest('[data-comp]')) return;
+            // Déjà en édition dans cet élément : laisser le double-clic sélectionner le mot (natif)
+            if (editing && sel && sel.contains(e.target)) return;
+            e.preventDefault();
+            if (editing) stopEditing();
+            selectElement(e.target);
+            startEditing();
+        });
+        document.addEventListener('mousedown', (e) => {
+            // Clics dans l'éditeur docké ou la bulle de lien : ne pas désélectionner
+            if (e.target.closest('#editor-panel') || e.target.closest('#editor-actions') || e.target.closest('#ekw-link')) return;
+            if (editing) {
+                if (sel && sel.contains(e.target)) return; // clic dans l'élément édité = OK
+                stopEditing();                              // clic ailleurs = fin d'édition
+            }
+            if (e.target.closest('#canvas')) return;        // le clic canvas gère la (re)sélection
+            deselect();
+        });
+        document.addEventListener('keydown', (e) => {
+            // Undo / Redo — laisse l'undo natif pendant une saisie / édition texte
+            if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')) {
+                const ae = document.activeElement;
+                if (editing || (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable))) return;
+                e.preventDefault();
+                e.shiftKey ? redo() : undo();
+                return;
+            }
+            if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || e.key === 'Y')) { e.preventDefault(); redo(); return; }
+            if (e.key === 'Escape') {
+                if (linkOpen) { closeLinkBubble(); if (sel) sel.focus(); return; }
+                editing ? stopEditing() : deselect();
+                return;
+            }
+            // Suppr = supprimer l'élément sélectionné (jamais pendant une saisie / édition texte)
+            if (e.key === 'Delete' && sel && !editing) {
+                const ae = document.activeElement;
+                if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable)) return;
+                e.preventDefault();
+                const wasComp = sel.hasAttribute('data-comp');
+                const el = sel; deselect(); el.remove();
+                if (wasComp) checkEmpty();
+            }
+        });
+
+        function placeCaretEnd(el) {
+            try {
+                const range = document.createRange();
+                range.selectNodeContents(el);
+                range.collapse(false);
+                const s = window.getSelection();
+                s.removeAllRanges();
+                s.addRange(range);
+            } catch (_) { }
+        }
+
+        function startEditing() {
+            if (!sel) return;
+            editing = true;
+            sel.setAttribute('contenteditable', 'true');
+            sel.classList.add('ekw-editing');
+            sel.focus();
+            placeCaretEnd(sel);
+            markEditBtn(true);
+            formatbar.classList.remove('hidden'); formatbar.classList.add('flex');
+            positionMarquee(); // masqué pendant l'édition
+        }
+        function stopEditing() {
+            editing = false;
+            if (sel) {
+                sel.removeAttribute('contenteditable');
+                sel.classList.remove('ekw-editing');
+            }
+            markEditBtn(false);
+            formatbar.classList.add('hidden'); formatbar.classList.remove('flex');
+            positionMarquee();
+        }
+        function markEditBtn(on) {
+            const b = toolbar.querySelector('button[data-act="edit"]');
+            if (!b) return;
+            b.classList.toggle('bg-primary', on);
+            b.classList.toggle('text-ink-deep', on);
+        }
+
+        toolbar.addEventListener('click', (e) => {
+            const btn = e.target.closest('button'); if (!btn || !sel) return;
+            const act = btn.dataset.act;
+            if (act === 'parent') {
+                const p = sel.parentElement;
+                if (p && p !== canvas && p.closest('[data-comp]')) selectElement(p);
+            } else if (act === 'up') {
+                const prev = sel.previousElementSibling;
+                if (prev) sel.parentNode.insertBefore(sel, prev);
+            } else if (act === 'down') {
+                const next = sel.nextElementSibling;
+                if (next) sel.parentNode.insertBefore(next, sel);
+            } else if (act === 'edit') {
+                editing ? stopEditing() : startEditing();
+            } else if (act === 'link') {
+                openElementLink();
+            } else if (act === 'target') {
+                setTarget(sel);
+            } else if (act === 'dup') {
+                const clone = sel.cloneNode(true);
+                clone.classList.remove('ekw-selected');
+                sel.parentNode.insertBefore(clone, sel.nextSibling);
+            } else if (act === 'save') {
+                saveComponent(sliceRootOf(sel));
+            } else if (act === 'del') {
+                const wasComp = sel.hasAttribute('data-comp');
+                const el = sel; deselect(); el.remove();
+                if (wasComp) checkEmpty();
+            }
+        });
+
+        // Injecte un composant généré par l'IA comme slice éditable
+        function injectGenerated(html) {
+            emptyState.style.display = 'none';
+            const wrap = document.createElement('div');
+            wrap.className = 'mb-6';
+            wrap.innerHTML = html;
+            canvas.appendChild(wrap);
+            mountSlice(wrap);
+            checkEmpty();
+            return wrap;
+        }
+
+        // ===== BIBLIOTHÈQUE DE COMPOSANTS (sauvegarde réutilisable) =====
+        // Persistée sur disque via IPC (userData/library.json) ; repli localStorage hors Electron.
+        // On sauvegarde le HTML "auteur" du slice (classes Tailwind + data-picto conservés)
+        // → ré-éditable ET ré-exportable à tout moment.
+        let LIB = [];
+        const LIB_LS = 'ekwaslice_library';
+        const lsLibLoad = () => { try { return JSON.parse(localStorage.getItem(LIB_LS)) || []; } catch (_) { return []; } };
+        const lsLibSave = () => { try { localStorage.setItem(LIB_LS, JSON.stringify(LIB)); } catch (_) { } };
+        const escHtml = s => (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+        function toast(msg) {
+            let t = document.getElementById('ekw-toast');
+            if (!t) { t = document.createElement('div'); t.id = 'ekw-toast'; t.className = 'fixed bottom-4 left-1/2 -translate-x-1/2 z-[120] px-4 py-2 rounded-lg bg-ink-deep border border-primary text-cloud text-xs shadow-2xl transition-opacity'; document.body.appendChild(t); }
+            t.textContent = msg; t.style.opacity = '1';
+            clearTimeout(t._h); t._h = setTimeout(() => { t.style.opacity = '0'; }, 1600);
+        }
+
+        // HTML "propre" pour stockage : retire les artefacts d'édition, garde les classes + pictos.
+        function cleanForSave(root) {
+            const c = root.cloneNode(true);
+            c.classList.remove('ekw-selected', 'ekw-editing', 'relative', 'mb-6', 'opacity-40');
+            ['data-comp', 'draggable', 'contenteditable', 'data-ekw-pending'].forEach(a => c.removeAttribute(a));
+            c.querySelectorAll('.ekw-selected, .ekw-editing').forEach(e => e.classList.remove('ekw-selected', 'ekw-editing'));
+            c.querySelectorAll('[contenteditable]').forEach(e => e.removeAttribute('contenteditable'));
+            c.querySelectorAll('.drag-handle, button[onclick*="remove"]').forEach(e => e.remove());
+            c.querySelectorAll('[data-comp]').forEach(e => { e.removeAttribute('data-comp'); e.removeAttribute('data-ekw-pending'); e.classList.remove('relative'); });
+            return c.outerHTML.trim();
+        }
+        function suggestName(root) {
+            const h = root.querySelector('h1, h2, h3, [class*="text-2xl"], [class*="text-xl"]');
+            const t = h && h.textContent.trim();
+            return (t && t.slice(0, 40)) || 'Composant';
+        }
+
+        async function loadLibrary() {
+            if (window.api && window.api.libraryList) { try { LIB = await window.api.libraryList() || []; } catch (_) { LIB = []; } }
+            else LIB = lsLibLoad();
+            renderCompGrid();
+        }
+
+        // Ouvre la modale de nommage (window.prompt() n'existe PAS dans Electron → modale maison).
+        let saveModalHtml = null; // HTML du slice en attente de sauvegarde
+        function saveComponent(root) {
+            if (!root) { toast('Sélectionnez un bloc à sauvegarder'); return; }
+            saveModalHtml = cleanForSave(root);
+            const input = document.getElementById('save-name-input');
+            input.value = suggestName(root);
+            const m = document.getElementById('saveModal');
+            m.classList.remove('hidden'); m.classList.add('flex');
+            setTimeout(() => { input.focus(); input.select(); }, 30);
+        }
+        function closeSaveModal() {
+            const m = document.getElementById('saveModal');
+            m.classList.add('hidden'); m.classList.remove('flex');
+            saveModalHtml = null;
+        }
+        async function confirmSave() {
+            if (!saveModalHtml) { closeSaveModal(); return; }
+            const name = (document.getElementById('save-name-input').value || '').trim() || 'Composant';
+            const item = { name, html: saveModalHtml };
+            if (window.api && window.api.librarySave) {
+                const r = await window.api.librarySave(item);
+                if (r && r.list) { LIB = r.list; renderCompGrid(); toast('Composant sauvegardé'); }
+                else { toast('Échec : ' + ((r && r.error) || 'inconnu')); return; }
+            } else {
+                item.id = 'c-' + Date.now().toString(36); item.createdAt = Date.now();
+                LIB.unshift(item); lsLibSave(); renderCompGrid(); toast('Composant sauvegardé (local)');
+            }
+            closeSaveModal();
+        }
+
+        function insertSavedComponent(item) {
+            deselect();
+            const el = injectGenerated(item.html);
+            if (el) { selectElement(el); el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+        }
+
+        async function deleteSavedComponent(id) {
+            if (!confirm('Retirer ce composant de la bibliothèque ?')) return;
+            if (window.api && window.api.libraryDelete) {
+                const r = await window.api.libraryDelete(id);
+                if (r && r.list) { LIB = r.list; renderCompGrid(); }
+            } else { LIB = LIB.filter(x => x.id !== id); lsLibSave(); renderCompGrid(); }
+        }
+
+        function renderCompGrid() {
+            const g = document.getElementById('comp-grid'); if (!g) return;
+            if (!LIB.length) { g.innerHTML = '<p class="text-[10px] text-slate-600 leading-snug">Aucun composant sauvegardé.</p>'; return; }
+            g.innerHTML = '';
+            LIB.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'relative group w-full rounded-lg border border-slate-700 bg-slate-900 overflow-hidden cursor-pointer hover:border-primary transition';
+                card.title = 'Insérer : ' + item.name;
+                card.innerHTML =
+                    '<div class="h-24 w-full overflow-hidden bg-night pointer-events-none">'
+                    + '<div class="origin-top-left" style="transform:scale(0.27);width:370%;">' + item.html + '</div></div>'
+                    + '<div class="px-2 py-1.5 text-[11px] text-slate-300 truncate border-t border-slate-800">' + escHtml(item.name) + '</div>'
+                    + '<button data-del title="Supprimer" class="absolute top-1 right-1 w-5 h-5 rounded bg-black/60 text-red-300 opacity-0 group-hover:opacity-100 transition text-[10px] flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>';
+                card.addEventListener('click', (e) => {
+                    if (e.target.closest('[data-del]')) { e.stopPropagation(); deleteSavedComponent(item.id); return; }
+                    insertSavedComponent(item);
+                });
+                // pictos de la vignette → src local pour l'aperçu
+                card.querySelectorAll('img[data-picto]').forEach(img => { const p = PICTO_MAP[img.getAttribute('data-picto')]; if (p) img.src = pictoAssetBase() + p.file; });
+                g.appendChild(card);
+            });
+        }
+
+        // --- Pictogrammes de marque : rendu LOCAL dans l'app, URL Prismic à l'export ---
+
+        let PICTOS = [];
+        const PICTO_MAP = {};
+        function pictoAssetBase() { try { return new URL('assets/pictos/', location.href).href; } catch (_) { return 'assets/pictos/'; } }
+        fetch('assets/pictos.json').then(r => r.json()).then(list => {
+            PICTOS = list; list.forEach(p => PICTO_MAP[p.slug] = p);
+            renderPictoGrid('');
+        }).catch(() => {
+            const g = document.getElementById('picto-grid');
+            if (g) g.innerHTML = '<p class="col-span-4 text-[10px] text-error">pictos.json introuvable</p>';
+        });
+
+        // <img> d'un picto : src local + url Prismic stockée pour l'export
+        function pictoImgHTML(p) {
+            return '<img src="assets/pictos/' + p.file + '" data-picto="' + p.slug + '" data-picto-url="' + p.url
+                + '" alt="' + p.name + '" class="inline-block w-10 h-10 align-middle">';
+        }
+        function renderPictoGrid(filter) {
+            const grids = document.querySelectorAll('[data-picto-grid]');
+            if (!grids.length) return;
+            const f = (filter || '').trim().toLowerCase();
+            const list = f ? PICTOS.filter(p => p.slug.includes(f) || p.name.toLowerCase().includes(f)) : PICTOS;
+            const html = list.map(p =>
+                '<button type="button" onclick="insertPicto(\'' + p.slug + '\')" title="' + p.name + '" '
+                + 'class="aspect-square flex items-center justify-center bg-slate-700/40 hover:bg-slate-700 border border-slate-600/40 rounded-lg p-1.5 transition">'
+                + '<img src="assets/pictos/' + p.file + '" alt="' + p.name + '" class="max-w-full max-h-full" loading="lazy"></button>'
+            ).join('') || '<p class="col-span-full text-[10px] text-slate-500">Aucun picto</p>';
+            grids.forEach(g => g.innerHTML = html);
+        }
+        function insertPicto(slug) {
+            const p = PICTO_MAP[slug]; if (!p) return;
+            // Un picto est déjà sélectionné → on le REMPLACE (garde sa taille/classes)
+            if (sel && sel.matches && sel.matches('img[data-picto]')) {
+                sel.setAttribute('src', 'assets/pictos/' + p.file);
+                sel.setAttribute('data-picto', p.slug);
+                sel.setAttribute('data-picto-url', p.url);
+                sel.setAttribute('alt', p.name);
+                selectElement(sel); // rafraîchit l'éditeur
+                return;
+            }
+            const html = pictoImgHTML(p);
+            if (editing) { document.execCommand('insertHTML', false, html); return; }
+            if (sel) {
+                sel.insertAdjacentHTML('beforeend', html);
+                const added = sel.lastElementChild;
+                if (added) selectElement(added); // le picto ajouté devient sélectionné
+                return;
+            }
+            injectGenerated('<div class="flex justify-center p-4">' + html + '</div>');
+            const img = canvas.lastElementChild && canvas.lastElementChild.querySelector('img[data-picto]');
+            if (img) selectElement(img);
+        }
+        // Résout les <img data-picto="nom"> émis par Claude → src local + url Prismic
+        function resolvePictos(root) {
+            if (!root || !root.querySelectorAll) return;
+            root.querySelectorAll('img[data-picto]').forEach(img => {
+                const p = PICTO_MAP[img.getAttribute('data-picto')];
+                if (p) {
+                    if (!img.getAttribute('src')) img.setAttribute('src', 'assets/pictos/' + p.file);
+                    if (!img.getAttribute('data-picto-url')) img.setAttribute('data-picto-url', p.url);
+                    if (!img.getAttribute('alt')) img.setAttribute('alt', p.name);
+                } else {
+                    img.setAttribute('data-picto-missing', '1');
+                }
+            });
+        }
+
+        // --- Cibler un élément pour le prochain prompt Claude (façon IDE "add to chat") ---
+        let targetEl = null; // référence LIVE de l'élément ciblé (pour le remplacer en place)
+        let pending = null;  // candidat en attente de validation : { el, html }
+        let pendingDisablePrev = null; // grise la carte du candidat précédent quand un nouveau arrive
+
+        function elLabel(el) {
+            const tag = el.tagName.toLowerCase();
+            const raw = (el.textContent || '').trim().replace(/\s+/g, ' ');
+            const txt = raw.slice(0, 32);
+            return '<' + tag + '>' + (raw ? ' · « ' + txt + (raw.length > 32 ? '…' : '') + ' »' : '');
+        }
+        function setTarget(el) {
+            if (!el) return;
+            targetEl = el;
+            const box = document.getElementById('chat-context');
+            document.getElementById('chat-context-label').textContent = elLabel(el);
+            box.classList.remove('hidden'); box.classList.add('flex');
+            const input = document.getElementById('chat-input');
+            if (input) { input.placeholder = 'Ex : agrandis-le et mets-le en turquoise…'; input.focus(); }
+        }
+        function clearTarget() {
+            targetEl = null;
+            const box = document.getElementById('chat-context');
+            box.classList.add('hidden'); box.classList.remove('flex');
+            const input = document.getElementById('chat-input');
+            if (input) input.placeholder = 'Message à Claude…';
+        }
+
+        // Remplace l'élément ciblé par la version renvoyée par Claude (boucle fermée)
+        function replaceTargeted(oldEl, html) {
+            if (!oldEl || !document.body.contains(oldEl)) {
+                alert("L'élément ciblé n'existe plus (modifié ou supprimé). Insertion en bas du canvas.");
+                injectGenerated(html);
+                return null;
+            }
+            const tmp = document.createElement('div');
+            tmp.innerHTML = html.trim();
+            const newEl = tmp.firstElementChild;
+            if (!newEl) return null;
+            const wasTop = oldEl.hasAttribute('data-comp');
+            oldEl.replaceWith(newEl);
+            if (wasTop) {
+                mountSlice(newEl); // re-marque le slice de premier niveau (résout aussi les pictos)
+            } else {
+                // élément imbriqué : nettoie les artefacts d'édition éventuels + résout les pictos
+                newEl.querySelectorAll('[contenteditable]').forEach(n => n.removeAttribute('contenteditable'));
+                newEl.removeAttribute('contenteditable');
+                resolvePictos(newEl);
+            }
+            checkEmpty();
+            if (currentMode !== 'edit') setMode('edit');
+            selectElement(newEl);
+            return newEl;
+        }
+
+        // Valide définitivement le candidat prévisualisé
+        function applyCandidate(el, html, btn) {
+            const newEl = replaceTargeted(el, html); // commit + retour édition + sélection
+            pending = null; pendingDisablePrev = null;
+            clearTarget(); // édition terminée → libère la cible (le message suivant = nouvel élément)
+            if (btn) { btn.disabled = true; btn.classList.add('opacity-60'); btn.innerHTML = '<i class="fa-solid fa-check mr-1.5"></i>Accepté'; }
+        }
+        // Abandonne le candidat, l'original reste intact
+        function rejectCandidate(btn) {
+            pending = null; pendingDisablePrev = null;
+            if (currentMode !== 'edit') setMode('edit');
+            if (btn) { btn.disabled = true; btn.classList.add('opacity-60'); btn.innerHTML = '<i class="fa-solid fa-xmark mr-1.5"></i>Annulé'; }
+        }
+        // Montre le candidat dans l'aperçu (non destructif : l'original n'est pas touché)
+        function previewPending() { setMode('preview'); }
+
+        // --- Chat Claude (conversation continue via session_id) ---
+        let chatSessionId = null;
+        let chatBusy = false;
+
+        function chatLogEl() { return document.getElementById('chat-log'); }
+        function scrollChat() { const l = chatLogEl(); l.scrollTop = l.scrollHeight; }
+
+        function addBubble(role, content) {
+            const w = document.getElementById('chat-welcome'); if (w) w.remove();
+            const row = document.createElement('div');
+            row.className = 'chat-row flex ' + (role === 'user' ? 'justify-end' : 'justify-start');
+            const bubble = document.createElement('div');
+            bubble.className = role === 'user'
+                ? 'max-w-[85%] bg-slate-800 border border-slate-700 text-slate-100 rounded-2xl rounded-br-sm px-3.5 py-2.5 whitespace-pre-wrap break-words'
+                : 'max-w-[92%] bg-slate-900 border border-slate-700 text-slate-100 rounded-2xl rounded-bl-sm px-3.5 py-2.5 space-y-2 break-words';
+            if (typeof content === 'string') bubble.textContent = content;
+            else bubble.appendChild(content);
+            row.appendChild(bubble);
+            chatLogEl().appendChild(row);
+            scrollChat();
+            return row;
+        }
+
+        // Rendu d'une réponse : texte + blocs ```code```.
+        // replaceTarget (optionnel) = élément ciblé → le 1er bloc HTML le REMPLACE en place.
+        function renderAssistant(text, replaceTarget) {
+            const frag = document.createElement('div');
+            frag.className = 'space-y-2';
+            let replaceUsed = false;
+            let autoInjected = false;
+            const parts = String(text).split('```');
+            parts.forEach((part, i) => {
+                if (i % 2 === 0) {
+                    const t = part.trim();
+                    if (!t) return;
+                    const p = document.createElement('div');
+                    p.className = 'whitespace-pre-wrap leading-relaxed';
+                    p.textContent = t;
+                    frag.appendChild(p);
+                } else {
+                    const code = part.replace(/^[a-zA-Z0-9]*\n/, '').replace(/\s+$/, '');
+                    const card = document.createElement('div');
+                    card.className = 'border border-slate-700 rounded-xl overflow-hidden';
+                    const pre = document.createElement('pre');
+                    pre.className = 'bg-slate-950 text-emerald-400 text-[11px] p-3 overflow-x-auto max-h-48 whitespace-pre-wrap';
+                    pre.textContent = code;
+                    card.appendChild(pre);
+                    if (code.trim().startsWith('<')) {
+                        const isReplace = replaceTarget && !replaceUsed;
+                        const bar = document.createElement('div');
+                        bar.className = 'flex items-center gap-2 bg-slate-900 p-2';
+                        if (isReplace) {
+                            // Édition de code existant : prévisualisation non destructive + validation
+                            replaceUsed = true;
+                            if (pendingDisablePrev) pendingDisablePrev(); // supersede la version précédente
+                            pending = { el: replaceTarget, html: code };
+                            bar.className = 'flex items-center justify-end gap-2 bg-slate-900 p-2';
+                            const reject = document.createElement('button');
+                            reject.className = 'text-xs bg-error text-ink-deep font-semibold px-4 py-1.5 rounded-lg hover:brightness-110 transition';
+                            reject.innerHTML = '<i class="fa-solid fa-xmark mr-1.5"></i>Annuler';
+                            const apply = document.createElement('button');
+                            apply.className = 'text-xs bg-success text-ink-deep font-semibold px-4 py-1.5 rounded-lg hover:brightness-110 transition';
+                            apply.innerHTML = '<i class="fa-solid fa-check mr-1.5"></i>Accepter';
+                            apply.onclick = () => applyCandidate(replaceTarget, code, apply);
+                            reject.onclick = () => rejectCandidate(reject);
+                            pendingDisablePrev = () => {
+                                apply.disabled = true; apply.classList.add('opacity-40', 'grayscale');
+                                apply.innerHTML = '<i class="fa-solid fa-clock-rotate-left mr-1.5"></i>Version remplacée';
+                                reject.classList.add('hidden');
+                            };
+                            bar.append(reject, apply);
+                        } else if (!autoInjected) {
+                            // Nouvel élément (pas de cible) : injection DIRECTE, sans vérification
+                            autoInjected = true;
+                            const wrap = injectGenerated(code);
+                            if (currentMode !== 'edit') setMode('edit');
+                            if (wrap) selectElement(wrap);
+                            const done = document.createElement('span');
+                            done.className = 'text-[11px] text-success flex-1';
+                            done.innerHTML = '<i class="fa-solid fa-check mr-1.5"></i>Ajouté au canvas';
+                            const undo = document.createElement('button');
+                            undo.className = 'text-xs text-slate-400 hover:text-cloud px-2 py-1.5 rounded-lg hover:bg-slate-800 transition';
+                            undo.innerHTML = '<i class="fa-solid fa-xmark mr-1"></i>Retirer';
+                            undo.onclick = () => {
+                                if (wrap && document.body.contains(wrap)) { if (sel === wrap) deselect(); wrap.remove(); checkEmpty(); }
+                                undo.disabled = true; undo.classList.add('opacity-60');
+                                done.innerHTML = '<i class="fa-solid fa-xmark mr-1.5"></i>Retiré';
+                            };
+                            bar.append(done, undo);
+                        } else {
+                            // blocs HTML supplémentaires : insertion manuelle
+                            const btn = document.createElement('button');
+                            btn.className = 'ml-auto text-xs bg-secondary text-ink-deep font-medium px-3 py-1.5 rounded-lg hover:brightness-110 transition';
+                            btn.innerHTML = '<i class="fa-solid fa-plus mr-1.5"></i>Insérer dans le canvas';
+                            btn.onclick = () => {
+                                injectGenerated(code); if (currentMode !== 'edit') setMode('edit');
+                                btn.innerHTML = '<i class="fa-solid fa-check mr-1.5"></i>Inséré';
+                                btn.disabled = true; btn.classList.add('opacity-60');
+                            };
+                            bar.appendChild(btn);
+                        }
+                        card.appendChild(bar);
+                    }
+                    frag.appendChild(card);
+                }
+            });
+            if (!frag.childNodes.length) frag.textContent = String(text);
+            if (replaceTarget && replaceUsed) previewPending(); // auto-aperçu du candidat
+            return frag;
+        }
+
+        function setChatBusy(b) {
+            chatBusy = b;
+            const send = document.getElementById('chat-send');
+            send.disabled = b;
+            send.innerHTML = b ? '<i class="fa-solid fa-spinner fa-spin"></i>' : '<i class="fa-solid fa-arrow-up"></i>';
+        }
+
+        async function sendChat() {
+            if (chatBusy) return;
+            if (!window.api) { alert("Lancez l'app via Electron (npm start), pas dans un navigateur."); return; }
+            const input = document.getElementById('chat-input');
+            const msg = input.value.trim();
+            if (!msg) return;
+            // Cible du message : capture la référence live et bâtit le contexte pour Claude
+            let tgt = targetEl;
+            if (tgt && !document.body.contains(tgt)) { tgt = null; clearTarget(); }
+            let sendMsg = msg;
+            if (tgt) {
+                const refHtml = cleanHTML(tgt.outerHTML);
+                sendMsg = "Voici un élément HTML existant du composant (déjà à la charte Ekwateur). "
+                    + "Modifie UNIQUEMENT cet élément en gardant sa nature, et renvoie sa version modifiée "
+                    + "dans UN SEUL bloc ```html (le fragment seul, sans texte superflu) :\n\n"
+                    + "```html\n" + refHtml + "\n```\n\nModification demandée : " + msg;
+            }
+            // Contexte de largeur : le composant vivra dans un conteneur de cette largeur max.
+            const wctx = pageMaxW
+                ? "[Contexte d'affichage] Ce composant sera affiché dans un conteneur de largeur MAX "
+                + pageMaxW + "px (gabarit " + (pageMaxW === 712 ? "Blog" : pageMaxW === 1080 ? "page générale" : "page") + "). "
+                + "Conçois la mise en page pour cette largeur : mobile-first, mais sur desktop le contenu ne dépasse pas "
+                + pageMaxW + "px (grilles, colonnes, tailles de texte et images pensées pour ~" + pageMaxW + "px de large max)."
+                : "[Contexte d'affichage] Le composant peut occuper toute la largeur de la page (pleine largeur).";
+            sendMsg = wctx + "\n\n" + sendMsg;
+            // Bulle utilisateur : message humain + éventuel marqueur de cible
+            const userContent = tgt
+                ? (() => { const d = document.createElement('div'); d.innerHTML = '<div class="text-[10px] opacity-70 mb-1"><i class="fa-solid fa-bullseye mr-1"></i>' + elLabel(tgt).replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div>'; const s = document.createElement('div'); s.className = 'whitespace-pre-wrap'; s.textContent = msg; d.appendChild(s); return d; })()
+                : msg;
+            addBubble('user', userContent);
+            input.value = ''; input.style.height = 'auto';
+            // NB : la cible reste "collante" — on peut reprompter la même origine
+            // jusqu'à Appliquer/Rejeter/✕, sans casser le code précédent.
+            setChatBusy(true);
+            const thinkingRow = addBubble('assistant', '');
+            thinkingRow.querySelector('div').innerHTML = '<span class="text-slate-500"><i class="fa-solid fa-spinner fa-spin mr-1.5"></i>Claude réfléchit…</span>';
+            try {
+                const res = await window.api.sendChat({ message: sendMsg, sessionId: chatSessionId });
+                thinkingRow.remove();
+                if (res.error) { addBubble('assistant', 'Erreur : ' + res.error); }
+                else {
+                    if (res.sessionId) chatSessionId = res.sessionId;
+                    addBubble('assistant', renderAssistant(res.text || '(réponse vide)', tgt));
+                    trackUsage(res.tokens || 0, res.cost || 0);
+                }
+            } catch (e) {
+                thinkingRow.remove();
+                addBubble('assistant', 'Erreur inattendue : ' + e.message);
+            } finally {
+                setChatBusy(false);
+                input.focus();
+            }
+        }
+
+        // --- Import 21st.dev → conversion vanilla + charte Ekwateur ---
+        function openImport() {
+            document.getElementById('importModal').classList.remove('hidden');
+            document.getElementById('import-code').focus();
+        }
+        function closeImport() { document.getElementById('importModal').classList.add('hidden'); }
+        async function importConvert() {
+            if (chatBusy) return;
+            if (!window.api) { alert("Lancez l'app via Electron (npm start)."); return; }
+            const code = document.getElementById('import-code').value.trim();
+            const url = document.getElementById('import-url').value.trim();
+            if (!code) { alert('Colle le code du composant (onglet Code sur 21st.dev).'); return; }
+            closeImport();
+            const wctx = pageMaxW ? ('conteneur de largeur max ' + pageMaxW + 'px') : 'pleine largeur';
+            const msg =
+                "Convertis ce composant 21st.dev en un fragment AUTONOME pour le studio Ekwateur.\n"
+                + "Contraintes STRICTES :\n"
+                + "- SORTIE = UN SEUL bloc ```html : HTML sémantique + classes Tailwind (tokens Ekwateur) + éventuellement UN <script> vanilla final.\n"
+                + "- ZÉRO React/JSX/TypeScript : pas de useState/useEffect/props/import/export ni 'use client'. Transpose l'état et l'interactivité en JS vanilla (querySelector/addEventListener), script idempotent, sélecteurs internes au composant.\n"
+                + "- Remplace les icônes lucide-react par des SVG inline (stroke=\"currentColor\", taille fixe) ; si un pictogramme Ekwateur correspond, utilise <img data-picto=\"nom\">.\n"
+                + "- COULEURS charte dark Ekwateur : fonds bg-night/bg-ink, bordures border-line, CTA/accents bg-cta/text-cta (#74F1E3), highlight text-secondary (#FFC969), textes text-cloud/text-soft/text-muted. Boutons en pilule rounded-tag. Cartes rounded-card + border-line.\n"
+                + "- Mobile-first, " + wctx + ".\n"
+                + "- Reprends les données du démo en dur (contenu d'exemple), adaptées en français Ekwateur si pertinent.\n"
+                + (url ? ("Source : " + url + "\n") : "")
+                + "\nCODE 21st.dev :\n```tsx\n" + code + "\n```";
+            addBubble('user', 'Import 21st.dev' + (url ? (' — ' + url) : ''));
+            setChatBusy(true);
+            const thinkingRow = addBubble('assistant', '');
+            thinkingRow.querySelector('div').innerHTML = '<span class="text-slate-500"><i class="fa-solid fa-spinner fa-spin mr-1.5"></i>Conversion 21st.dev → Ekwateur…</span>';
+            try {
+                const res = await window.api.sendChat({ message: msg, sessionId: chatSessionId });
+                thinkingRow.remove();
+                if (res.error) { addBubble('assistant', 'Erreur : ' + res.error); }
+                else {
+                    if (res.sessionId) chatSessionId = res.sessionId;
+                    addBubble('assistant', renderAssistant(res.text || '(réponse vide)', null));
+                    trackUsage(res.tokens || 0, res.cost || 0);
+                    document.getElementById('import-code').value = '';
+                    document.getElementById('import-url').value = '';
+                }
+            } catch (e) { thinkingRow.remove(); addBubble('assistant', 'Erreur inattendue : ' + e.message); }
+            finally { setChatBusy(false); }
+        }
+
+        function newChat() {
+            chatSessionId = null;
+            pending = null; pendingDisablePrev = null;
+            clearTarget();
+            chatLogEl().innerHTML = '<div id="chat-welcome" class="text-slate-500 text-xs leading-relaxed">'
+        }
+
+        // Auto-agrandissement du champ de saisie
+        document.addEventListener('input', (e) => {
+            if (e.target && e.target.id === 'chat-input') {
+                e.target.style.height = 'auto';
+                e.target.style.height = Math.min(e.target.scrollHeight, 160) + 'px';
+            }
+        });
+
+
+        function clearCanvas() {
+            canvas.querySelectorAll(':scope > [data-comp]').forEach(el => el.remove());
+            checkEmpty();
+        }
+
+        function cleanHTML(html, forExport) {
+            let div = document.createElement('div');
+            div.innerHTML = html;
+            // Clean action buttons from exported code
+            const buttons = div.querySelectorAll('button[onclick*="remove"]');
+            buttons.forEach(btn => btn.remove());
+
+            // Pictogrammes : à l'export → src = URL Prismic ; en aperçu → src local absolu
+            // (srcdoc de l'iframe ne résout pas les chemins relatifs).
+            if (forExport) {
+                div.querySelectorAll('img[data-picto-url]').forEach(img => img.setAttribute('src', img.getAttribute('data-picto-url')));
+            } else {
+                const base = pictoAssetBase();
+                div.querySelectorAll('img[data-picto]').forEach(img => {
+                    const p = PICTO_MAP[img.getAttribute('data-picto')];
+                    if (p) img.setAttribute('src', base + p.file);
+                });
+            }
+            div.querySelectorAll('img[data-picto], img[data-picto-url]').forEach(img => {
+                img.removeAttribute('data-picto'); img.removeAttribute('data-picto-url'); img.removeAttribute('data-picto-missing');
+            });
+
+            // Retire artefacts d'édition (poignées, sélection, marqueurs)
+            div.querySelectorAll('.drag-handle').forEach(el => el.remove());
+            div.querySelectorAll('.ekw-selected').forEach(el => el.classList.remove('ekw-selected'));
+            div.querySelectorAll('.ekw-editing').forEach(el => el.classList.remove('ekw-editing'));
+            div.querySelectorAll('[data-comp]').forEach(el => {
+                el.removeAttribute('data-comp');
+                el.removeAttribute('draggable');
+                el.classList.remove('opacity-40', 'relative');
+            });
+
+            // Clean dynamic framework classes if any, and contenteditable attributes
+            const editables = div.querySelectorAll('[contenteditable]');
+            editables.forEach(el => el.removeAttribute('contenteditable'));
+            div.querySelectorAll('[data-ekw-pending]').forEach(el => el.removeAttribute('data-ekw-pending'));
+
+            // Remove group absolute styling markers if present
+            const elements = div.querySelectorAll('.group');
+            elements.forEach(el => {
+                el.classList.remove('group');
+            });
+
+            return div.innerHTML.replace(/^\s*[\r\n]/gm, "").trim();
+        }
+
+        // ===== Export PLAIN (autonome, zéro Tailwind) → html_only / css / js =====
+        let lastExport = { html: '', css: '', js: '' };
+
+        // Récupère toutes les règles CSS "classe" (utilitaires) des feuilles, avec media.
+        function collectCssRules() {
+            const out = [];
+            function walk(list, media) {
+                for (const rule of list) {
+                    if (rule.type === 1) out.push({ media, selector: rule.selectorText, body: rule.style.cssText });
+                    else if (rule.type === 4) walk(rule.cssRules, rule.media.mediaText);
+                }
+            }
+            for (const sheet of document.styleSheets) {
+                let list; try { list = sheet.cssRules; } catch (_) { continue; }
+                if (list) walk(list, '');
+            }
+            return out;
+        }
+        // tokens `.classe` (avec échappements CSS) → {start,len,name}
+        function classTokens(sel) {
+            const toks = []; const re = /\.((?:\\.|[-\w])+)/g; let m;
+            while ((m = re.exec(sel))) toks.push({ start: m.index, len: m[0].length, name: m[1].replace(/\\(.)/g, '$1') });
+            return toks;
+        }
+        function splitSelectorList(sel) {
+            const parts = []; let depth = 0, cur = '';
+            for (const ch of sel) {
+                if (ch === '(') depth++; else if (ch === ')') depth--;
+                if (ch === ',' && depth === 0) { parts.push(cur); cur = ''; } else cur += ch;
+            }
+            if (cur.trim()) parts.push(cur);
+            return parts;
+        }
+        function rewriteSel(part, alias) {
+            const toks = classTokens(part);
+            let out = part;
+            for (let i = toks.length - 1; i >= 0; i--) {
+                const t = toks[i];
+                if (alias[t.name]) out = out.slice(0, t.start) + '.' + alias[t.name] + out.slice(t.start + t.len);
+            }
+            return out;
+        }
+
+        function exportPlain() {
+            const wrap = document.createElement('div');
+            canvas.querySelectorAll(':scope > [data-comp]').forEach(el => wrap.appendChild(el.cloneNode(true)));
+            // Nettoyage artefacts d'édition + pictos → URL Prismic
+            wrap.querySelectorAll('button[onclick*="remove"], .drag-handle').forEach(e => e.remove());
+            wrap.querySelectorAll('.ekw-selected, .ekw-editing').forEach(e => e.classList.remove('ekw-selected', 'ekw-editing'));
+            wrap.querySelectorAll('[contenteditable]').forEach(e => e.removeAttribute('contenteditable'));
+            wrap.querySelectorAll('img[data-picto-url]').forEach(img => img.setAttribute('src', img.getAttribute('data-picto-url')));
+            wrap.querySelectorAll('*').forEach(e => ['data-picto', 'data-picto-url', 'data-picto-missing', 'data-comp', 'data-ekw-pending', 'draggable'].forEach(a => e.removeAttribute(a)));
+            // Extraction du JS
+            let jsOut = '';
+            wrap.querySelectorAll('script').forEach(s => { jsOut += (s.textContent || '').trim() + '\n\n'; s.remove(); });
+            jsOut = jsOut.trim();
+
+            // Classes utilisées
+            const used = new Set();
+            wrap.querySelectorAll('*').forEach(e => e.classList.forEach(c => used.add(c)));
+
+            const rules = collectCssRules();
+            // Classes "connues" = référencées par au moins une règle
+            const known = new Set();
+            let varDefaults = '';
+            rules.forEach(r => {
+                if (!varDefaults && /(^|,)\s*\*/.test(r.selector) && /--tw-/.test(r.body)) varDefaults = r.body;
+                classTokens(r.selector).forEach(t => { if (used.has(t.name)) known.add(t.name); });
+            });
+
+            // ID UNIQUE par export → isolation A↔B + zéro fuite hors du composant
+            const uid = 'eks-' + Math.random().toString(36).slice(2, 8);
+
+            // POLICES — méthode EXPORT : AUCUNE police embarquée. Les polices Ekwateur sont
+            // DÉJÀ chargées par le site (ekwateur.fr / edito) sous leurs noms de famille propres.
+            // On remappe juste les noms utilisés par l'app → noms exacts du site (comme le fait
+            // une slice qui marche : titres 'Carnero_bold', corps 'Gothic A1'). Zéro @font-face,
+            // zéro base64, zéro CSP/CORS. L'app garde ses .otf/.ttf locaux pour l'aperçu.
+            const GOTHIC = "'GothicA1_regular', 'GothicA1_semiBold', 'Gothic A1', system-ui, sans-serif";
+            const CARNERO = "'Carnero_bold', 'Carnero_semiBold', Georgia, serif";
+            const fixFonts = s => s
+                .replace(/["']?Carnero["']?/g, CARNERO)
+                .replace(/["']?Gothic A1["']?/g, GOTHIC);
+            // Alias opaques UNIQUES à cet export
+            const alias = {}; let n = 0;
+            used.forEach(c => { if (known.has(c)) alias[c] = uid + '-' + (++n); });
+
+            // Réécrit les classes du HTML → alias (les classes sans CSS sont supprimées)
+            wrap.querySelectorAll('*').forEach(e => {
+                if (!e.classList.length) return;
+                const mapped = [];
+                e.classList.forEach(c => { if (alias[c]) mapped.push(alias[c]); });
+                if (mapped.length) e.setAttribute('class', mapped.join(' ')); else e.removeAttribute('class');
+            });
+
+            // Construit le CSS (base + media, mobile-first)
+            const buckets = new Map(); // media → [rule strings]
+            rules.forEach(r => {
+                const keptParts = [];
+                splitSelectorList(r.selector).forEach(part => {
+                    const toks = classTokens(part);
+                    if (!toks.length) return;                       // pas de classe → ignore (preflight/élément)
+                    if (!toks.every(t => alias[t.name])) return;    // référence une classe absente → ignore
+                    keptParts.push(rewriteSel(part, alias).trim());
+                });
+                if (!keptParts.length) return;
+                // SCOPE : chaque sélecteur est préfixé par le wrapper unique → ne peut matcher
+                // que dans CE composant (isolation + gagne en spécificité sur le CSS du site).
+                const line = keptParts.map(p => '.' + uid + ' ' + p).join(', ') + ' { ' + fixFonts(r.body) + ' }';
+                if (!buckets.has(r.media)) buckets.set(r.media, []);
+                buckets.get(r.media).push(line);
+            });
+            function minW(m) { const x = /min-width:\s*(\d+)/.exec(m); return x ? +x[1] : 0; }
+            let css = '';
+            // Reset défensif du wrapper : bloque l'héritage du CSS du site (police, couleur, etc.)
+            css += '.' + uid + ' { all: initial; box-sizing: border-box; display: block; '
+                + 'font-family: ' + GOTHIC + '; font-size: 16px; line-height: 1.5; '
+                + 'color: #F8FBFB; text-align: left; }\n';
+            css += '.' + uid + ' *, .' + uid + ' *::before, .' + uid + ' *::after { box-sizing: border-box; }\n';
+            if (varDefaults) css += '.' + uid + ' *, .' + uid + ' *::before, .' + uid + ' *::after { ' + varDefaults + ' }\n';
+            if (buckets.has('')) css += buckets.get('').join('\n') + '\n';
+            [...buckets.keys()].filter(m => m).sort((a, b) => minW(a) - minW(b)).forEach(m => {
+                css += '@media ' + m + ' {\n' + buckets.get(m).map(l => '  ' + l).join('\n') + '\n}\n';
+            });
+
+            const html = '<div class="' + uid + '">\n' + wrap.innerHTML.replace(/^/gm, '  ').trimEnd() + '\n</div>';
+            // JS isolé dans une IIFE : aucune variable/fonction globale ne fuite entre composants
+            const jsIsolated = jsOut ? '(function () {\n' + jsOut + '\n})();' : '';
+            lastExport = { html: html.trim(), css: css.trim(), js: jsIsolated };
+            return lastExport;
+        }
+
+        function exportCode() {
+            stopEditing();
+            deselect();
+            if (canvas.querySelectorAll(':scope > [data-comp]').length === 0) {
+                alert("Votre canvas est vide. Générez ou ajoutez d'abord un composant !");
+                return;
+            }
+            const out = exportPlain();
+            document.getElementById('out-html').textContent = out.html;
+            document.getElementById('out-css').textContent = out.css || '/* aucun style */';
+            document.getElementById('out-js').textContent = out.js || '/* aucun JS */';
+            codeModal.classList.remove('hidden');
+        }
+
+        function closeModal() {
+            codeModal.classList.add('hidden');
+        }
+
+        function copyOut(which, btn) {
+            let txt = '';
+            if (which === 'all') txt = 'HTML (html_only):\n' + lastExport.html + '\n\nCSS (css):\n' + lastExport.css + '\n\nJS (js):\n' + lastExport.js;
+            else txt = lastExport[which] || '';
+            navigator.clipboard.writeText(txt).then(() => {
+                if (btn) { const o = btn.innerHTML; btn.innerHTML = '<i class="fa-solid fa-check mr-1"></i>Copié'; setTimeout(() => btn.innerHTML = o, 1200); }
+            });
+        }
+
+        // --- Écran de garde : connexion Claude ---
+        function setGate({ icon, iconClass, title, msg, cmd, btn }) {
+            document.getElementById('gate-icon').className = 'fa-solid ' + icon + ' text-2xl ' + (iconClass || '');
+            document.getElementById('gate-title').textContent = title;
+            document.getElementById('gate-msg').textContent = msg;
+            const cmdEl = document.getElementById('gate-cmd');
+            if (cmd) { cmdEl.textContent = cmd; cmdEl.classList.remove('hidden'); }
+            else cmdEl.classList.add('hidden');
+            document.getElementById('gate-btn').classList.toggle('hidden', !btn);
+        }
+
+        async function runGate() {
+            setGate({ icon: 'fa-spinner fa-spin', title: 'Vérification de la connexion…', msg: 'Contrôle de votre compte Claude.' });
+            if (!window.api) {
+                setGate({
+                    icon: 'fa-triangle-exclamation', iconClass: 'text-amber-400', title: 'Lancez via Electron',
+                    msg: "Ouvrez l'app avec « npm start », pas dans un navigateur."
+                });
+                return;
+            }
+            const s = await window.api.checkClaude();
+            if (!s.installed) {
+                setGate({
+                    icon: 'fa-download', iconClass: 'text-amber-400', title: 'Claude Code non installé',
+                    msg: "Installez le CLI Claude, puis cliquez sur Réessayer.",
+                    cmd: 'curl -fsSL https://claude.ai/install.sh | bash', btn: true
+                });
+                return;
+            }
+            if (!s.loggedIn) {
+                setGate({
+                    icon: 'fa-right-to-bracket', iconClass: 'text-amber-400', title: 'Connexion requise',
+                    msg: "Ouvrez un terminal, lancez la commande ci-dessous et connectez-vous avec votre compte Ekwateur, puis cliquez sur Réessayer.",
+                    cmd: 'claude login', btn: true
+                });
+                return;
+            }
+            // Connecté : ferme la garde, affiche le compte dans le badge
+            document.getElementById('gate').style.display = 'none';
+            if (s.email) {
+                const b = document.getElementById('usage-badge');
+                if (b) b.title = `Connecté : ${s.email} · ${s.org} (${s.subscription}). ` + b.title;
+            }
+        }
+
+        // --- Aperçu responsive (iframe à la vraie largeur device) ---
+        const DEVICE_W = { desktop: 1080, tablet: 768, mobile: 390 };
+
+        // Gabarit de page : largeur max du conteneur cible sur le site (Blog 712 / Général 1080).
+        // Pilote la largeur du canvas en édition ET l'aperçu Desktop.
+        let pageMaxW = 1080;
+        let canvasZoom = 1; // facteur de dézoom courant (transform scale)
+        function applyCanvasWidth() {
+            // Dézoom via transform:scale (PAS CSS zoom) → getBoundingClientRect renvoie
+            // toujours des coords visuelles cohérentes (toutes versions de Chromium) → marquee
+            // pixel-perfect. Le wrapper #canvas-fit réserve la taille RÉDUITE (pas de scroll
+            // horizontal, pas de vide) et centre via mx-auto.
+            const fit = document.getElementById('canvas-fit');
+            if (!pageMaxW) {
+                canvas.style.width = '100%'; canvas.style.transform = ''; canvasZoom = 1;
+                if (fit) { fit.style.width = ''; fit.style.height = ''; }
+                positionMarquee(); return;
+            }
+            const natural = pageMaxW + 64;
+            const sc = document.getElementById('canvas-scroll');
+            const avail = sc ? sc.clientWidth : natural;
+            const z = Math.min(1, avail / natural);
+            canvasZoom = z;
+            canvas.style.width = natural + 'px';
+            canvas.style.transformOrigin = 'top left';
+            canvas.style.transform = z < 1 ? 'scale(' + z + ')' : '';
+            if (fit) {
+                fit.style.width = Math.round(natural * z) + 'px';
+                fit.style.height = z < 1 ? Math.round(canvas.offsetHeight * z) + 'px' : '';
+            }
+            positionMarquee(); // le zoom a changé → recale le sélecteur
+        }
+        window.addEventListener('resize', applyCanvasWidth);
+        // Le contenu du canvas change de hauteur (ajout/suppr) → réajuste la hauteur réservée.
+        try { new ResizeObserver(() => { if (canvasZoom < 1) { const fit = document.getElementById('canvas-fit'); if (fit) fit.style.height = Math.round(canvas.offsetHeight * canvasZoom) + 'px'; } }).observe(canvas); } catch (_) { }
+        function setPageWidth(v) {
+            pageMaxW = parseInt(v, 10) || 0;
+            DEVICE_W.desktop = pageMaxW || null;
+            applyCanvasWidth();
+            if (currentMode === 'preview') applyWidth();
+        }
+
+        function buildPreviewDoc(inner) {
+            let assetBase = 'assets/';
+            try { assetBase = new URL('assets/', location.href).href; } catch (_) { }
+            const fontBase = assetBase + 'fonts/';
+            const cfg = JSON.stringify(window.EKW_TW);
+            return '<!DOCTYPE html><html lang="fr"><head>'
+                + '<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
+                + '<script src="' + assetBase + 'vendor/tailwindcss.js"><\/script>'
+                + '<script>tailwind.config=' + cfg + ';<\/script>'
+                + '<link rel="stylesheet" href="' + assetBase + 'vendor/fontawesome.css">'
+                + '<style>'
+                + "@font-face{font-family:'Carnero';src:url('" + fontBase + "carnero-var.ttf') format('truetype');font-weight:300 900;}"
+                + "@font-face{font-family:'Gothic A1';src:url('" + fontBase + "gothic-a1-400.otf') format('opentype');font-weight:400;}"
+                + "@font-face{font-family:'Gothic A1';src:url('" + fontBase + "gothic-a1-600.otf') format('opentype');font-weight:600;}"
+                + "@font-face{font-family:'Gothic A1';src:url('" + fontBase + "gothic-a1-700.otf') format('opentype');font-weight:700;}"
+                + 'body{margin:0;padding:16px;}'
+                + '</style></head>'
+                + '<body class="font-body text-cloud" style="background-color:' + SITE_BG + '">' + inner + '</body></html>';
+        }
+
+        // Rassemble le HTML de l'aperçu ; si un candidat est en attente, il est
+        // substitué à l'original SUR UNE COPIE (le canvas live n'est jamais modifié).
+        function collectPreviewHTML() {
+            const usePending = pending && pending.el && document.body.contains(pending.el);
+            if (usePending) pending.el.setAttribute('data-ekw-pending', '1');
+            const clones = [];
+            canvas.querySelectorAll(':scope > [data-comp]').forEach(el => clones.push(el.cloneNode(true)));
+            if (usePending) pending.el.removeAttribute('data-ekw-pending');
+            let html = '';
+            clones.forEach(c => {
+                if (usePending) {
+                    const mark = c.matches('[data-ekw-pending]') ? c : c.querySelector('[data-ekw-pending]');
+                    if (mark) {
+                        const tmp = document.createElement('div'); tmp.innerHTML = pending.html.trim();
+                        const cand = tmp.firstElementChild;
+                        if (cand) {
+                            if (mark === c) { html += cand.outerHTML + '\n'; return; }
+                            mark.replaceWith(cand);
+                        } else { mark.removeAttribute('data-ekw-pending'); }
+                    }
+                }
+                html += c.outerHTML + '\n';
+            });
+            return html;
+        }
+        function renderDevicePreview() {
+            stopEditing();
+            deselect();
+            const clean = cleanHTML(collectPreviewHTML()) || '<div class="text-muted p-8 text-center">Aucun composant. Créez-en un via le chat, puis « Insérer ».</div>';
+            document.getElementById('device-frame').srcdoc = buildPreviewDoc(clean);
+        }
+
+        // Mode Édition (canvas éditable) vs Aperçu (iframe interactif, 100% fidèle nav user)
+        let currentMode = 'edit';
+        let currentWidth = 'desktop';
+
+        function applyWidth() {
+            const frame = document.getElementById('device-frame');
+            const w = DEVICE_W[currentWidth];
+            frame.style.width = w ? w + 'px' : '100%';
+            frame.style.maxWidth = '100%';
+            document.querySelectorAll('.w-btn').forEach(b => {
+                const on = b.dataset.w === currentWidth;
+                b.classList.toggle('bg-[#ffc969]', on);
+                b.classList.toggle('text-ink-deep', on);
+                b.classList.toggle('font-semibold', on);
+                b.classList.toggle('text-slate-400', !on);
+            });
+        }
+
+        function setWidth(w) {
+            currentWidth = w;
+            applyWidth(); // simple changement de largeur, pas de rebuild iframe
+        }
+
+        function setMode(mode) {
+            currentMode = mode;
+            document.querySelectorAll('.mode-btn').forEach(b => {
+                const on = b.dataset.mode === mode;
+                b.classList.toggle('bg-[#ffc969]', on);
+                b.classList.toggle('text-ink-deep', on);
+                b.classList.toggle('font-semibold', on);
+                b.classList.toggle('text-slate-400', !on);
+            });
+            const stage = document.getElementById('device-stage');
+            const chips = document.getElementById('width-chips');
+            const hint = document.getElementById('device-hint');
+            const canvasScroll = document.getElementById('canvas-scroll');
+            if (mode === 'edit') {
+                stopEditing(); deselect();
+                canvasScroll.classList.remove('hidden');
+                applyCanvasWidth();
+                stage.classList.add('hidden');
+                chips.classList.add('hidden');
+                chips.classList.remove('flex');
+            } else {
+                canvasScroll.classList.add('hidden');
+                stage.classList.remove('hidden');
+                chips.classList.remove('hidden');
+                chips.classList.add('flex');
+                renderDevicePreview();  // rebuild depuis le contenu courant (candidat substitué si en attente)
+                applyWidth();
+            }
+        }
+
+        // --- Thème du châssis de l'app (clair par défaut) ---
+        function applyAppTheme(t) {
+            document.documentElement.setAttribute('data-app-theme', t);
+            try { localStorage.setItem('ekw-app-theme', t); } catch (_) { }
+            const i = document.querySelector('#theme-toggle i');
+            if (i) i.className = (t === 'light') ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+        }
+        function toggleAppTheme() {
+            const cur = document.documentElement.getAttribute('data-app-theme') === 'light' ? 'light' : 'dark';
+            applyAppTheme(cur === 'light' ? 'dark' : 'light');
+        }
+
+        // --- Historique (Undo / Redo) : snapshots de l'innerHTML du canvas ---
+        let history = [], hIndex = -1, histTimer = null;
+        const HIST_MAX = 60;
+        function snapClean() {
+            const c = canvas.cloneNode(true);
+            c.querySelectorAll('.ekw-selected').forEach(e => e.classList.remove('ekw-selected'));
+            c.querySelectorAll('.ekw-editing').forEach(e => e.classList.remove('ekw-editing'));
+            c.querySelectorAll('[contenteditable]').forEach(e => e.removeAttribute('contenteditable'));
+            return c.innerHTML;
+        }
+        function pushHistory() {
+            const snap = snapClean();
+            if (history[hIndex] === snap) return;
+            history = history.slice(0, hIndex + 1);
+            history.push(snap);
+            if (history.length > HIST_MAX) history.shift();
+            hIndex = history.length - 1;
+            updateUndoButtons();
+        }
+        const histObs = new MutationObserver(() => { clearTimeout(histTimer); histTimer = setTimeout(pushHistory, 350); });
+        function histConfig() { return { childList: true, subtree: true, attributes: true, characterData: true }; }
+        function startHistory() {
+            history = [snapClean()]; hIndex = 0; updateUndoButtons();
+            histObs.observe(canvas, histConfig());
+        }
+        function restoreHistory(idx) {
+            if (idx < 0 || idx >= history.length) return;
+            histObs.disconnect();               // n'enregistre pas la restauration
+            editing = false;
+            formatbar.classList.add('hidden'); formatbar.classList.remove('flex');
+            canvas.innerHTML = history[idx];
+            hIndex = idx; sel = null;
+            showLibrary(); showActions(false); positionMarquee(); checkEmpty(); updateUndoButtons();
+            setTimeout(() => histObs.observe(canvas, histConfig()), 0);
+        }
+        function undo() { if (hIndex > 0) restoreHistory(hIndex - 1); }
+        function redo() { if (hIndex < history.length - 1) restoreHistory(hIndex + 1); }
+        function updateUndoButtons() {
+            const u = document.getElementById('btn-undo'), r = document.getElementById('btn-redo');
+            if (u) u.disabled = hIndex <= 0;
+            if (r) r.disabled = hIndex >= history.length - 1;
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            applyAppTheme('light'); // app en mode clair uniquement
+            runGate();
+            setMode('edit');
+            currentWidth = 'desktop';
+            startHistory();
+            loadLibrary();
+        });
+    </script>
+</body>
+
+</html>

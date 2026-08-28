@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(for dir:*)",
+      "Bash(do echo:*)",
+      "Read(//Users/josquin.eve@ekwateur.fr/Downloads/Pictos/$dir/**)",
+      "Bash(open \"file:///Users/josquin.eve@ekwateur.fr/Downloads/Pictos/viewer.html\")",
+      "Bash(bash rename.sh)",
+      "Bash(ls \"/Users/josquin.eve@ekwateur.fr/Downloads/Pictos/Energy/\"*.png)",
+      "Bash(BASE=\"/Users/josquin.eve@ekwateur.fr/Downloads/Pictos/Energy\")",
+      "Bash(mv \"$BASE/Theme=Dark.png\" \"$BASE/compteur-releve.png\")",
+      "Bash(mv \"$BASE/Theme=Dark-1.png\" \"$BASE/calendrier.png\")",
+      "Bash(mv \"$BASE/Theme=Dark-2.png\" \"$BASE/camion-livraison.png\")",
+      "Bash(mv \"$BASE/Theme=Dark@2x.png\" \"$BASE/compteur-releve@2x.png\")",
+      "Bash(kill %1)"
+    ]
+  }
+}

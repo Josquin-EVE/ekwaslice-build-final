@@ -1,0 +1,48 @@
+{
+    "name": "Ekwaslice",
+    "version": "1.0.0",
+    "description": "Générateur de composants web EkwaSlice",
+    "main": "main.js",
+    "scripts": {
+        "start": "electron .",
+        "build:win": "electron-builder --windows",
+        "build:mac": "electron-builder --mac",
+        "build:linux": "electron-builder --linux"
+    },
+    "devDependencies": {
+        "electron": "^30.0.0",
+        "electron-builder": "^24.13.3"
+    },
+    "build": {
+        "appId": "com.ekwateur.ekwaslice",
+        "productName": "EkwaSlice",
+        "directories": {
+            "output": "dist",
+            "buildResources": "build"
+        },
+        "files": [
+            "main.js",
+            "preload.js",
+            "index.html",
+            "assets/**"
+        ],
+        "win": {
+            "target": "nsis"
+        },
+        "mac": {
+            "target": "dmg",
+            "icon": "build/icon.icns",
+            "category": "public.app-category.developer-tools"
+        },
+        "dmg": {
+            "icon": "build/icon.icns"
+        },
+        "linux": {
+            "target": "AppImage",
+            "icon": "assets/logo.png"
+        }
+    },
+    "dependencies": {
+        "electron-updater": "^6.8.9"
+    }
+}
