@@ -7,7 +7,8 @@
         "start": "electron .",
         "build:win": "electron-builder --windows",
         "build:mac": "electron-builder --mac",
-        "build:linux": "electron-builder --linux"
+        "build:linux": "electron-builder --linux",
+        "release:mac": "electron-builder --mac --publish always"
     },
     "devDependencies": {
         "electron": "^30.0.0",
@@ -25,6 +26,13 @@
             "preload.js",
             "index.html",
             "assets/**"
+        ],
+        "publish": [
+            {
+                "provider": "github",
+                "owner": "Josquin-EVE",
+                "repo": "ekwaslice-build-final"
+            }
         ],
         "win": {
             "target": "nsis"

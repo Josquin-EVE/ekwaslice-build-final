@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, shell } = require('electron');
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
@@ -322,6 +322,49 @@ ipcMain.handle('library-delete', async (event, id) => {
   const list = readLibrary().filter(x => x.id !== id);
   writeLibrary(list);
   return { list };
+});
+
+// ---------------------------------------------------------------------------
+// MISE À JOUR — vérif légère (sans signature) : compare la version locale à la
+// dernière GitHub Release. Ne télécharge/installe RIEN ; le renderer affiche une
+// bannière avec un lien de téléchargement (install manuelle).
+// NB: pour que la vérif aboutisse, les Releases doivent être PUBLIQUES (repo public
+// ou repo public dédié aux releases). Sinon l'API renvoie 404 → pas de bannière.
+// ---------------------------------------------------------------------------
+const UPDATE_REPO = 'Josquin-EVE/ekwaslice-build-final';
+function cmpSemver(a, b) {
+  const pa = String(a).split('.').map(n => parseInt(n, 10) || 0);
+  const pb = String(b).split('.').map(n => parseInt(n, 10) || 0);
+  for (let i = 0; i < 3; i++) { if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) - (pb[i] || 0); }
+  return 0;
+}
+ipcMain.handle('check-update', async () => {
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 8000);
+    const res = await fetch(`https://api.github.com/repos/${UPDATE_REPO}/releases/latest`, {
+      headers: { 'Accept': 'application/vnd.github+json', 'User-Agent': 'EkwaSlice-Updater' },
+      signal: ctrl.signal
+    });
+    clearTimeout(t);
+    if (!res.ok) return { ok: false, status: res.status };
+    const j = await res.json();
+    const latest = (j.tag_name || '').replace(/^v/i, '').trim();
+    const current = app.getVersion();
+    const dmg = (j.assets || []).find(a => /\.dmg$/i.test(a.name));
+    return {
+      ok: true,
+      update: latest ? cmpSemver(latest, current) > 0 : false,
+      version: latest, current,
+      url: j.html_url,
+      download: dmg ? dmg.browser_download_url : (j.html_url || null),
+      notes: (j.body || '').slice(0, 500)
+    };
+  } catch (e) { return { ok: false, error: e.message }; }
+});
+ipcMain.handle('open-external', async (event, url) => {
+  if (typeof url === 'string' && /^https?:\/\//i.test(url)) { shell.openExternal(url); return true; }
+  return false;
 });
 
 app.whenReady().then(() => {

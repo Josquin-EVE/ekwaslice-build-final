@@ -1419,6 +1419,26 @@
             });
         }
 
+        // ===== MISE À JOUR — vérif au lancement + bannière (install manuelle, sans signature) =====
+        async function checkForUpdate() {
+            if (!window.api || !window.api.checkUpdate) return;
+            let r; try { r = await window.api.checkUpdate(); } catch (_) { return; }
+            if (!r || !r.ok || !r.update) return;
+            showUpdateBanner(r);
+        }
+        function showUpdateBanner(r) {
+            let b = document.getElementById('ekw-update');
+            if (!b) { b = document.createElement('div'); b.id = 'ekw-update'; document.body.appendChild(b); }
+            b.className = 'fixed top-3 left-1/2 -translate-x-1/2 z-[130] flex items-center gap-3 px-4 py-2.5 rounded-xl bg-ink-deep border border-secondary shadow-2xl text-sm';
+            b.innerHTML =
+                '<i class="fa-solid fa-arrow-up-right-dots text-secondary"></i>'
+                + '<span class="text-cloud">Nouvelle version <b>v' + r.version + '</b> disponible <span class="text-slate-500">(actuelle v' + r.current + ')</span></span>'
+                + '<button id="ekw-update-dl" class="text-xs bg-secondary text-ink-deep font-semibold px-3 py-1 rounded-lg hover:brightness-110"><i class="fa-solid fa-download mr-1"></i>Télécharger</button>'
+                + '<button id="ekw-update-x" class="text-slate-400 hover:text-cloud px-1" title="Plus tard"><i class="fa-solid fa-xmark"></i></button>';
+            b.querySelector('#ekw-update-dl').onclick = () => window.api.openExternal(r.download || r.url);
+            b.querySelector('#ekw-update-x').onclick = () => b.remove();
+        }
+
         // --- Pictogrammes de marque : rendu LOCAL dans l'app, URL Prismic à l'export ---
 
         let PICTOS = [];
@@ -2254,6 +2274,7 @@
             currentWidth = 'desktop';
             startHistory();
             loadLibrary();
+            checkForUpdate();
         });
     </script>
 </body>

@@ -12,5 +12,8 @@ contextBridge.exposeInMainWorld('api', {
   // Bibliothèque de composants (persistée sur disque)
   libraryList: () => ipcRenderer.invoke('library-list'),
   librarySave: (item) => ipcRenderer.invoke('library-save', item),
-  libraryDelete: (id) => ipcRenderer.invoke('library-delete', id)
+  libraryDelete: (id) => ipcRenderer.invoke('library-delete', id),
+  // Mise à jour
+  checkUpdate: () => ipcRenderer.invoke('check-update'),
+  openExternal: (url) => ipcRenderer.invoke('open-external', url)
 });
