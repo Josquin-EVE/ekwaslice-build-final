@@ -2664,6 +2664,9 @@
             const cfg = JSON.stringify(window.EKW_TW);
             return '<!DOCTYPE html><html lang="fr"><head>'
                 + '<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
+                // Shim : route les appels prix API-SO vers main.js (Referer forcé) via le parent
+                // → l'aperçu affiche les VRAIS prix au lieu du repli (l'iframe file:// aurait 401).
+                + '<script>(function(){var _f=window.fetch;window.fetch=function(u,o){try{if(typeof u==="string"&&u.indexOf("api-so.ekwateur.fr/quotations")>=0){return new Promise(function(res){var id=Math.random().toString(36).slice(2);function h(ev){var d=ev.data||{};if(d&&d.type==="ekw-quotation-reply"&&d.id===id){window.removeEventListener("message",h);res(new Response(JSON.stringify(d.json||{}),{status:d.ok?201:(d.status||401),headers:{"content-type":"application/json"}}));}}window.addEventListener("message",h);var b={};try{b=o&&o.body?JSON.parse(o.body):{};}catch(e){}parent.postMessage({type:"ekw-quotation",id:id,body:b},"*");});}}catch(e){}return _f.apply(this,arguments);};})();<\/script>'
                 + '<script src="' + assetBase + 'vendor/tailwindcss.js"><\/script>'
                 + '<script>tailwind.config=' + cfg + ';<\/script>'
                 + '<link rel="stylesheet" href="' + assetBase + 'vendor/fontawesome.css">'
@@ -2676,6 +2679,21 @@
                 + '</style></head>'
                 + '<body class="font-body text-cloud" style="background-color:' + SITE_BG + '">' + inner + '</body></html>';
         }
+
+        // Pont prix : l'aperçu (iframe) demande un devis → on relaie à main.js (Referer forcé)
+        // → on renvoie la réponse à l'iframe. Seule l'iframe d'aperçu est acceptée.
+        window.addEventListener('message', async (e) => {
+            const d = e.data || {};
+            if (!d || d.type !== 'ekw-quotation') return;
+            const frame = document.getElementById('device-frame');
+            if (!frame || e.source !== frame.contentWindow) return;
+            let reply = { type: 'ekw-quotation-reply', id: d.id, ok: false, status: 401, json: null };
+            if (window.api && window.api.getQuotation) {
+                try { const r = await window.api.getQuotation(d.body); reply = { type: 'ekw-quotation-reply', id: d.id, ok: !!(r && r.ok), status: (r && r.status) || 0, json: (r && r.json) || null }; }
+                catch (_) { }
+            }
+            try { frame.contentWindow.postMessage(reply, '*'); } catch (_) { }
+        });
 
         // Rassemble le HTML de l'aperçu ; si un candidat est en attente, il est
         // substitué à l'original SUR UNE COPIE (le canvas live n'est jamais modifié).

@@ -651,6 +651,32 @@ ipcMain.handle('push-prismic', async (event, payload) => {
 // NB: pour que la vérif aboutisse, les Releases doivent être PUBLIQUES (repo public
 // ou repo public dédié aux releases). Sinon l'API renvoie 404 → pas de bannière.
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// PROXY PRIX (API-SO) — permet à l'APERÇU de l'app d'afficher les VRAIS prix.
+// Le fetch d'une slice depuis l'iframe (file://) recevrait 401 (Referer). On
+// relaie ici depuis Node avec le Referer forcé (comme test-api.mjs). Lecture
+// seule d'une API tarifaire publique ; en prod la slice appelle l'API en direct.
+// ---------------------------------------------------------------------------
+ipcMain.handle('get-quotation', async (event, body) => {
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 10000);
+    const res = await fetch('https://api-so.ekwateur.fr/quotations', {
+      method: 'POST',
+      headers: {
+        'accept': 'application/json', 'content-type': 'application/json',
+        'x-seller-channel-id': 'PSFO', 'x-seller-id': 'EKWATEUR',
+        'origin': 'https://ekwateur.fr', 'referer': 'https://ekwateur.fr/'
+      },
+      body: JSON.stringify(body || {}),
+      signal: ctrl.signal
+    });
+    clearTimeout(t);
+    let json = null; try { json = await res.json(); } catch (_) { }
+    return { ok: res.ok, status: res.status, json };
+  } catch (e) { return { ok: false, status: 0, error: e.message }; }
+});
+
 const UPDATE_REPO = 'Josquin-EVE/ekwaslice-build-final';
 function cmpSemver(a, b) {
   const pa = String(a).split('.').map(n => parseInt(n, 10) || 0);
