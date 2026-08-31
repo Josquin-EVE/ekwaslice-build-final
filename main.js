@@ -117,6 +117,14 @@ RÈGLES :
   (ré-exécutable), et cibler ses éléments via des sélecteurs internes au composant
   (idéalement un data-attribut ou une classe propre au composant), jamais document.body
   global. Le studio extrait ce <script> dans le champ JS à l'export.
+  * TEXTE TOUJOURS DANS LE HTML : tous les LIBELLÉS et phrases (titres, labels, textes de
+    boutons, messages d'état comme « Prix en vigueur aujourd'hui », unités) s'écrivent DANS LE
+    HTML, jamais depuis le JS. Le JS ne doit JAMAIS poser de texte de libellé
+    (pas de textContent="Un libellé…"/innerHTML d'un libellé) : il ne met à jour QUE des VALEURS
+    dynamiques (chiffres, prix) via des <span data-f="…"> déjà présents dans le HTML avec une
+    valeur de repli. Ainsi tout le texte reste éditable au clic dans le studio ; seul le chiffre
+    change à l'exécution. (Un message d'état variable : mets les 3 variantes en HTML ou n'change
+    qu'un <span data-f> chiffré, pas la phrase entière.)
 - TABLEAUX (<table>) — règles SPÉCIFIQUES car le CSS du site écrase le style des tableaux :
   1) PAS de fond de carte/slice autour d'un tableau : le <table> et son conteneur restent
      SANS bg-ink/bg-night (fond transparent), pour s'intégrer directement à la page. Le style

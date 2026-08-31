@@ -1105,6 +1105,9 @@
         const fCss = '<textarea id="css-editor" rows="4" spellcheck="false" placeholder="border: 2px solid #17E7D0;&#10;box-shadow: 0 8px 24px rgba(0,0,0,.35);&#10;background: linear-gradient(...);" '
             + 'class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-2 text-[11px] font-mono leading-relaxed text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-primary resize-y"></textarea>'
             + '<span class="text-[10px] text-slate-500 leading-snug block mt-1">Style inline de l\'élément — édite librement (ombre, dégradé…). Appliqué en direct, synchro avec les contrôles ci-dessus.</span>';
+        const fJs = '<textarea id="js-editor" rows="6" spellcheck="false" placeholder="// JS de la slice (interactions, récup prix…)" '
+            + 'class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-2 text-[11px] font-mono leading-relaxed text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-primary resize-y"></textarea>'
+            + '<span class="text-[10px] text-slate-500 leading-snug block mt-1">Script de la slice entière (extrait tel quel à l\'export). Le texte des libellés doit rester dans le HTML ; ici = la logique et les valeurs.</span>';
         const _acc = accState();
         const _o = (id, def) => (id in _acc) ? !!_acc[id] : def;
         styleBox.innerHTML =
@@ -1113,7 +1116,8 @@
             + accSection('fond', 'fa-fill-drip', 'Fond', fFond, _o('fond', false))
             + accSection('texte', 'fa-font', 'Texte', fTexte, _o('texte', false))
             + accSection('taille', 'fa-ruler-combined', 'Taille', fTaille, _o('taille', false))
-            + accSection('css', 'fa-code', 'CSS avancé', fCss, _o('css', false));
+            + accSection('css', 'fa-code', 'CSS avancé', fCss, _o('css', false))
+            + accSection('jscomp', 'fa-terminal', 'JS du composant', fJs, _o('jscomp', false));
         // Show/hide + ouverture contextuelle d'une section (sans écraser un choix explicite mémorisé)
         function setSectionVisible(id, vis) { const s = styleBox.querySelector('[data-acc="' + id + '"]'); if (s) s.classList.toggle('hidden', !vis); }
         function setSectionOpen(id, open) {
@@ -1159,12 +1163,29 @@
             spSetInput('height', 'all', spRead(sel, 'height', 'all'));
             spSyncColorPickers();
             cssEditorSync();
+            jsEditorSync();
             positionMarquee();
         }
         // Reflète le style inline de l'élément dans la zone CSS (sauf si on y tape)
         function cssEditorSync() {
             const t = document.getElementById('css-editor');
             if (t && sel && document.activeElement !== t) t.value = sel.style.cssText;
+        }
+        // Script de la slice (niveau data-comp) — pour le panneau "JS du composant".
+        // type non-standard à la création → reste INERTE dans le studio (pas d'exécution),
+        // mais toujours extrait à l'export (exportPlain lit tous les <script>).
+        function sliceScriptNode(create) {
+            if (!sel) return null;
+            const root = sliceRootOf(sel);
+            let s = root.querySelector('script');
+            if (!s && create) { s = document.createElement('script'); s.type = 'text/ekw-js'; root.appendChild(s); }
+            return s;
+        }
+        function jsEditorSync() {
+            const t = document.getElementById('js-editor');
+            if (!t || !sel || document.activeElement === t) return;
+            const s = sliceScriptNode(false);
+            t.value = s ? (s.textContent || '') : '';
         }
 
         styleBox.addEventListener('mousedown', (e) => { if (e.target.closest('button')) e.preventDefault(); });
@@ -1204,6 +1225,11 @@
             // Zone CSS libre : le texte EST le style inline de l'élément
             if (e.target.id === 'css-editor') {
                 if (sel) { sel.style.cssText = e.target.value; spSync(); }
+                return;
+            }
+            // Zone JS : le texte EST le <script> de la slice (inerte dans le studio)
+            if (e.target.id === 'js-editor') {
+                if (sel) { const s = sliceScriptNode(true); if (s) s.textContent = e.target.value; }
                 return;
             }
             // Roue de couleur / hex (bordure & fond)
@@ -2658,6 +2684,9 @@
         }
 
         function buildPreviewDoc(inner) {
+            // Les scripts créés par le panneau "JS du composant" sont marqués text/ekw-js
+            // (inertes dans le studio) → on les réactive pour l'aperçu.
+            inner = (inner || '').replace(/<script\s+type=["']text\/ekw-js["']\s*>/gi, '<script>');
             let assetBase = 'assets/';
             try { assetBase = new URL('assets/', location.href).href; } catch (_) { }
             const fontBase = assetBase + 'fonts/';
