@@ -352,16 +352,20 @@ ipcMain.handle('library-list', async () => readLibrary());
 ipcMain.handle('library-save', async (event, item) => {
   if (!item || !item.html) return { error: 'Composant vide.' };
   const list = readLibrary();
+  const id = item.id || ('c-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6));
+  const i = list.findIndex(x => x.id === id);
+  const prev = i >= 0 ? list[i] : {};
+  // Écrasement d'un item existant : on PRÉSERVE les champs non fournis (remoteId/source/
+  // author/createdAt) → garde le lien cloud quand on met à jour le html d'un composant publié.
   const rec = {
-    id: item.id || ('c-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)),
-    name: (item.name || 'Composant').slice(0, 80),
+    id,
+    name: (item.name || prev.name || 'Composant').slice(0, 80),
     html: item.html,
-    createdAt: item.createdAt || Date.now(),
-    source: item.source || 'local',   // 'local' (créé ici) ou 'online' (rechargé du partagé)
-    author: item.author || '',
-    remoteId: item.remoteId || null    // id Supabase si publié/rechargé → dédup au reload
+    createdAt: item.createdAt || prev.createdAt || Date.now(),
+    source: item.source || prev.source || 'local',
+    author: item.author !== undefined ? item.author : (prev.author || ''),
+    remoteId: item.remoteId !== undefined ? item.remoteId : (prev.remoteId || null)
   };
-  const i = list.findIndex(x => x.id === rec.id);
   if (i >= 0) list[i] = rec; else list.unshift(rec);
   if (!writeLibrary(list)) return { error: 'Écriture impossible.' };
   return { list };
@@ -389,7 +393,7 @@ ipcMain.handle('shared-list', async () => {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 10000);
     const res = await fetch(
-      SUPABASE_URL + '/rest/v1/components?select=id,name,author,html,created_at&order=created_at.desc',
+      SUPABASE_URL + '/rest/v1/components?select=id,name,author,html,created_at,updated_at&order=created_at.desc',
       { headers: sbHeaders(), signal: ctrl.signal }
     );
     clearTimeout(t);
@@ -408,7 +412,10 @@ ipcMain.handle('shared-publish', async (event, item) => {
       author: String(item.author || '').slice(0, 80),
       html: String(item.html)
     };
-    const res = await fetch(SUPABASE_URL + '/rest/v1/components', {
+    if (item.ownerKey) body.owner_key = String(item.ownerKey); // clé de propriété (secrète)
+    // ?select=id : ne renvoie QUE l'id (return=representation ferait un SELECT * qui inclut
+    // owner_key, non lisible par anon → "permission denied").
+    const res = await fetch(SUPABASE_URL + '/rest/v1/components?select=id', {
       method: 'POST',
       headers: sbHeaders({ 'Content-Type': 'application/json', Prefer: 'return=representation' }),
       body: JSON.stringify(body),
@@ -422,6 +429,44 @@ ipcMain.handle('shared-publish', async (event, item) => {
     const rows = await res.json();
     return { row: Array.isArray(rows) ? rows[0] : rows };
   } catch (e) { return { error: e.message }; }
+});
+// Appel générique d'une fonction RPC Postgres (renvoie le corps décodé).
+async function sbRpc(fn, args) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 10000);
+  try {
+    const res = await fetch(SUPABASE_URL + '/rest/v1/rpc/' + fn, {
+      method: 'POST',
+      headers: sbHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(args || {}),
+      signal: ctrl.signal
+    });
+    clearTimeout(t);
+    if (!res.ok) {
+      const txt = await res.text().catch(() => '');
+      return { error: 'HTTP ' + res.status + (txt ? ' ' + txt.slice(0, 120) : '') };
+    }
+    return { result: await res.json() };
+  } catch (e) { clearTimeout(t); return { error: e.message }; }
+}
+// SUPPRIMER sa publication (la RPC vérifie owner_key côté serveur → renvoie true si effacé).
+ipcMain.handle('shared-delete', async (event, payload) => {
+  const id = payload && payload.id, ownerKey = payload && payload.ownerKey;
+  if (!id || !ownerKey) return { error: 'id/clé manquant.' };
+  const r = await sbRpc('delete_component', { p_id: id, p_owner_key: ownerKey });
+  if (r.error) return r;
+  return { ok: r.result === true };
+});
+// METTRE À JOUR sa publication (idem, true si mis à jour).
+ipcMain.handle('shared-update', async (event, payload) => {
+  const id = payload && payload.id, ownerKey = payload && payload.ownerKey;
+  if (!id || !ownerKey || !payload.html) return { error: 'id/clé/html manquant.' };
+  const r = await sbRpc('update_component', {
+    p_id: id, p_owner_key: ownerKey,
+    p_name: (payload.name || '').slice(0, 120), p_html: String(payload.html)
+  });
+  if (r.error) return r;
+  return { ok: r.result === true };
 });
 
 // ---------------------------------------------------------------------------

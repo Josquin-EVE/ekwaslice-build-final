@@ -16,6 +16,8 @@ contextBridge.exposeInMainWorld('api', {
   // Bibliothèque partagée en ligne (Supabase)
   sharedList: () => ipcRenderer.invoke('shared-list'),
   sharedPublish: (item) => ipcRenderer.invoke('shared-publish', item),
+  sharedDelete: (payload) => ipcRenderer.invoke('shared-delete', payload),
+  sharedUpdate: (payload) => ipcRenderer.invoke('shared-update', payload),
   // Mise à jour
   checkUpdate: () => ipcRenderer.invoke('check-update'),
   openExternal: (url) => ipcRenderer.invoke('open-external', url)

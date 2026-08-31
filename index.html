@@ -286,11 +286,17 @@
             <div id="library-panel" class="flex flex-col flex-1 overflow-hidden">
                 <!-- Section : Bibliothèque de composants sauvegardés -->
                 <div class="p-4 border-b border-slate-700 flex flex-col" style="max-height:45%">
-                    <div class="flex items-center justify-between mb-2">
-                        <h2 class="font-semibold text-sm text-slate-300 uppercase tracking-wider">Bibliothèque</h2>
-                        <button onclick="reloadShared()" title="Recharger la bibliothèque partagée en ligne"
-                            class="text-[10px] flex items-center gap-1 px-2 py-1 rounded-lg bg-secondary text-ink-deep font-semibold hover:brightness-110 transition">
-                            <i class="fa-solid fa-cloud-arrow-down"></i>En ligne</button>
+                    <div class="flex items-center justify-between mb-2 gap-2">
+                        <div class="inline-flex rounded-lg bg-slate-900 border border-slate-700 p-0.5 text-[11px] font-semibold shrink-0">
+                            <button id="tab-local" onclick="setLibTab('local')"
+                                class="px-2.5 py-1 rounded-md transition">Local</button>
+                            <button id="tab-shared" onclick="setLibTab('shared')"
+                                class="px-2.5 py-1 rounded-md transition flex items-center gap-1"><i
+                                    class="fa-solid fa-cloud text-[9px]"></i>Partagée</button>
+                        </div>
+                        <button id="shared-reload" onclick="loadShared()" title="Recharger la bibliothèque partagée"
+                            class="hidden text-[10px] items-center gap-1 px-2 py-1 rounded-lg bg-secondary text-ink-deep font-semibold hover:brightness-110 transition">
+                            <i class="fa-solid fa-rotate"></i>Recharger</button>
                     </div>
                     <div id="comp-grid" class="flex flex-col gap-2 overflow-y-auto flex-1 pr-1"></div>
                 </div>
@@ -615,6 +621,10 @@
                 <input id="save-name-input" type="text" placeholder="Ex : Hero offre gaz" spellcheck="false"
                     onkeydown="if(event.key==='Enter'){event.preventDefault();confirmSave();} if(event.key==='Escape'){closeSaveModal();}"
                     class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-primary">
+                <label id="save-overwrite-row" class="hidden items-center gap-2 text-xs text-slate-300 pt-1 cursor-pointer">
+                    <input id="save-overwrite" type="checkbox" class="accent-secondary">
+                    <span>Mettre à jour <b id="save-overwrite-name" class="text-secondary"></b> (au lieu d'un nouveau)</span>
+                </label>
             </div>
             <div class="p-4 border-t border-slate-700 bg-slate-900/50 flex justify-end gap-3 shrink-0">
                 <button onclick="closeSaveModal()"
@@ -1379,7 +1389,7 @@
         function cleanForSave(root) {
             const c = root.cloneNode(true);
             c.classList.remove('ekw-selected', 'ekw-editing', 'relative', 'mb-6', 'opacity-40');
-            ['data-comp', 'draggable', 'contenteditable', 'data-ekw-pending'].forEach(a => c.removeAttribute(a));
+            ['data-comp', 'draggable', 'contenteditable', 'data-ekw-pending', 'data-lib-id'].forEach(a => c.removeAttribute(a));
             c.querySelectorAll('.ekw-selected, .ekw-editing').forEach(e => e.classList.remove('ekw-selected', 'ekw-editing'));
             c.querySelectorAll('[contenteditable]').forEach(e => e.removeAttribute('contenteditable'));
             c.querySelectorAll('.drag-handle, button[onclick*="remove"]').forEach(e => e.remove());
@@ -1395,16 +1405,28 @@
         async function loadLibrary() {
             if (window.api && window.api.libraryList) { try { LIB = await window.api.libraryList() || []; } catch (_) { LIB = []; } }
             else LIB = lsLibLoad();
-            renderCompGrid();
+            setLibTab('local'); // pose les styles d'onglet + rend la grille locale
         }
 
         // Ouvre la modale de nommage (window.prompt() n'existe PAS dans Electron → modale maison).
-        let saveModalHtml = null; // HTML du slice en attente de sauvegarde
+        let saveModalHtml = null;     // HTML du slice en attente de sauvegarde
+        let saveModalOriginId = null; // id de l'item d'origine si le slice vient de la biblio (→ écrasement possible)
         function saveComponent(root) {
             if (!root) { toast('Sélectionnez un bloc à sauvegarder'); return; }
+            saveModalOriginId = (root.dataset && root.dataset.libId) || null;
             saveModalHtml = cleanForSave(root);
+            const origin = saveModalOriginId ? LIB.find(x => x.id === saveModalOriginId) : null;
             const input = document.getElementById('save-name-input');
-            input.value = suggestName(root);
+            input.value = origin ? origin.name : suggestName(root);
+            const row = document.getElementById('save-overwrite-row');
+            const cb = document.getElementById('save-overwrite');
+            if (origin) {
+                document.getElementById('save-overwrite-name').textContent = '« ' + origin.name + ' »';
+                cb.checked = true;
+                row.classList.remove('hidden'); row.classList.add('flex');
+            } else {
+                cb.checked = false; row.classList.add('hidden'); row.classList.remove('flex');
+            }
             const m = document.getElementById('saveModal');
             m.classList.remove('hidden'); m.classList.add('flex');
             setTimeout(() => { input.focus(); input.select(); }, 30);
@@ -1412,19 +1434,23 @@
         function closeSaveModal() {
             const m = document.getElementById('saveModal');
             m.classList.add('hidden'); m.classList.remove('flex');
-            saveModalHtml = null;
+            saveModalHtml = null; saveModalOriginId = null;
         }
         async function confirmSave() {
             if (!saveModalHtml) { closeSaveModal(); return; }
             const name = (document.getElementById('save-name-input').value || '').trim() || 'Composant';
+            const overwrite = saveModalOriginId && document.getElementById('save-overwrite').checked;
             const item = { name, html: saveModalHtml };
+            if (overwrite) item.id = saveModalOriginId; // main.js préserve remoteId/source/author de l'item écrasé
             if (window.api && window.api.librarySave) {
                 const r = await window.api.librarySave(item);
-                if (r && r.list) { LIB = r.list; renderCompGrid(); toast('Composant sauvegardé'); }
+                if (r && r.list) { LIB = r.list; renderCompGrid(); toast(overwrite ? 'Composant mis à jour' : 'Composant sauvegardé'); }
                 else { toast('Échec : ' + ((r && r.error) || 'inconnu')); return; }
             } else {
-                item.id = 'c-' + Date.now().toString(36); item.createdAt = Date.now();
-                LIB.unshift(item); lsLibSave(); renderCompGrid(); toast('Composant sauvegardé (local)');
+                if (!item.id) { item.id = 'c-' + Date.now().toString(36); item.createdAt = Date.now(); }
+                const i = LIB.findIndex(x => x.id === item.id);
+                if (i >= 0) LIB[i] = Object.assign({}, LIB[i], item); else LIB.unshift(item);
+                lsLibSave(); renderCompGrid(); toast(overwrite ? 'Composant mis à jour (local)' : 'Composant sauvegardé (local)');
             }
             closeSaveModal();
         }
@@ -1432,49 +1458,105 @@
         function insertSavedComponent(item) {
             deselect();
             const el = injectGenerated(item.html);
+            if (el) { el.dataset.libId = item.id; selectElement(el); el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+        }
+        function insertSharedComponent(row) {
+            deselect();
+            const el = injectGenerated(row.html || '');
             if (el) { selectElement(el); el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
         }
 
         async function deleteSavedComponent(id) {
-            if (!confirm('Retirer ce composant de la bibliothèque ?')) return;
+            if (!confirm('Retirer ce composant de la bibliothèque locale ?')) return;
             if (window.api && window.api.libraryDelete) {
                 const r = await window.api.libraryDelete(id);
                 if (r && r.list) { LIB = r.list; renderCompGrid(); }
             } else { LIB = LIB.filter(x => x.id !== id); lsLibSave(); renderCompGrid(); }
         }
 
+        // ===== ONGLETS Local / Partagée =====
+        let currentLibTab = 'local';
+        let SHARED = [];   // catalogue cloud (live, NON persisté — c'est le cloud la source)
+        function setLibTab(t) {
+            currentLibTab = t;
+            const loc = document.getElementById('tab-local'), sh = document.getElementById('tab-shared');
+            const on = 'bg-secondary text-ink-deep', off = 'text-slate-400 hover:text-slate-200';
+            loc.className = 'px-2.5 py-1 rounded-md transition ' + (t === 'local' ? on : off);
+            sh.className = 'px-2.5 py-1 rounded-md transition flex items-center gap-1 ' + (t === 'shared' ? on : off);
+            const rl = document.getElementById('shared-reload');
+            rl.classList.toggle('hidden', t !== 'shared'); rl.classList.toggle('flex', t === 'shared');
+            renderCompGrid();
+            if (t === 'shared' && !SHARED.length) loadShared();
+        }
+
         function renderCompGrid() {
             const g = document.getElementById('comp-grid'); if (!g) return;
-            if (!LIB.length) { g.innerHTML = '<p class="text-[10px] text-slate-600 leading-snug">Aucun composant sauvegardé.</p>'; return; }
             g.innerHTML = '';
+            if (currentLibTab === 'shared') return renderSharedGrid(g);
+            return renderLocalGrid(g);
+        }
+        // helper vignette : cadre carte + aperçu scale + résolution pictos
+        function libCardShell(card, html, name) {
+            card.className = 'relative group w-full rounded-lg border border-slate-700 bg-slate-900 overflow-hidden cursor-pointer hover:border-primary transition';
+            card.innerHTML =
+                '<div class="h-24 w-full overflow-hidden bg-night pointer-events-none">'
+                + '<div class="origin-top-left" style="transform:scale(0.27);width:370%;">' + (html || '') + '</div></div>'
+                + '<div class="px-2 py-1.5 text-[11px] text-slate-300 truncate border-t border-slate-800">' + escHtml(name) + '</div>';
+        }
+        function renderLocalGrid(g) {
+            if (!LIB.length) { g.innerHTML = '<p class="text-[10px] text-slate-600 leading-snug">Aucun composant local. Sauvegarde un slice pour le retrouver ici.</p>'; return; }
             LIB.forEach(item => {
+                const linked = !!item.remoteId;
                 const card = document.createElement('div');
-                const isOnline = item.source === 'online';
-                card.className = 'relative group w-full rounded-lg border border-slate-700 bg-slate-900 overflow-hidden cursor-pointer hover:border-primary transition';
                 card.title = 'Insérer : ' + item.name;
-                const badge = isOnline
-                    ? '<div class="absolute top-1 left-1 max-w-[70%] px-1.5 py-0.5 rounded bg-secondary/90 text-ink-deep text-[9px] font-bold flex items-center gap-1 truncate"><i class="fa-solid fa-cloud"></i>' + escHtml(item.author || 'en ligne') + '</div>'
-                    : '';
-                const pubBtn = isOnline ? ''
+                libCardShell(card, item.html, item.name);
+                const cloudTag = linked ? '<div class="absolute top-1 left-1 w-4 h-4 rounded bg-secondary/90 text-ink-deep text-[9px] font-bold flex items-center justify-center" title="Publié en ligne"><i class="fa-solid fa-cloud"></i></div>' : '';
+                const actBtn = linked
+                    ? '<button data-upd title="Mettre à jour la version en ligne" class="absolute top-1 right-7 w-5 h-5 rounded bg-black/60 text-secondary opacity-0 group-hover:opacity-100 transition text-[10px] flex items-center justify-center"><i class="fa-solid fa-rotate"></i></button>'
                     : '<button data-pub title="Publier en ligne" class="absolute top-1 right-7 w-5 h-5 rounded bg-black/60 text-secondary opacity-0 group-hover:opacity-100 transition text-[10px] flex items-center justify-center"><i class="fa-solid fa-cloud-arrow-up"></i></button>';
-                card.innerHTML =
-                    '<div class="h-24 w-full overflow-hidden bg-night pointer-events-none">'
-                    + '<div class="origin-top-left" style="transform:scale(0.27);width:370%;">' + item.html + '</div></div>'
-                    + '<div class="px-2 py-1.5 text-[11px] text-slate-300 truncate border-t border-slate-800">' + escHtml(item.name) + '</div>'
-                    + badge + pubBtn
-                    + '<button data-del title="Retirer de ma bibliothèque" class="absolute top-1 right-1 w-5 h-5 rounded bg-black/60 text-red-300 opacity-0 group-hover:opacity-100 transition text-[10px] flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>';
+                card.insertAdjacentHTML('beforeend', cloudTag + actBtn
+                    + '<button data-del title="Retirer du local" class="absolute top-1 right-1 w-5 h-5 rounded bg-black/60 text-red-300 opacity-0 group-hover:opacity-100 transition text-[10px] flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>');
                 card.addEventListener('click', (e) => {
                     if (e.target.closest('[data-del]')) { e.stopPropagation(); deleteSavedComponent(item.id); return; }
                     if (e.target.closest('[data-pub]')) { e.stopPropagation(); publishComponent(item); return; }
+                    if (e.target.closest('[data-upd]')) { e.stopPropagation(); updateSharedComponent(item); return; }
                     insertSavedComponent(item);
                 });
-                // pictos de la vignette → src local pour l'aperçu
+                card.querySelectorAll('img[data-picto]').forEach(img => { const p = PICTO_MAP[img.getAttribute('data-picto')]; if (p) img.src = pictoAssetBase() + p.file; });
+                g.appendChild(card);
+            });
+        }
+        function renderSharedGrid(g) {
+            const owned = ownedIds();
+            if (!SHARED.length) { g.innerHTML = '<p class="text-[10px] text-slate-600 leading-snug">Bibliothèque partagée vide (ou pas encore chargée). Clique « Recharger ».</p>'; return; }
+            SHARED.forEach(row => {
+                const mine = owned.has(row.id);
+                const card = document.createElement('div');
+                card.title = 'Insérer : ' + row.name;
+                libCardShell(card, row.html, row.name);
+                const badge = '<div class="absolute top-1 left-1 max-w-[70%] px-1.5 py-0.5 rounded bg-secondary/90 text-ink-deep text-[9px] font-bold flex items-center gap-1 truncate"><i class="fa-solid fa-cloud"></i>' + escHtml(row.author || 'anonyme') + '</div>';
+                const delBtn = mine ? '<button data-del title="Supprimer du cloud (ma publication)" class="absolute top-1 right-1 w-5 h-5 rounded bg-black/60 text-red-300 opacity-0 group-hover:opacity-100 transition text-[10px] flex items-center justify-center"><i class="fa-solid fa-trash"></i></button>' : '';
+                card.insertAdjacentHTML('beforeend', badge + delBtn);
+                card.addEventListener('click', (e) => {
+                    if (e.target.closest('[data-del]')) { e.stopPropagation(); deleteSharedComponent(row); return; }
+                    insertSharedComponent(row);
+                });
                 card.querySelectorAll('img[data-picto]').forEach(img => { const p = PICTO_MAP[img.getAttribute('data-picto')]; if (p) img.src = pictoAssetBase() + p.file; });
                 g.appendChild(card);
             });
         }
 
-        // ===== BIBLIOTHÈQUE PARTAGÉE EN LIGNE (Supabase) — publier / recharger =====
+        // ===== BIBLIOTHÈQUE PARTAGÉE EN LIGNE (Supabase) — publier / recharger / MAJ / suppr =====
+        // Clé de propriété : générée une fois par install (secrète, jamais lisible par les autres).
+        function ownerKey() {
+            try {
+                let k = localStorage.getItem('ekwa_owner_key');
+                if (!k) { k = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : ('ok-' + Date.now() + '-' + Math.random().toString(36).slice(2)); localStorage.setItem('ekwa_owner_key', k); }
+                return k;
+            } catch (_) { return null; }
+        }
+        // "Mes" publications = celles dont je détiens le remoteId en local (pas besoin d'exposer la clé).
+        function ownedIds() { return new Set(LIB.map(x => x.remoteId).filter(Boolean)); }
         function authorName() { try { return localStorage.getItem('ekwa_author') || ''; } catch (_) { return ''; } }
         let _authorResolve = null;
         function askAuthor(pre) {
@@ -1508,44 +1590,50 @@
                 try { localStorage.setItem('ekwa_author', author); } catch (_) { }
             }
             toast('Publication en ligne…');
-            const r = await window.api.sharedPublish({ name: item.name, html: item.html, author });
+            const r = await window.api.sharedPublish({ name: item.name, html: item.html, author, ownerKey: ownerKey() });
             if (!r || r.error) { toast('Échec publication : ' + ((r && r.error) || 'inconnu')); return; }
-            // Marque le composant local comme publié (remoteId) → pas de doublon au prochain reload.
+            // Marque le composant local comme publié (remoteId) → carte "liée au cloud" (bouton MAJ).
             const remoteId = r.row && r.row.id;
             if (remoteId && window.api.librarySave) {
-                const res = await window.api.librarySave(Object.assign({}, item, { remoteId }));
+                const res = await window.api.librarySave(Object.assign({}, item, { remoteId, author }));
                 if (res && res.list) LIB = res.list;
             }
             renderCompGrid();
             toast('Publié en ligne ✓');
         }
 
-        async function reloadShared() {
+        async function updateSharedComponent(item) {
+            if (!item.remoteId) return publishComponent(item);
+            if (!window.api || !window.api.sharedUpdate) { toast("Dispo seulement dans l'app"); return; }
+            if (!confirm('Mettre à jour « ' + item.name + ' » en ligne avec la version locale actuelle ?')) return;
+            toast('Mise à jour en ligne…');
+            const r = await window.api.sharedUpdate({ id: item.remoteId, ownerKey: ownerKey(), name: item.name, html: item.html });
+            if (!r || r.error) { toast('Échec MAJ : ' + ((r && r.error) || 'inconnu')); return; }
+            if (!r.ok) { toast("Refusé : tu n'es pas le propriétaire de cette publication."); return; }
+            if (currentLibTab === 'shared') loadShared();
+            toast('Mis à jour en ligne ✓');
+        }
+
+        async function deleteSharedComponent(row) {
+            if (!window.api || !window.api.sharedDelete) { toast("Dispo seulement dans l'app"); return; }
+            if (!confirm('Supprimer « ' + row.name + ' » de la bibliothèque partagée ?\n(Définitif, pour toute l\'équipe.)')) return;
+            toast('Suppression en ligne…');
+            const r = await window.api.sharedDelete({ id: row.id, ownerKey: ownerKey() });
+            if (!r || r.error) { toast('Échec : ' + ((r && r.error) || 'inconnu')); return; }
+            if (!r.ok) { toast("Refusé : tu n'es pas le propriétaire."); return; }
+            SHARED = SHARED.filter(x => x.id !== row.id);
+            renderCompGrid();
+            toast('Supprimé du cloud ✓');
+        }
+
+        async function loadShared() {
             if (!window.api || !window.api.sharedList) { toast("Dispo seulement dans l'app"); return; }
-            toast('Chargement de la bibliothèque en ligne…');
+            toast('Chargement de la bibliothèque partagée…');
             const r = await window.api.sharedList();
             if (!r || r.error) { toast('Échec : ' + ((r && r.error) || 'réseau')); return; }
-            const rows = r.list || [];
-            const have = new Set(LIB.map(x => x.remoteId).filter(Boolean));
-            let added = 0;
-            for (const row of rows) {
-                if (have.has(row.id)) continue; // déjà en biblio (publié par moi ou déjà rechargé)
-                const rec = {
-                    name: row.name || 'Composant',
-                    html: row.html || '',
-                    author: row.author || '',
-                    source: 'online',
-                    remoteId: row.id,
-                    createdAt: row.created_at ? Date.parse(row.created_at) : Date.now()
-                };
-                if (window.api.librarySave) {
-                    const res = await window.api.librarySave(rec);
-                    if (res && res.list) LIB = res.list;
-                } else { rec.id = 'online-' + row.id; LIB.unshift(rec); lsLibSave(); }
-                added++;
-            }
-            renderCompGrid();
-            toast(added ? (added + ' composant(s) chargé(s)') : 'Bibliothèque à jour');
+            SHARED = r.list || [];
+            if (currentLibTab === 'shared') renderCompGrid();
+            toast(SHARED.length + ' composant(s) en ligne');
         }
 
         // ===== MISE À JOUR — vérif au lancement + bannière (install manuelle, sans signature) =====
