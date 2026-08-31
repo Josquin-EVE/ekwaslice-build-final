@@ -310,8 +310,8 @@
         <aside class="w-80 bg-slate-800 border-r border-slate-700 flex flex-col shrink-0">
             <!-- Vue bibliothèque (par défaut) -->
             <div id="library-panel" class="flex flex-col flex-1 overflow-hidden">
-                <!-- Section : Bibliothèque de composants sauvegardés -->
-                <div class="p-4 border-b border-slate-700 flex flex-col" style="max-height:45%">
+                <!-- Section : Bibliothèque (grandit + scroll ; les pictos passent en accordéon dessous) -->
+                <div class="p-4 pb-2 flex flex-col flex-1 min-h-0 border-b border-slate-700">
                     <div class="flex items-center justify-between mb-2 gap-2">
                         <div class="inline-flex rounded-lg bg-slate-900 border border-slate-700 p-0.5 text-[11px] font-semibold shrink-0">
                             <button id="tab-local" onclick="setLibTab('local')"
@@ -324,19 +324,24 @@
                             class="hidden text-[10px] items-center gap-1 px-2 py-1 rounded-lg bg-secondary text-ink-deep font-semibold hover:brightness-110 transition">
                             <i class="fa-solid fa-rotate"></i>Recharger</button>
                     </div>
-                    <div id="comp-grid" class="flex flex-col gap-2 overflow-y-auto flex-1 pr-1"></div>
+                    <div id="comp-grid" class="flex flex-col gap-2 overflow-y-auto flex-1 min-h-0 pr-1"></div>
                 </div>
-                <!-- Section : Pictogrammes -->
-                <div class="p-4 pb-2">
-                    <h2 class="font-semibold text-sm text-slate-300 uppercase tracking-wider">Pictogrammes</h2>
-                </div>
-                <div class="px-4 pb-4 flex flex-col flex-1 overflow-hidden">
-                    <input id="picto-search" type="text" placeholder="Rechercher un picto…"
-                        oninput="renderPictoGrid(this.value)"
-                        class="w-full mb-2 bg-slate-900 border border-slate-600/50 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-primary">
-                    <div data-picto-grid class="grid grid-cols-4 gap-1.5 overflow-y-auto flex-1 pr-1"></div>
-                    <p class="text-[10px] text-slate-600 mt-1.5 leading-snug">Clic = insérer dans l'élément
-                        sélectionné (sinon nouveau bloc). Rendu local ; le code exporté pointe vers Prismic.</p>
+                <!-- Section : Pictogrammes (accordéon repliable) -->
+                <div class="shrink-0 flex flex-col">
+                    <button type="button" onclick="togglePictos()"
+                        class="px-4 py-2.5 flex items-center gap-2 text-left hover:bg-slate-700/40 transition">
+                        <i class="fa-solid fa-shapes text-slate-400 text-xs"></i>
+                        <span class="flex-1 font-semibold text-sm text-slate-300 uppercase tracking-wider">Pictogrammes</span>
+                        <i data-picto-chev class="fa-solid fa-chevron-down text-[10px] text-slate-500 transition-transform"></i>
+                    </button>
+                    <div id="picto-body" class="px-4 pb-4 flex flex-col overflow-hidden" style="max-height:42vh">
+                        <input id="picto-search" type="text" placeholder="Rechercher un picto…"
+                            oninput="renderPictoGrid(this.value)"
+                            class="w-full mb-2 bg-slate-900 border border-slate-600/50 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-primary">
+                        <div data-picto-grid class="grid grid-cols-4 gap-1.5 overflow-y-auto flex-1 min-h-0 pr-1"></div>
+                        <p class="text-[10px] text-slate-600 mt-1.5 leading-snug">Clic = insérer dans l'élément
+                            sélectionné (sinon nouveau bloc).</p>
+                    </div>
                 </div>
             </div><!-- /#library-panel -->
 
@@ -1041,42 +1046,73 @@
 
         // Rendu des contrôles dans le panneau gauche docké (#editor-style)
         const styleBox = document.getElementById('editor-style');
-        styleBox.innerHTML =
-            spSpacingGroup('margin', 'Margin')
-            + '<div class="h-px bg-slate-700"></div>'
-            + spSpacingGroup('padding', 'Padding')
-            + '<div class="h-px bg-slate-700"></div>'
-            + spSpacingGroup('border', 'Épaisseur bordure')
-            + '<div class="flex items-center gap-1 flex-wrap">'
-            + '<span class="w-full text-[10px] text-slate-500 mb-0.5">Couleur bordure</span>'
-            + styleColors.map(([hex, name]) => '<button data-bcolor="' + hex + '" title="' + name + '" class="w-5 h-5 rounded-full border border-slate-500 hover:scale-110 transition" style="background:' + hex + '"></button>').join('')
-            + '<button data-bcolor="none" title="Sans bordure" class="w-5 h-5 rounded-full border border-slate-500 text-slate-300 text-[10px] flex items-center justify-center hover:bg-slate-700">∅</button>'
-            + '<input type="color" data-cwheel="border" title="Roue de couleur" class="w-6 h-6 p-0 rounded cursor-pointer bg-transparent border border-slate-500">'
-            + '<input type="text" data-chex="border" placeholder="#RRGGBB" spellcheck="false" class="w-[74px] bg-slate-950 border border-slate-600 rounded px-1.5 py-1 text-[11px] font-mono text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-primary">'
-            + '</div>'
-            + '<div class="h-px bg-slate-700"></div>'
-            + '<div class="space-y-1.5"><span class="text-[11px] font-medium text-slate-300">Arrondi des coins</span>'
-            + '<div>' + spStepper('radius', 'all', '') + '<span class="ml-1 text-[10px] text-slate-500">px</span></div></div>'
-            + '<div class="h-px bg-slate-700"></div>'
-            + '<div class="space-y-1.5"><span class="text-[11px] font-medium text-slate-300">Taille de police</span>'
-            + '<div>' + spStepper('font', 'all', '') + '<span class="ml-1 text-[10px] text-slate-500">px</span></div></div>'
-            + '<div class="h-px bg-slate-700"></div>'
-            + '<div class="flex items-center gap-1 flex-wrap">'
-            + '<span class="w-full text-[10px] text-slate-500 mb-0.5">Couleur de fond</span>'
-            + styleColors.map(([hex, name]) => '<button data-bgcolor="' + hex + '" title="' + name + '" class="w-5 h-5 rounded-full border border-slate-500 hover:scale-110 transition" style="background:' + hex + '"></button>').join('')
-            + '<button data-bgcolor="none" title="Sans fond" class="w-5 h-5 rounded-full border border-slate-500 text-slate-300 text-[10px] flex items-center justify-center hover:bg-slate-700">∅</button>'
-            + '<input type="color" data-cwheel="bg" title="Roue de couleur" class="w-6 h-6 p-0 rounded cursor-pointer bg-transparent border border-slate-500">'
-            + '<input type="text" data-chex="bg" placeholder="#RRGGBB" spellcheck="false" class="w-[74px] bg-slate-950 border border-slate-600 rounded px-1.5 py-1 text-[11px] font-mono text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-primary">'
-            + '</div>'
-            + '<div class="h-px bg-slate-700"></div>'
-            + '<div class="space-y-1.5"><span class="text-[11px] font-medium text-slate-300">Dimensions</span>'
-            + '<div class="grid grid-cols-2 gap-1.5">' + spStepper('width', 'all', 'L') + spStepper('height', 'all', 'H') + '</div>'
-            + '<span class="text-[10px] text-slate-500">px · 0 = auto (idéal SVG/picto)</span></div>'
-            + '<div class="h-px bg-slate-700"></div>'
-            + '<div class="space-y-1.5"><span class="text-[11px] font-medium text-slate-300">CSS personnalisé</span>'
-            + '<textarea id="css-editor" rows="4" spellcheck="false" placeholder="border: 2px solid #17E7D0;&#10;box-shadow: 0 8px 24px rgba(0,0,0,.35);&#10;background: linear-gradient(...);" '
+        // --- Accordéon : état des sections (mémorisé) ---
+        const ACC_LS = 'ekwa_acc';
+        function accState() { try { return JSON.parse(localStorage.getItem(ACC_LS)) || {}; } catch (_) { return {}; } }
+        function accSave(s) { try { localStorage.setItem(ACC_LS, JSON.stringify(s)); } catch (_) { } }
+        function accSection(id, icon, title, body, open) {
+            return '<div class="acc border-b border-slate-700/70" data-acc="' + id + '">'
+                + '<button type="button" data-acc-head="' + id + '" class="w-full flex items-center gap-2 py-2.5 text-left text-[12px] font-semibold text-slate-200 hover:text-cloud">'
+                + '<i class="fa-solid ' + icon + ' text-slate-400 w-4 text-center text-[11px]"></i>'
+                + '<span class="flex-1">' + title + '</span>'
+                + '<i class="fa-solid fa-chevron-down text-[10px] text-slate-500 transition-transform ' + (open ? '' : '-rotate-90') + '" data-acc-chev></i>'
+                + '</button>'
+                + '<div data-acc-body class="pb-3 space-y-2 ' + (open ? '' : 'hidden') + '">' + body + '</div>'
+                + '</div>';
+        }
+        const _div = '<div class="h-px bg-slate-700/70"></div>';
+        const _colorRow = (attr, noneLabel) =>
+            '<div class="flex items-center gap-1 flex-wrap">'
+            + styleColors.map(([hex, name]) => '<button data-' + attr + '="' + hex + '" title="' + name + '" class="w-5 h-5 rounded-full border border-slate-500 hover:scale-110 transition" style="background:' + hex + '"></button>').join('')
+            + '<button data-' + attr + '="none" title="' + noneLabel + '" class="w-5 h-5 rounded-full border border-slate-500 text-slate-300 text-[10px] flex items-center justify-center hover:bg-slate-700">∅</button>'
+            + '<input type="color" data-cwheel="' + (attr === 'bcolor' ? 'border' : 'bg') + '" title="Roue de couleur" class="w-6 h-6 p-0 rounded cursor-pointer bg-transparent border border-slate-500">'
+            + '<input type="text" data-chex="' + (attr === 'bcolor' ? 'border' : 'bg') + '" placeholder="#RRGGBB" spellcheck="false" class="w-[74px] bg-slate-950 border border-slate-600 rounded px-1.5 py-1 text-[11px] font-mono text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-primary">'
+            + '</div>';
+        // Fragments de contrôles (réutilisés dans les sections)
+        const fEspacement = spSpacingGroup('margin', 'Marge') + _div + spSpacingGroup('padding', 'Padding');
+        const fBordure = spSpacingGroup('border', 'Épaisseur') + _div
+            + '<span class="text-[10px] text-slate-500 block mb-0.5">Couleur</span>' + _colorRow('bcolor', 'Sans bordure') + _div
+            + '<div class="space-y-1"><span class="text-[11px] font-medium text-slate-300">Arrondi des coins</span>'
+            + '<div>' + spStepper('radius', 'all', '') + '<span class="ml-1 text-[10px] text-slate-500">px</span></div></div>';
+        const fFond = _colorRow('bgcolor', 'Sans fond');
+        const fTexte = '<div><span class="text-[11px] font-medium text-slate-300">Taille de police</span>'
+            + '<div>' + spStepper('font', 'all', '') + '<span class="ml-1 text-[10px] text-slate-500">px</span></div></div>';
+        const fTaille = '<div class="grid grid-cols-2 gap-1.5">' + spStepper('width', 'all', 'L') + spStepper('height', 'all', 'H') + '</div>'
+            + '<span class="text-[10px] text-slate-500">px · 0 = auto (idéal SVG/picto)</span>';
+        const fCss = '<textarea id="css-editor" rows="4" spellcheck="false" placeholder="border: 2px solid #17E7D0;&#10;box-shadow: 0 8px 24px rgba(0,0,0,.35);&#10;background: linear-gradient(...);" '
             + 'class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-2 text-[11px] font-mono leading-relaxed text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-primary resize-y"></textarea>'
-            + '<span class="text-[10px] text-slate-500 leading-snug">Style inline de l\'élément — édite librement (bordure, ombre, dégradé…). Appliqué en direct, synchro avec les contrôles ci-dessus.</span></div>';
+            + '<span class="text-[10px] text-slate-500 leading-snug block mt-1">Style inline de l\'élément — édite librement (ombre, dégradé…). Appliqué en direct, synchro avec les contrôles ci-dessus.</span>';
+        const _acc = accState();
+        const _o = (id, def) => (id in _acc) ? !!_acc[id] : def;
+        styleBox.innerHTML =
+            accSection('espacement', 'fa-up-down-left-right', 'Espacement', fEspacement, _o('espacement', true))
+            + accSection('bordure', 'fa-border-top-left', 'Bordure & coins', fBordure, _o('bordure', true))
+            + accSection('fond', 'fa-fill-drip', 'Fond', fFond, _o('fond', false))
+            + accSection('texte', 'fa-font', 'Texte', fTexte, _o('texte', false))
+            + accSection('taille', 'fa-ruler-combined', 'Taille', fTaille, _o('taille', false))
+            + accSection('css', 'fa-code', 'CSS avancé', fCss, _o('css', false));
+        // Show/hide + ouverture contextuelle d'une section (sans écraser un choix explicite mémorisé)
+        function setSectionVisible(id, vis) { const s = styleBox.querySelector('[data-acc="' + id + '"]'); if (s) s.classList.toggle('hidden', !vis); }
+        function setSectionOpen(id, open) {
+            const s = styleBox.querySelector('[data-acc="' + id + '"]'); if (!s) return;
+            s.querySelector('[data-acc-body]').classList.toggle('hidden', !open);
+            s.querySelector('[data-acc-chev]').classList.toggle('-rotate-90', !open);
+        }
+        function applyContextualSections() {
+            if (!sel) return;
+            const tag = sel.tagName.toLowerCase();
+            const textish = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'span', 'a', 'button', 'li', 'strong', 'em', 'small', 'label', 'th', 'td', 'figcaption']);
+            const hasOwnText = sel.children.length === 0 && !!(sel.textContent || '').trim();
+            const showTexte = textish.has(tag) || hasOwnText;
+            const imgish = ['img', 'svg', 'i'].includes(tag) || (sel.hasAttribute && sel.hasAttribute('data-picto'));
+            const isContainer = sel.children.length > 0 && !showTexte;
+            setSectionVisible('texte', showTexte); // taille police hors-sujet si pas de texte
+            const st = accState();
+            const autoOpen = (id) => { if (!(id in st)) setSectionOpen(id, true); }; // respecte un choix manuel
+            if (showTexte) autoOpen('texte');
+            if (imgish) autoOpen('taille');
+            if (isContainer) { autoOpen('bordure'); autoOpen('fond'); }
+        }
 
         function spSetInput(g, s, v) {
             const i = styleBox.querySelector('input[data-sp-in][data-sp-g="' + g + '"][data-sp-s="' + s + '"]');
@@ -1110,6 +1146,16 @@
 
         styleBox.addEventListener('mousedown', (e) => { if (e.target.closest('button')) e.preventDefault(); });
         styleBox.addEventListener('click', (e) => {
+            const head = e.target.closest('[data-acc-head]');
+            if (head) {
+                const sec = head.closest('[data-acc]');
+                const body = sec.querySelector('[data-acc-body]');
+                const willOpen = body.classList.contains('hidden');
+                body.classList.toggle('hidden', !willOpen);
+                sec.querySelector('[data-acc-chev]').classList.toggle('-rotate-90', !willOpen);
+                const st = accState(); st[head.dataset.accHead] = willOpen; accSave(st);
+                return;
+            }
             const link = e.target.closest('[data-sp-link]');
             if (link && sel) {
                 const g = link.dataset.spLink;
@@ -1320,6 +1366,7 @@
             positionMarquee();
             requestAnimationFrame(positionMarquee); // recale après reflow (panneau/zoom)
             renderNav();
+            applyContextualSections(); // ouvre/masque les sections selon le type d'élément
         }
 
         function deselect() {
@@ -1382,8 +1429,9 @@
                 const c = navTarget('child'); if (c) { e.preventDefault(); selectElement(c); }
                 return;
             }
-            // Suppr = supprimer l'élément sélectionné (jamais pendant une saisie / édition texte)
-            if (e.key === 'Delete' && sel && !editing) {
+            // Suppr = supprimer l'élément sélectionné (Delete ET Backspace — la touche Suppr Mac
+            // envoie Backspace). Jamais pendant une saisie / édition texte.
+            if ((e.key === 'Delete' || e.key === 'Backspace') && sel && !editing) {
                 const ae = document.activeElement;
                 if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable)) return;
                 e.preventDefault();
@@ -1507,6 +1555,22 @@
             const h = root.querySelector('h1, h2, h3, [class*="text-2xl"], [class*="text-xl"]');
             const t = h && h.textContent.trim();
             return (t && t.slice(0, 40)) || 'Composant';
+        }
+
+        // Pictogrammes repliables (hors édition) — libère de la place pour la bibliothèque.
+        function togglePictos() {
+            const b = document.getElementById('picto-body'); if (!b) return;
+            const chev = document.querySelector('[data-picto-chev]');
+            const open = b.classList.contains('hidden'); // clic = va ouvrir
+            b.classList.toggle('hidden', !open);
+            if (chev) chev.classList.toggle('-rotate-90', !open);
+            try { localStorage.setItem('ekwa_pictos_open', open ? '1' : '0'); } catch (_) { }
+        }
+        function initPictosAccordion() {
+            let open = true; try { open = localStorage.getItem('ekwa_pictos_open') !== '0'; } catch (_) { }
+            const b = document.getElementById('picto-body'); const chev = document.querySelector('[data-picto-chev]');
+            if (b) b.classList.toggle('hidden', !open);
+            if (chev) chev.classList.toggle('-rotate-90', !open);
         }
 
         async function loadLibrary() {
@@ -2681,6 +2745,7 @@
             currentWidth = 'desktop';
             startHistory();
             loadLibrary();
+            initPictosAccordion();
             checkForUpdate();
         });
     </script>
