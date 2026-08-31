@@ -600,11 +600,14 @@
                         style="background:#0F1A1C"></pre>
                 </div>
             </div>
-            <div class="p-4 border-t border-slate-700 bg-slate-900/50 flex justify-end gap-3 shrink-0">
+            <div class="p-4 border-t border-slate-700 bg-slate-900/50 flex justify-end items-center gap-3 shrink-0">
                 <button onclick="closeModal()"
-                    class="px-4 py-2 text-xs bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 transition">Fermer</button>
+                    class="px-4 py-2 text-xs bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 transition mr-auto">Fermer</button>
+                <button onclick="pushToPrismic(this)" title="Créer la slice directement dans Prismic (brouillon, non publié)"
+                    class="px-4 py-2 text-xs bg-secondary text-ink-deep font-semibold rounded-lg hover:brightness-110 transition"><i
+                        class="fa-solid fa-cloud-arrow-up mr-1.5"></i>Envoyer vers Prismic</button>
                 <button onclick="copyOut('all', this)"
-                    class="px-4 py-2 text-xs bg-secondary text-ink-deep font-semibold rounded-lg hover:brightness-110 transition shadow-lg shadow-secondary/10"><i
+                    class="px-4 py-2 text-xs bg-slate-700 text-slate-200 rounded-lg hover:bg-slate-600 transition"><i
                         class="fa-solid fa-copy mr-1.5"></i>Tout copier</button>
             </div>
         </div>
@@ -2534,6 +2537,25 @@
             navigator.clipboard.writeText(txt).then(() => {
                 if (btn) { const o = btn.innerHTML; btn.innerHTML = '<i class="fa-solid fa-check mr-1"></i>Copié'; setTimeout(() => btn.innerHTML = o, 1200); }
             });
+        }
+
+        // Envoi direct de la slice vers Prismic (custom_slice, brouillon dans la release "EkwaSlice").
+        async function pushToPrismic(btn) {
+            if (!window.api || !window.api.pushPrismic) { toast("Dispo seulement dans l'app"); return; }
+            if (!lastExport || (!lastExport.html && !lastExport.css && !lastExport.js)) { toast('Rien à envoyer'); return; }
+            const h = canvas.querySelector('[data-comp] h1, [data-comp] h2, [data-comp] h3, [data-comp] [class*="text-2xl"]');
+            const suggested = (h && h.textContent.trim().slice(0, 50)) || 'Composant';
+            const name = await askName({ title: 'Envoyer vers Prismic', label: 'Nom de la slice (convention : préfixe [Custom Slice])', placeholder: '[Custom Slice] …', pre: '[Custom Slice] ' + suggested });
+            if (!name) return;
+            const o = btn ? btn.innerHTML : '';
+            if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1.5"></i>Envoi…'; }
+            toast('Envoi vers Prismic…');
+            let r;
+            try { r = await window.api.pushPrismic({ title: name, html: lastExport.html, css: lastExport.css, js: lastExport.js }); }
+            catch (e) { r = { error: e.message }; }
+            if (btn) { btn.disabled = false; btn.innerHTML = o; }
+            if (!r || r.error || !r.ok) { toast('Échec envoi : ' + ((r && (r.error || r.raw)) || 'inconnu')); return; }
+            toast('Envoyé vers Prismic ✓ — à publier dans le dashboard (release « EkwaSlice »)');
         }
 
         // --- Écran de garde : connexion Claude ---

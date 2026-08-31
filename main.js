@@ -540,6 +540,72 @@ ipcMain.handle('shared-rename-author', async (event, payload) => {
 });
 
 // ---------------------------------------------------------------------------
+// PUSH PRISMIC — envoie une slice directement dans Prismic (custom_slice) via le
+// CLI headless + MCP Prismic (mcp__claude_ai_Prismic). Crée un DOCUMENT dans une
+// release fixe "EkwaSlice" (créée si absente). NE PUBLIE JAMAIS (publication
+// manuelle depuis le dashboard). allowlist d'outils scopée (pas de skip-permissions).
+// ---------------------------------------------------------------------------
+ipcMain.handle('push-prismic', async (event, payload) => {
+  const title = ((payload && payload.title) || '').trim();
+  const html = (payload && payload.html) || '';
+  const css = (payload && payload.css) || '';
+  const js = (payload && payload.js) || '';
+  if (!title) return { error: 'Titre manquant.' };
+  if (!html && !css && !js) return { error: 'Composant vide.' };
+
+  const bin = resolveClaudeBin();
+  const prompt = [
+    'Objectif : créer UN document dans Prismic via le MCP Prismic (repository "ekwateur-edito").',
+    'Les outils MCP Prismic sont déférés : charge-les avec ToolSearch si nécessaire.',
+    'Étapes STRICTES :',
+    '1. list_releases sur "ekwateur-edito" ; trouve la release dont le label est EXACTEMENT "EkwaSlice".',
+    '   Si aucune, crée-la avec create_release (label "EkwaSlice").',
+    '2. create_document : repository "ekwateur-edito", customTypeId "custom_slice", locale "fr-fr",',
+    '   releaseId = la release "EkwaSlice", title = ' + JSON.stringify(title) + ', content =',
+    '   { "html_only": {"__TYPE__":"FieldContent","type":"Text","value": <HTML>},',
+    '     "css": {"__TYPE__":"FieldContent","type":"Text","value": <CSS>},',
+    '     "js": {"__TYPE__":"FieldContent","type":"Text","value": <JS>} }',
+    '   où <HTML>/<CSS>/<JS> sont EXACTEMENT les blocs délimités ci-dessous (ne les modifie pas).',
+    '3. NE PUBLIE JAMAIS (pas de publish_release).',
+    'Termine par UNE SEULE ligne JSON et rien d\'autre : {"documentId":"...","releaseId":"...","ok":true}',
+    '',
+    '===HTML_ONLY_START===', html, '===HTML_ONLY_END===',
+    '===CSS_START===', css, '===CSS_END===',
+    '===JS_START===', js, '===JS_END==='
+  ].join('\n');
+
+  const args = ['-p', prompt,
+    '--allowedTools', 'ToolSearch',
+    'mcp__claude_ai_Prismic',
+    'mcp__claude_ai_Prismic__list_releases',
+    'mcp__claude_ai_Prismic__create_release',
+    'mcp__claude_ai_Prismic__create_document',
+    '--model', MODEL, '--output-format', 'json'];
+
+  return new Promise((resolve) => {
+    let child;
+    try { child = spawn(bin, args, { cwd: os.tmpdir() }); }
+    catch (e) { return resolve({ error: 'Impossible de lancer claude : ' + e.message }); }
+    let out = '', err = '';
+    const timer = setTimeout(() => { child.kill(); resolve({ error: 'Délai dépassé (180 s).' }); }, 180000);
+    child.stdout.on('data', d => { out += d.toString(); });
+    child.stderr.on('data', d => { err += d.toString(); });
+    child.on('error', (e) => { clearTimeout(timer); resolve({ error: 'CLI claude introuvable : ' + e.message }); });
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      if (code !== 0) return resolve({ error: err.trim() || ('claude a quitté (code ' + code + ')') });
+      let result = '';
+      try { result = JSON.parse(out).result || ''; } catch (_) { return resolve({ error: 'Parsing réponse impossible.' }); }
+      let info = null;
+      const m = result.match(/\{[^{}]*"documentId"[^{}]*\}/);
+      if (m) { try { info = JSON.parse(m[0]); } catch (_) { } }
+      if (info && info.documentId) return resolve({ ok: true, documentId: info.documentId, releaseId: info.releaseId || null });
+      return resolve({ ok: false, error: 'Réponse inattendue de Claude', raw: result.slice(0, 300) });
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // MISE À JOUR — vérif légère (sans signature) : compare la version locale à la
 // dernière GitHub Release. Ne télécharge/installe RIEN ; le renderer affiche une
 // bannière avec un lien de téléchargement (install manuelle).

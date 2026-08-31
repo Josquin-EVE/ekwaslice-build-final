@@ -22,6 +22,8 @@ contextBridge.exposeInMainWorld('api', {
   sharedDelete: (payload) => ipcRenderer.invoke('shared-delete', payload),
   sharedUpdate: (payload) => ipcRenderer.invoke('shared-update', payload),
   sharedRenameAuthor: (payload) => ipcRenderer.invoke('shared-rename-author', payload),
+  // Push direct d'une slice vers Prismic (custom_slice)
+  pushPrismic: (payload) => ipcRenderer.invoke('push-prismic', payload),
   // Mise à jour
   checkUpdate: () => ipcRenderer.invoke('check-update'),
   openExternal: (url) => ipcRenderer.invoke('open-external', url)
