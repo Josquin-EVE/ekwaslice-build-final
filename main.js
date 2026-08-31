@@ -5,6 +5,15 @@ const fs = require('fs');
 const { spawn, execSync } = require('child_process');
 
 // ---------------------------------------------------------------------------
+// DOSSIER DE DONNÉES FIGÉ — la bibliothèque de composants vit dans userData
+// (hors du bundle .app → une MAJ .dmg ne la touche JAMAIS). On FIGE le nom du
+// dossier ici pour qu'il ne bouge plus, même si package.json "name" change à
+// l'avenir → l'utilisateur ne perd jamais sa biblio entre les versions.
+// ---------------------------------------------------------------------------
+const DATA_DIR = 'EkwaSlice';
+try { app.setPath('userData', path.join(app.getPath('appData'), DATA_DIR)); } catch (_) { }
+
+// ---------------------------------------------------------------------------
 // CHARTE GRAPHIQUE — éditez ce bloc pour changer le style imposé à Claude.
 // Injecté comme "system prompt" à chaque génération.
 // ---------------------------------------------------------------------------
@@ -300,8 +309,35 @@ function readLibrary() {
   catch (_) { return []; }
 }
 function writeLibrary(list) {
-  try { fs.writeFileSync(libraryPath(), JSON.stringify(list)); return true; }
-  catch (e) { return false; }
+  try {
+    const p = libraryPath();
+    fs.mkdirSync(path.dirname(p), { recursive: true }); // le dossier peut ne pas exister
+    fs.writeFileSync(p, JSON.stringify(list));
+    return true;
+  } catch (e) { return false; }
+}
+// Récupère la biblio d'anciens noms de dossier (avant qu'il soit figé), UNE SEULE FOIS,
+// sans jamais supprimer/écraser une biblio existante non vide (100% non-destructif).
+function migrateLibraryIfNeeded() {
+  try {
+    const target = libraryPath();
+    let cur = null;
+    try { cur = JSON.parse(fs.readFileSync(target, 'utf8')); } catch (_) { cur = null; }
+    if (Array.isArray(cur) && cur.length > 0) return; // déjà des slices → on ne touche à RIEN
+    const appData = app.getPath('appData');
+    const olds = ['studio-composants', 'Studio Composants', 'StudioComposants', 'Ekwaslice'];
+    for (const name of olds) {
+      const src = path.join(appData, name, 'library.json');
+      if (path.resolve(src) === path.resolve(target)) continue;
+      let data = null;
+      try { data = JSON.parse(fs.readFileSync(src, 'utf8')); } catch (_) { continue; }
+      if (Array.isArray(data) && data.length) {
+        fs.mkdirSync(path.dirname(target), { recursive: true });
+        fs.writeFileSync(target, JSON.stringify(data)); // COPIE (la source reste intacte)
+        break;
+      }
+    }
+  } catch (_) { }
 }
 ipcMain.handle('library-list', async () => readLibrary());
 ipcMain.handle('library-save', async (event, item) => {
@@ -368,6 +404,7 @@ ipcMain.handle('open-external', async (event, url) => {
 });
 
 app.whenReady().then(() => {
+  migrateLibraryIfNeeded(); // récupère les slices d'un ancien nom de dossier (non-destructif)
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
