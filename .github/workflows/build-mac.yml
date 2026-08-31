@@ -1,0 +1,32 @@
+name: Build macOS (.dmg)
+
+# Se déclenche quand tu pushes un tag de version (ex: v1.0.1),
+# ou manuellement depuis l'onglet Actions (bouton "Run workflow").
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write # nécessaire pour créer la Release + y attacher le .dmg
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build & publish .dmg to GitHub Releases
+        run: npm run release:mac
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
