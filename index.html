@@ -286,7 +286,12 @@
             <div id="library-panel" class="flex flex-col flex-1 overflow-hidden">
                 <!-- Section : Bibliothèque de composants sauvegardés -->
                 <div class="p-4 border-b border-slate-700 flex flex-col" style="max-height:45%">
-                    <h2 class="font-semibold text-sm text-slate-300 uppercase tracking-wider mb-2">Bibliothèque</h2>
+                    <div class="flex items-center justify-between mb-2">
+                        <h2 class="font-semibold text-sm text-slate-300 uppercase tracking-wider">Bibliothèque</h2>
+                        <button onclick="reloadShared()" title="Recharger la bibliothèque partagée en ligne"
+                            class="text-[10px] flex items-center gap-1 px-2 py-1 rounded-lg bg-secondary text-ink-deep font-semibold hover:brightness-110 transition">
+                            <i class="fa-solid fa-cloud-arrow-down"></i>En ligne</button>
+                    </div>
                     <div id="comp-grid" class="flex flex-col gap-2 overflow-y-auto flex-1 pr-1"></div>
                 </div>
                 <!-- Section : Pictogrammes -->
@@ -617,6 +622,33 @@
                 <button onclick="confirmSave()"
                     class="px-4 py-2 text-xs bg-secondary text-ink-deep font-semibold rounded-lg hover:brightness-110 transition"><i
                         class="fa-solid fa-check mr-1.5"></i>Sauvegarder</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Auteur (nom affiché sur les composants publiés en ligne) -->
+    <div id="authorModal"
+        class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] hidden items-center justify-center p-6">
+        <div
+            class="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-md flex flex-col overflow-hidden shadow-2xl">
+            <div class="p-4 border-b border-slate-700 flex justify-between items-center shrink-0">
+                <h3 class="font-semibold text-white text-base"><i
+                        class="fa-solid fa-user mr-2 text-black"></i>Ton nom (auteur)</h3>
+                <button onclick="closeAuthorModal()" class="text-slate-400 hover:text-white transition text-lg"><i
+                        class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="p-4 space-y-2">
+                <label class="text-xs font-medium text-slate-300">Affiché sur les composants que tu publies</label>
+                <input id="author-name-input" type="text" placeholder="Ex : Josquin" spellcheck="false"
+                    onkeydown="if(event.key==='Enter'){event.preventDefault();confirmAuthor();} if(event.key==='Escape'){closeAuthorModal();}"
+                    class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-primary">
+            </div>
+            <div class="p-4 border-t border-slate-700 bg-slate-900/50 flex justify-end gap-3 shrink-0">
+                <button onclick="closeAuthorModal()"
+                    class="px-4 py-2 text-xs bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 transition">Annuler</button>
+                <button onclick="confirmAuthor()"
+                    class="px-4 py-2 text-xs bg-secondary text-ink-deep font-semibold rounded-lg hover:brightness-110 transition"><i
+                        class="fa-solid fa-check mr-1.5"></i>OK</button>
             </div>
         </div>
     </div>
@@ -1417,21 +1449,103 @@
             g.innerHTML = '';
             LIB.forEach(item => {
                 const card = document.createElement('div');
+                const isOnline = item.source === 'online';
                 card.className = 'relative group w-full rounded-lg border border-slate-700 bg-slate-900 overflow-hidden cursor-pointer hover:border-primary transition';
                 card.title = 'Insérer : ' + item.name;
+                const badge = isOnline
+                    ? '<div class="absolute top-1 left-1 max-w-[70%] px-1.5 py-0.5 rounded bg-secondary/90 text-ink-deep text-[9px] font-bold flex items-center gap-1 truncate"><i class="fa-solid fa-cloud"></i>' + escHtml(item.author || 'en ligne') + '</div>'
+                    : '';
+                const pubBtn = isOnline ? ''
+                    : '<button data-pub title="Publier en ligne" class="absolute top-1 right-7 w-5 h-5 rounded bg-black/60 text-secondary opacity-0 group-hover:opacity-100 transition text-[10px] flex items-center justify-center"><i class="fa-solid fa-cloud-arrow-up"></i></button>';
                 card.innerHTML =
                     '<div class="h-24 w-full overflow-hidden bg-night pointer-events-none">'
                     + '<div class="origin-top-left" style="transform:scale(0.27);width:370%;">' + item.html + '</div></div>'
                     + '<div class="px-2 py-1.5 text-[11px] text-slate-300 truncate border-t border-slate-800">' + escHtml(item.name) + '</div>'
-                    + '<button data-del title="Supprimer" class="absolute top-1 right-1 w-5 h-5 rounded bg-black/60 text-red-300 opacity-0 group-hover:opacity-100 transition text-[10px] flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>';
+                    + badge + pubBtn
+                    + '<button data-del title="Retirer de ma bibliothèque" class="absolute top-1 right-1 w-5 h-5 rounded bg-black/60 text-red-300 opacity-0 group-hover:opacity-100 transition text-[10px] flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>';
                 card.addEventListener('click', (e) => {
                     if (e.target.closest('[data-del]')) { e.stopPropagation(); deleteSavedComponent(item.id); return; }
+                    if (e.target.closest('[data-pub]')) { e.stopPropagation(); publishComponent(item); return; }
                     insertSavedComponent(item);
                 });
                 // pictos de la vignette → src local pour l'aperçu
                 card.querySelectorAll('img[data-picto]').forEach(img => { const p = PICTO_MAP[img.getAttribute('data-picto')]; if (p) img.src = pictoAssetBase() + p.file; });
                 g.appendChild(card);
             });
+        }
+
+        // ===== BIBLIOTHÈQUE PARTAGÉE EN LIGNE (Supabase) — publier / recharger =====
+        function authorName() { try { return localStorage.getItem('ekwa_author') || ''; } catch (_) { return ''; } }
+        let _authorResolve = null;
+        function askAuthor(pre) {
+            return new Promise(resolve => {
+                _authorResolve = resolve;
+                const inp = document.getElementById('author-name-input');
+                inp.value = pre || '';
+                const m = document.getElementById('authorModal');
+                m.classList.remove('hidden'); m.classList.add('flex');
+                setTimeout(() => { inp.focus(); inp.select(); }, 30);
+            });
+        }
+        function closeAuthorModal() {
+            const m = document.getElementById('authorModal');
+            m.classList.add('hidden'); m.classList.remove('flex');
+            if (_authorResolve) { _authorResolve(null); _authorResolve = null; }
+        }
+        function confirmAuthor() {
+            const v = (document.getElementById('author-name-input').value || '').trim();
+            const m = document.getElementById('authorModal');
+            m.classList.add('hidden'); m.classList.remove('flex');
+            if (_authorResolve) { _authorResolve(v || null); _authorResolve = null; }
+        }
+
+        async function publishComponent(item) {
+            if (!window.api || !window.api.sharedPublish) { toast("Publication dispo seulement dans l'app"); return; }
+            let author = authorName();
+            if (!author) {
+                author = await askAuthor('');
+                if (!author) return; // annulé
+                try { localStorage.setItem('ekwa_author', author); } catch (_) { }
+            }
+            toast('Publication en ligne…');
+            const r = await window.api.sharedPublish({ name: item.name, html: item.html, author });
+            if (!r || r.error) { toast('Échec publication : ' + ((r && r.error) || 'inconnu')); return; }
+            // Marque le composant local comme publié (remoteId) → pas de doublon au prochain reload.
+            const remoteId = r.row && r.row.id;
+            if (remoteId && window.api.librarySave) {
+                const res = await window.api.librarySave(Object.assign({}, item, { remoteId }));
+                if (res && res.list) LIB = res.list;
+            }
+            renderCompGrid();
+            toast('Publié en ligne ✓');
+        }
+
+        async function reloadShared() {
+            if (!window.api || !window.api.sharedList) { toast("Dispo seulement dans l'app"); return; }
+            toast('Chargement de la bibliothèque en ligne…');
+            const r = await window.api.sharedList();
+            if (!r || r.error) { toast('Échec : ' + ((r && r.error) || 'réseau')); return; }
+            const rows = r.list || [];
+            const have = new Set(LIB.map(x => x.remoteId).filter(Boolean));
+            let added = 0;
+            for (const row of rows) {
+                if (have.has(row.id)) continue; // déjà en biblio (publié par moi ou déjà rechargé)
+                const rec = {
+                    name: row.name || 'Composant',
+                    html: row.html || '',
+                    author: row.author || '',
+                    source: 'online',
+                    remoteId: row.id,
+                    createdAt: row.created_at ? Date.parse(row.created_at) : Date.now()
+                };
+                if (window.api.librarySave) {
+                    const res = await window.api.librarySave(rec);
+                    if (res && res.list) LIB = res.list;
+                } else { rec.id = 'online-' + row.id; LIB.unshift(rec); lsLibSave(); }
+                added++;
+            }
+            renderCompGrid();
+            toast(added ? (added + ' composant(s) chargé(s)') : 'Bibliothèque à jour');
         }
 
         // ===== MISE À JOUR — vérif au lancement + bannière (install manuelle, sans signature) =====

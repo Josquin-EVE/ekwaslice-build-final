@@ -356,7 +356,10 @@ ipcMain.handle('library-save', async (event, item) => {
     id: item.id || ('c-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)),
     name: (item.name || 'Composant').slice(0, 80),
     html: item.html,
-    createdAt: item.createdAt || Date.now()
+    createdAt: item.createdAt || Date.now(),
+    source: item.source || 'local',   // 'local' (créé ici) ou 'online' (rechargé du partagé)
+    author: item.author || '',
+    remoteId: item.remoteId || null    // id Supabase si publié/rechargé → dédup au reload
   };
   const i = list.findIndex(x => x.id === rec.id);
   if (i >= 0) list[i] = rec; else list.unshift(rec);
@@ -367,6 +370,58 @@ ipcMain.handle('library-delete', async (event, id) => {
   const list = readLibrary().filter(x => x.id !== id);
   writeLibrary(list);
   return { list };
+});
+
+// ---------------------------------------------------------------------------
+// BIBLIOTHÈQUE PARTAGÉE EN LIGNE (Supabase) — publier / recharger.
+// La clé "publishable" est PUBLIQUE par design (protégée par les policies RLS
+// select+insert de la table `components`) → OK de l'embarquer dans l'app. On
+// n'embarque JAMAIS la clé service_role. Aucune suppression distante depuis
+// l'app en v1 (évite qu'un user efface la biblio de toute l'équipe).
+// ---------------------------------------------------------------------------
+const SUPABASE_URL = 'https://pmkyywodvhpuigpaauil.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_8qiTIeB0EQauo9OhZ7vrMw_3s3AhYzG';
+function sbHeaders(extra) {
+  return Object.assign({ apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY }, extra || {});
+}
+ipcMain.handle('shared-list', async () => {
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 10000);
+    const res = await fetch(
+      SUPABASE_URL + '/rest/v1/components?select=id,name,author,html,created_at&order=created_at.desc',
+      { headers: sbHeaders(), signal: ctrl.signal }
+    );
+    clearTimeout(t);
+    if (!res.ok) return { error: 'HTTP ' + res.status };
+    const rows = await res.json();
+    return { list: Array.isArray(rows) ? rows : [] };
+  } catch (e) { return { error: e.message }; }
+});
+ipcMain.handle('shared-publish', async (event, item) => {
+  if (!item || !item.html || !item.name) return { error: 'Composant vide.' };
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 10000);
+    const body = {
+      name: String(item.name).slice(0, 120),
+      author: String(item.author || '').slice(0, 80),
+      html: String(item.html)
+    };
+    const res = await fetch(SUPABASE_URL + '/rest/v1/components', {
+      method: 'POST',
+      headers: sbHeaders({ 'Content-Type': 'application/json', Prefer: 'return=representation' }),
+      body: JSON.stringify(body),
+      signal: ctrl.signal
+    });
+    clearTimeout(t);
+    if (!res.ok) {
+      const txt = await res.text().catch(() => '');
+      return { error: 'HTTP ' + res.status + (txt ? ' ' + txt.slice(0, 120) : '') };
+    }
+    const rows = await res.json();
+    return { row: Array.isArray(rows) ? rows[0] : rows };
+  } catch (e) { return { error: e.message }; }
 });
 
 // ---------------------------------------------------------------------------
