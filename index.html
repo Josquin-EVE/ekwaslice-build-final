@@ -313,7 +313,8 @@
                 <!-- Section : Bibliothèque (grandit + scroll ; les pictos passent en accordéon dessous) -->
                 <div class="p-4 pb-2 flex flex-col flex-1 min-h-0 border-b border-slate-700">
                     <div class="flex items-center justify-between mb-2 gap-2">
-                        <div class="inline-flex rounded-lg bg-slate-900 border border-slate-700 p-0.5 text-[11px] font-semibold shrink-0">
+                        <div
+                            class="inline-flex rounded-lg bg-slate-900 border border-slate-700 p-0.5 text-[11px] font-semibold shrink-0">
                             <button id="tab-local" onclick="setLibTab('local')"
                                 class="px-2.5 py-1 rounded-md transition">Local</button>
                             <button id="tab-shared" onclick="setLibTab('shared')"
@@ -331,8 +332,10 @@
                     <button type="button" onclick="togglePictos()"
                         class="px-4 py-2.5 flex items-center gap-2 text-left hover:bg-slate-700/40 transition">
                         <i class="fa-solid fa-shapes text-slate-400 text-xs"></i>
-                        <span class="flex-1 font-semibold text-sm text-slate-300 uppercase tracking-wider">Pictogrammes</span>
-                        <i data-picto-chev class="fa-solid fa-chevron-down text-[10px] text-slate-500 transition-transform"></i>
+                        <span
+                            class="flex-1 font-semibold text-sm text-slate-300 uppercase tracking-wider">Pictogrammes</span>
+                        <i data-picto-chev
+                            class="fa-solid fa-chevron-down text-[10px] text-slate-500 transition-transform"></i>
                     </button>
                     <div id="picto-body" class="px-4 pb-4 flex flex-col overflow-hidden" style="max-height:42vh">
                         <input id="picto-search" type="text" placeholder="Rechercher un picto…"
@@ -527,7 +530,7 @@
                         <i class="fa-solid fa-paperclip"></i>
                     </button>
 
-                    <textarea id="chat-input" rows="1" placeholder="Message à Claude…  (colle une image avec ⌘V)"
+                    <textarea id="chat-input" rows="1" placeholder="Message à Claude…"
                         onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault(); sendChat();}"
                         class="flex-1 bg-transparent resize-none max-h-40 px-2 py-1.5 text-sm text-slate-900 placeholder-slate-500 focus:outline-none"></textarea>
 
@@ -548,7 +551,8 @@
             <div class="p-4 border-b border-slate-700 flex justify-between items-center gap-3 shrink-0">
                 <h3 class="font-semibold text-white text-base shrink-0">Export Prismic</h3>
                 <div class="flex items-center gap-2 ml-auto">
-                    <button onclick="copyOut('all-tags', this)" title="Copie HTML + &lt;style&gt; + &lt;script&gt; d'un coup, prêt à coller en brut dans une page"
+                    <button onclick="copyOut('all-tags', this)"
+                        title="Copie HTML + &lt;style&gt; + &lt;script&gt; d'un coup, prêt à coller en brut dans une page"
                         class="text-xs bg-secondary text-ink-deep font-semibold px-3 py-1.5 rounded-lg hover:brightness-110 transition"><i
                             class="fa-solid fa-layer-group mr-1.5"></i>Tout copier (avec balises)</button>
                     <button onclick="closeModal()" class="text-slate-400 hover:text-white transition text-lg"><i
@@ -571,7 +575,8 @@
                     <div class="flex items-center justify-between mb-1">
                         <span class="text-xs font-semibold text-slate-300">CSS</span>
                         <div class="flex items-center gap-1.5">
-                            <button onclick="copyOut('css-tag', this)" title="Copie avec les balises &lt;style&gt;…&lt;/style&gt;"
+                            <button onclick="copyOut('css-tag', this)"
+                                title="Copie avec les balises &lt;style&gt;…&lt;/style&gt;"
                                 class="text-[11px] bg-slate-700 hover:bg-slate-600 text-slate-200 px-2.5 py-1 rounded-lg transition"><i
                                     class="fa-solid fa-code mr-1"></i>&lt;style&gt;</button>
                             <button onclick="copyOut('css', this)"
@@ -587,7 +592,8 @@
                     <div class="flex items-center justify-between mb-1">
                         <span class="text-xs font-semibold text-slate-300">JS</span>
                         <div class="flex items-center gap-1.5">
-                            <button onclick="copyOut('js-tag', this)" title="Copie avec les balises &lt;script&gt;…&lt;/script&gt;"
+                            <button onclick="copyOut('js-tag', this)"
+                                title="Copie avec les balises &lt;script&gt;…&lt;/script&gt;"
                                 class="text-[11px] bg-slate-700 hover:bg-slate-600 text-slate-200 px-2.5 py-1 rounded-lg transition"><i
                                     class="fa-solid fa-code mr-1"></i>&lt;script&gt;</button>
                             <button onclick="copyOut('js', this)"
@@ -603,7 +609,8 @@
             <div class="p-4 border-t border-slate-700 bg-slate-900/50 flex justify-end items-center gap-3 shrink-0">
                 <button onclick="closeModal()"
                     class="px-4 py-2 text-xs bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 transition mr-auto">Fermer</button>
-                <button onclick="pushToPrismic(this)" title="Créer la slice directement dans Prismic (brouillon, non publié)"
+                <button onclick="pushToPrismic(this)"
+                    title="Créer la slice directement dans Prismic (brouillon, non publié)"
                     class="px-4 py-2 text-xs bg-secondary text-ink-deep font-semibold rounded-lg hover:brightness-110 transition"><i
                         class="fa-solid fa-cloud-arrow-up mr-1.5"></i>Envoyer vers Prismic</button>
                 <button onclick="copyOut('all', this)"
@@ -665,9 +672,11 @@
                 <input id="save-name-input" type="text" placeholder="Ex : Hero offre gaz" spellcheck="false"
                     onkeydown="if(event.key==='Enter'){event.preventDefault();confirmSave();} if(event.key==='Escape'){closeSaveModal();}"
                     class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-primary">
-                <label id="save-overwrite-row" class="hidden items-center gap-2 text-xs text-slate-300 pt-1 cursor-pointer">
+                <label id="save-overwrite-row"
+                    class="hidden items-center gap-2 text-xs text-slate-300 pt-1 cursor-pointer">
                     <input id="save-overwrite" type="checkbox" class="accent-secondary">
-                    <span>Mettre à jour <b id="save-overwrite-name" class="text-secondary"></b> (au lieu d'un nouveau)</span>
+                    <span>Mettre à jour <b id="save-overwrite-name" class="text-secondary"></b> (au lieu d'un
+                        nouveau)</span>
                 </label>
             </div>
             <div class="p-4 border-t border-slate-700 bg-slate-900/50 flex justify-end gap-3 shrink-0">
@@ -686,13 +695,14 @@
         <div
             class="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-md flex flex-col overflow-hidden shadow-2xl">
             <div class="p-4 border-b border-slate-700 flex justify-between items-center shrink-0">
-                <h3 class="font-semibold text-white text-base"><i
-                        class="fa-solid fa-user mr-2 text-black"></i><span id="author-modal-title">Ton nom (auteur)</span></h3>
+                <h3 class="font-semibold text-white text-base"><i class="fa-solid fa-user mr-2 text-black"></i><span
+                        id="author-modal-title">Ton nom (auteur)</span></h3>
                 <button onclick="closeAuthorModal()" class="text-slate-400 hover:text-white transition text-lg"><i
                         class="fa-solid fa-xmark"></i></button>
             </div>
             <div class="p-4 space-y-2">
-                <label id="author-modal-label" class="text-xs font-medium text-slate-300">Affiché sur les composants que tu publies</label>
+                <label id="author-modal-label" class="text-xs font-medium text-slate-300">Affiché sur les composants que
+                    tu publies</label>
                 <input id="author-name-input" type="text" placeholder="Ex : Josquin" spellcheck="false"
                     onkeydown="if(event.key==='Enter'){event.preventDefault();confirmAuthor();} if(event.key==='Escape'){closeAuthorModal();}"
                     class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-primary">
@@ -2172,7 +2182,7 @@
             r.onload = () => { const p = dataUrlParts(r.result); if (p) { chatImages.push(p); renderChatImages(); } };
             r.readAsDataURL(file);
         }
-        function onChatFiles(files) {[...files].forEach(addChatImageFromFile); }
+        function onChatFiles(files) { [...files].forEach(addChatImageFromFile); }
         function removeChatImage(i) { chatImages.splice(i, 1); renderChatImages(); }
         function renderChatImages() {
             const box = document.getElementById('chat-images');
