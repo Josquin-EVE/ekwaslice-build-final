@@ -31,7 +31,8 @@
             {
                 "provider": "github",
                 "owner": "Josquin-EVE",
-                "repo": "ekwaslice-build-final"
+                "repo": "ekwaslice-build-final",
+                "releaseType": "release"
             }
         ],
         "win": {
