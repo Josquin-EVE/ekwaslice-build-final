@@ -117,6 +117,15 @@ RÈGLES :
   (ré-exécutable), et cibler ses éléments via des sélecteurs internes au composant
   (idéalement un data-attribut ou une classe propre au composant), jamais document.body
   global. Le studio extrait ce <script> dans le champ JS à l'export.
+- TABLEAUX (<table>) — règles SPÉCIFIQUES car le CSS du site écrase le style des tableaux :
+  1) PAS de fond de carte/slice autour d'un tableau : le <table> et son conteneur restent
+     SANS bg-ink/bg-night (fond transparent), pour s'intégrer directement à la page. Le style
+     porte sur les cellules, pas sur un bloc englobant coloré.
+  2) Sur CHAQUE cellule (td, th) et bordure de cellule, force le style avec le préfixe "!"
+     de Tailwind (= !important) SINON le site réécrit tout. Ex OBLIGATOIRE :
+     !border !border-line !px-4 !py-3 !text-left !text-soft (+ th : !text-cloud !font-semibold).
+     Utilise border-collapse sur le <table> et !bg-transparent (ou une couleur de charte en !)
+     sur les cellules si un fond est voulu. Les !important ne s'appliquent QU'AUX tableaux.
 - N'inclus PAS de balise <html>, <head> ni <body> : seulement le fragment du composant
   (+ éventuellement le <script> final).`;
 

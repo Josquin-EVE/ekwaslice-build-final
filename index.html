@@ -493,10 +493,15 @@
         class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-6">
         <div
             class="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-3xl max-h-[80vh] flex flex-col overflow-hidden shadow-2xl">
-            <div class="p-4 border-b border-slate-700 flex justify-between items-center shrink-0">
-                <h3 class="font-semibold text-white text-base">Export Prismic</h3>
-                <button onclick="closeModal()" class="text-slate-400 hover:text-white transition text-lg"><i
-                        class="fa-solid fa-xmark"></i></button>
+            <div class="p-4 border-b border-slate-700 flex justify-between items-center gap-3 shrink-0">
+                <h3 class="font-semibold text-white text-base shrink-0">Export Prismic</h3>
+                <div class="flex items-center gap-2 ml-auto">
+                    <button onclick="copyOut('all-tags', this)" title="Copie HTML + &lt;style&gt; + &lt;script&gt; d'un coup, prêt à coller en brut dans une page"
+                        class="text-xs bg-secondary text-ink-deep font-semibold px-3 py-1.5 rounded-lg hover:brightness-110 transition"><i
+                            class="fa-solid fa-layer-group mr-1.5"></i>Tout copier (avec balises)</button>
+                    <button onclick="closeModal()" class="text-slate-400 hover:text-white transition text-lg"><i
+                            class="fa-solid fa-xmark"></i></button>
+                </div>
             </div>
             <div class="p-4 overflow-y-auto flex-1 space-y-4" style="background:#101c1e">
                 <div>
@@ -513,9 +518,14 @@
                 <div>
                     <div class="flex items-center justify-between mb-1">
                         <span class="text-xs font-semibold text-slate-300">CSS</span>
-                        <button onclick="copyOut('css', this)"
-                            class="text-[11px] bg-secondary hover:brightness-110 text-ink-deep font-semibold px-2.5 py-1 rounded-lg transition"><i
-                                class="fa-regular fa-copy mr-1"></i>Copier</button>
+                        <div class="flex items-center gap-1.5">
+                            <button onclick="copyOut('css-tag', this)" title="Copie avec les balises &lt;style&gt;…&lt;/style&gt;"
+                                class="text-[11px] bg-slate-700 hover:bg-slate-600 text-slate-200 px-2.5 py-1 rounded-lg transition"><i
+                                    class="fa-solid fa-code mr-1"></i>&lt;style&gt;</button>
+                            <button onclick="copyOut('css', this)"
+                                class="text-[11px] bg-secondary hover:brightness-110 text-ink-deep font-semibold px-2.5 py-1 rounded-lg transition"><i
+                                    class="fa-regular fa-copy mr-1"></i>Copier</button>
+                        </div>
                     </div>
                     <pre id="out-css"
                         class="whitespace-pre-wrap select-all font-mono text-[11px] text-sky-300 border border-slate-800 rounded-lg p-3 max-h-56 overflow-auto"
@@ -524,9 +534,14 @@
                 <div>
                     <div class="flex items-center justify-between mb-1">
                         <span class="text-xs font-semibold text-slate-300">JS</span>
-                        <button onclick="copyOut('js', this)"
-                            class="text-[11px] bg-secondary hover:brightness-110 text-ink-deep font-semibold px-2.5 py-1 rounded-lg transition"><i
-                                class="fa-regular fa-copy mr-1"></i>Copier</button>
+                        <div class="flex items-center gap-1.5">
+                            <button onclick="copyOut('js-tag', this)" title="Copie avec les balises &lt;script&gt;…&lt;/script&gt;"
+                                class="text-[11px] bg-slate-700 hover:bg-slate-600 text-slate-200 px-2.5 py-1 rounded-lg transition"><i
+                                    class="fa-solid fa-code mr-1"></i>&lt;script&gt;</button>
+                            <button onclick="copyOut('js', this)"
+                                class="text-[11px] bg-secondary hover:brightness-110 text-ink-deep font-semibold px-2.5 py-1 rounded-lg transition"><i
+                                    class="fa-regular fa-copy mr-1"></i>Copier</button>
+                        </div>
                     </div>
                     <pre id="out-js"
                         class="whitespace-pre-wrap select-all font-mono text-[11px] text-amber-300 border border-slate-800 rounded-lg p-3 max-h-40 overflow-auto"
@@ -2012,9 +2027,24 @@
         }
 
         function copyOut(which, btn) {
+            const css = lastExport.css || '';
+            const js = lastExport.js || '';
             let txt = '';
-            if (which === 'all') txt = 'HTML (html_only):\n' + lastExport.html + '\n\nCSS (css):\n' + lastExport.css + '\n\nJS (js):\n' + lastExport.js;
-            else txt = lastExport[which] || '';
+            if (which === 'all') {
+                // Pour coller dans les 3 champs Prismic (html_only / css / js), étiqueté.
+                txt = 'HTML (html_only):\n' + lastExport.html + '\n\nCSS (css):\n' + css + '\n\nJS (js):\n' + js;
+            } else if (which === 'css-tag') {
+                txt = '<style>\n' + css + '\n</style>';
+            } else if (which === 'js-tag') {
+                txt = '<script>\n' + js + '\n<\/script>';
+            } else if (which === 'all-tags') {
+                // Bloc unique prêt à coller EN BRUT dans une page : HTML + <style> + <script>.
+                txt = lastExport.html || '';
+                if (css.trim()) txt += '\n\n<style>\n' + css + '\n</style>';
+                if (js.trim()) txt += '\n\n<script>\n' + js + '\n<\/script>';
+            } else {
+                txt = lastExport[which] || '';
+            }
             navigator.clipboard.writeText(txt).then(() => {
                 if (btn) { const o = btn.innerHTML; btn.innerHTML = '<i class="fa-solid fa-check mr-1"></i>Copié'; setTimeout(() => btn.innerHTML = o, 1200); }
             });
