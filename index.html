@@ -2551,11 +2551,11 @@
             if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1.5"></i>Envoi…'; }
             toast('Envoi vers Prismic…');
             let r;
-            try { r = await window.api.pushPrismic({ title: name, html: lastExport.html, css: lastExport.css, js: lastExport.js }); }
+            try { r = await window.api.pushPrismic({ title: name, html: lastExport.html, css: lastExport.css, js: lastExport.js, author: authorName() }); }
             catch (e) { r = { error: e.message }; }
             if (btn) { btn.disabled = false; btn.innerHTML = o; }
             if (!r || r.error || !r.ok) { toast('Échec envoi : ' + ((r && (r.error || r.raw)) || 'inconnu')); return; }
-            toast('Envoyé vers Prismic ✓ — à publier dans le dashboard (release « EkwaSlice »)');
+            toast('Envoyé vers Prismic ✓ — à publier dans le dashboard (ta release « EkwaSlice — ' + (authorName() || '?') + ' »)');
         }
 
         // --- Écran de garde : connexion Claude ---

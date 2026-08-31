@@ -554,14 +554,18 @@ ipcMain.handle('push-prismic', async (event, payload) => {
   if (!html && !css && !js) return { error: 'Composant vide.' };
 
   const bin = resolveClaudeBin();
+  // Release PAR UTILISATEUR (isolation : publier sa release ne publie pas celle des autres,
+  // et pas de collision de label entre users). Fallback "EkwaSlice" si pas de nom.
+  const author = ((payload && payload.author) || '').trim();
+  const releaseLabel = author ? ('EkwaSlice — ' + author) : 'EkwaSlice';
   const prompt = [
     'Objectif : créer UN document dans Prismic via le MCP Prismic (repository "ekwateur-edito").',
     'Les outils MCP Prismic sont déférés : charge-les avec ToolSearch si nécessaire.',
     'Étapes STRICTES :',
-    '1. list_releases sur "ekwateur-edito" ; trouve la release dont le label est EXACTEMENT "EkwaSlice".',
-    '   Si aucune, crée-la avec create_release (label "EkwaSlice").',
+    '1. list_releases sur "ekwateur-edito" ; trouve la release dont le label est EXACTEMENT ' + JSON.stringify(releaseLabel) + '.',
+    '   Si aucune, crée-la avec create_release (label ' + JSON.stringify(releaseLabel) + ').',
     '2. create_document : repository "ekwateur-edito", customTypeId "custom_slice", locale "fr-fr",',
-    '   releaseId = la release "EkwaSlice", title = ' + JSON.stringify(title) + ', content =',
+    '   releaseId = cette release, title = ' + JSON.stringify(title) + ', content =',
     '   { "html_only": {"__TYPE__":"FieldContent","type":"Text","value": <HTML>},',
     '     "css": {"__TYPE__":"FieldContent","type":"Text","value": <CSS>},',
     '     "js": {"__TYPE__":"FieldContent","type":"Text","value": <JS>} }',
