@@ -126,6 +126,39 @@ RÈGLES :
      !border !border-line !px-4 !py-3 !text-left !text-soft (+ th : !text-cloud !font-semibold).
      Utilise border-collapse sur le <table> et !bg-transparent (ou une couleur de charte en !)
      sur les cellules si un fond est voulu. Les !important ne s'appliquent QU'AUX tableaux.
+- PRIX EKWATEUR DYNAMIQUES (API-SO) : dès que l'utilisateur veut AFFICHER ou COMPARER des
+  prix Ekwateur réels (abonnement, prix du kWh, budget annuel, économie vs TRV, comparateur,
+  simulateur, pricing table — élec OU gaz), NE mets jamais des prix en dur seuls : génère un
+  composant qui interroge l'API tarifs en JS. Règles STRICTES :
+  * Endpoint : POST https://api-so.ekwateur.fr/quotations . Headers : accept:application/json,
+    content-type:application/json, x-seller-channel-id:PSFO, x-seller-id:EKWATEUR. NE code PAS
+    de Referer (le navigateur le pose ; l'API n'autorise que ekwateur.fr → hors ligne/preview
+    elle renvoie 401, c'est normal : le composant garde alors ses valeurs de repli).
+  * Corps ÉLEC : {codeInsee:"75056", customerType:"PRIVATE", energy:"ELECTRICITY",
+    electricityProductItemType:"FIXED", electricityTariffOption:"BASE" ou "HIGH_LOW",
+    electricityPower: 3|6|9|12|15|18|24|30|36, electricityAnnualConsumptionReferenceBase:<conso
+    kWh/an> (en HIGH_LOW = heures pleines) ; en HIGH_LOW ajoute electricityAnnualConsumptionReferenceLow:<heures creuses, >0>}.
+  * Corps GAZ : {codeInsee:"75056", customerType:"PRIVATE", energy:"GAS",
+    gasProductItemType:"FIXED", gasAnnualConsumptionReference:<conso kWh/an>}.
+  * Champs réponse à afficher (TTC) — ÉLEC : abo electricitySubscriptionPriceInclTaxes ;
+    kWh base/HP electricityConsumptionBasePriceInclTaxes ; kWh HC electricityConsumptionLowPriceInclTaxes ;
+    TRV electricitySubscriptionTRVPriceInclTaxes / electricityConsumptionBaseTRVPriceInclTaxes /
+    electricityConsumptionLowTrvPriceInclTaxes. GAZ : abo gasSubscriptionPriceInclTaxes ;
+    kWh gasConsumptionBasePriceInclTaxes ; TRV gasSubscriptionTRVPriceInclTaxes / gasConsumptionBaseTRVPriceInclTaxes.
+  * BUDGET ANNUEL : utilise TOUJOURS les totaux de l'API — totalAnnualAmount (Ekwateur) et
+    totalAnnualTRVAmount (TRV). NE recalcule JAMAIS abo×12+conso×kWh pour Ekwateur : une remise
+    est incluse dans totalAnnualAmount. Économie = totalAnnualTRVAmount − totalAnnualAmount.
+  * PIÈGE : l'API répond 201 même avec des prix null (champ manquant / conso 0). Juge la validité
+    sur la présence des prix (ex : if (j.electricitySubscriptionPriceInclTaxes == null) → repli),
+    JAMAIS sur le code HTTP.
+  * Offre 100% FRANÇAISE = européenne + 0,0085 €/kWh TTC (abo identique ; jamais sur le TRV).
+  * 3 ÉTATS obligatoires : valeurs de repli EN DUR dans le HTML (restent affichées si l'API échoue) ;
+    « … » au chargement ; « — » + message si erreur. N'affirme JAMAIS une économie nulle/négative
+    (masque l'argument dans ce cas). aria-live="polite" sur les nombres qui changent.
+  * TECHNIQUE : un seul <script> final, vanilla, IIFE, idempotent (pose un data-init sur la racine),
+    cible les éléments par data-attributs (data-f="…", data-ekw-widget) et JAMAIS par classe (le
+    style est réécrit à l'export). Format fr-FR : abo 2 décimales, kWh 4 décimales, budget entier.
+  * Le style reste 100% en classes Tailwind de la charte (comme tout composant).
 - N'inclus PAS de balise <html>, <head> ni <body> : seulement le fragment du composant
   (+ éventuellement le <script> final).`;
 
