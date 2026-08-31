@@ -643,12 +643,12 @@
             class="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-md flex flex-col overflow-hidden shadow-2xl">
             <div class="p-4 border-b border-slate-700 flex justify-between items-center shrink-0">
                 <h3 class="font-semibold text-white text-base"><i
-                        class="fa-solid fa-user mr-2 text-black"></i>Ton nom (auteur)</h3>
+                        class="fa-solid fa-user mr-2 text-black"></i><span id="author-modal-title">Ton nom (auteur)</span></h3>
                 <button onclick="closeAuthorModal()" class="text-slate-400 hover:text-white transition text-lg"><i
                         class="fa-solid fa-xmark"></i></button>
             </div>
             <div class="p-4 space-y-2">
-                <label class="text-xs font-medium text-slate-300">Affiché sur les composants que tu publies</label>
+                <label id="author-modal-label" class="text-xs font-medium text-slate-300">Affiché sur les composants que tu publies</label>
                 <input id="author-name-input" type="text" placeholder="Ex : Josquin" spellcheck="false"
                     onkeydown="if(event.key==='Enter'){event.preventDefault();confirmAuthor();} if(event.key==='Escape'){closeAuthorModal();}"
                     class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-primary">
@@ -1528,17 +1528,28 @@
         }
         function renderSharedGrid(g) {
             const owned = ownedIds();
-            if (!SHARED.length) { g.innerHTML = '<p class="text-[10px] text-slate-600 leading-snug">Bibliothèque partagée vide (ou pas encore chargée). Clique « Recharger ».</p>'; return; }
+            // Bandeau : identité utilisée pour publier + lien "Modifier" (édite le nom + propage au cloud).
+            const bar = document.createElement('div');
+            bar.className = 'flex items-center justify-between text-[10px] text-slate-400 px-0.5 pb-1';
+            bar.innerHTML = '<span>Publié en tant que <b class="text-secondary">' + escHtml(authorName() || '—') + '</b></span>'
+                + '<button data-editauthor class="hover:text-secondary underline">Modifier</button>';
+            bar.querySelector('[data-editauthor]').addEventListener('click', editAuthorName);
+            g.appendChild(bar);
+            if (!SHARED.length) { g.insertAdjacentHTML('beforeend', '<p class="text-[10px] text-slate-600 leading-snug">Bibliothèque partagée vide (ou pas encore chargée). Clique « Recharger ».</p>'); return; }
             SHARED.forEach(row => {
                 const mine = owned.has(row.id);
                 const card = document.createElement('div');
                 card.title = 'Insérer : ' + row.name;
                 libCardShell(card, row.html, row.name);
                 const badge = '<div class="absolute top-1 left-1 max-w-[70%] px-1.5 py-0.5 rounded bg-secondary/90 text-ink-deep text-[9px] font-bold flex items-center gap-1 truncate"><i class="fa-solid fa-cloud"></i>' + escHtml(row.author || 'anonyme') + '</div>';
-                const delBtn = mine ? '<button data-del title="Supprimer du cloud (ma publication)" class="absolute top-1 right-1 w-5 h-5 rounded bg-black/60 text-red-300 opacity-0 group-hover:opacity-100 transition text-[10px] flex items-center justify-center"><i class="fa-solid fa-trash"></i></button>' : '';
-                card.insertAdjacentHTML('beforeend', badge + delBtn);
+                const ownerBtns = mine
+                    ? '<button data-rename title="Renommer (ma publication)" class="absolute top-1 right-7 w-5 h-5 rounded bg-black/60 text-secondary opacity-0 group-hover:opacity-100 transition text-[10px] flex items-center justify-center"><i class="fa-solid fa-pen"></i></button>'
+                    + '<button data-del title="Supprimer du cloud (ma publication)" class="absolute top-1 right-1 w-5 h-5 rounded bg-black/60 text-red-300 opacity-0 group-hover:opacity-100 transition text-[10px] flex items-center justify-center"><i class="fa-solid fa-trash"></i></button>'
+                    : '';
+                card.insertAdjacentHTML('beforeend', badge + ownerBtns);
                 card.addEventListener('click', (e) => {
                     if (e.target.closest('[data-del]')) { e.stopPropagation(); deleteSharedComponent(row); return; }
+                    if (e.target.closest('[data-rename]')) { e.stopPropagation(); renameSharedComponent(row); return; }
                     insertSharedComponent(row);
                 });
                 card.querySelectorAll('img[data-picto]').forEach(img => { const p = PICTO_MAP[img.getAttribute('data-picto')]; if (p) img.src = pictoAssetBase() + p.file; });
@@ -1557,18 +1568,72 @@
         }
         // "Mes" publications = celles dont je détiens le remoteId en local (pas besoin d'exposer la clé).
         function ownedIds() { return new Set(LIB.map(x => x.remoteId).filter(Boolean)); }
-        function authorName() { try { return localStorage.getItem('ekwa_author') || ''; } catch (_) { return ''; } }
+
+        // Nom d'auteur : persisté dans userData (settings.json) → survit aux MAJ. Repli localStorage.
+        let APP_SETTINGS = {};
+        async function loadSettings() {
+            if (window.api && window.api.settingsGet) { try { APP_SETTINGS = await window.api.settingsGet() || {}; } catch (_) { APP_SETTINGS = {}; } }
+            // Migration douce : si un nom existait en localStorage, le remonter dans settings.
+            if (!APP_SETTINGS.author) {
+                try { const ls = localStorage.getItem('ekwa_author'); if (ls) { APP_SETTINGS.author = ls; if (window.api && window.api.settingsSet) window.api.settingsSet({ author: ls }); } } catch (_) { }
+            }
+        }
+        function authorName() {
+            if (APP_SETTINGS && APP_SETTINGS.author) return APP_SETTINGS.author;
+            try { return localStorage.getItem('ekwa_author') || ''; } catch (_) { return ''; }
+        }
+        async function setAuthorName(v) {
+            APP_SETTINGS.author = v;
+            try { localStorage.setItem('ekwa_author', v); } catch (_) { }
+            if (window.api && window.api.settingsSet) { try { await window.api.settingsSet({ author: v }); } catch (_) { } }
+        }
+        // Demande le nom UNE fois au démarrage si vide (prérempli depuis l'email connecté).
+        async function ensureAuthorAtStartup(email) {
+            if (authorName()) return;
+            const suggest = (email && email.indexOf('@') > 0) ? email.split('@')[0] : '';
+            const v = await askAuthor(suggest);
+            if (v) await setAuthorName(v);
+        }
+        // Éditer son nom + le propager à toutes ses publications cloud (owner).
+        async function editAuthorName() {
+            const v = await askAuthor(authorName());
+            if (!v || v === authorName()) return;
+            await setAuthorName(v);
+            if (window.api && window.api.sharedRenameAuthor) {
+                const r = await window.api.sharedRenameAuthor({ ownerKey: ownerKey(), author: v });
+                if (r && !r.error) { if (currentLibTab === 'shared') loadShared(); toast('Nom mis à jour' + (r.count ? ' (' + r.count + ' publication·s)' : '')); return; }
+            }
+            renderCompGrid(); toast('Nom mis à jour');
+        }
+        // Renommer un composant publié (owner) — name seul, html inchangé.
+        async function renameSharedComponent(row) {
+            const raw = await askName({ title: 'Renommer le composant', label: 'Nouveau nom du composant', placeholder: 'Nom du composant', pre: row.name || '' });
+            const v = (raw || '').trim();
+            if (!v || v === row.name) return;
+            if (!window.api || !window.api.sharedUpdate) { toast("Dispo seulement dans l'app"); return; }
+            toast('Renommage…');
+            const r = await window.api.sharedUpdate({ id: row.id, ownerKey: ownerKey(), name: v });
+            if (!r || r.error) { toast('Échec : ' + ((r && r.error) || 'inconnu')); return; }
+            if (!r.ok) { toast("Refusé : tu n'es pas le propriétaire."); return; }
+            row.name = v; renderCompGrid(); toast('Renommé ✓');
+        }
         let _authorResolve = null;
-        function askAuthor(pre) {
+        // Modale de saisie de nom générique (auteur, renommage composant, …).
+        function askName(opts) {
+            opts = opts || {};
             return new Promise(resolve => {
                 _authorResolve = resolve;
+                document.getElementById('author-modal-title').textContent = opts.title || 'Ton nom (auteur)';
+                document.getElementById('author-modal-label').textContent = opts.label || 'Affiché sur les composants que tu publies';
                 const inp = document.getElementById('author-name-input');
-                inp.value = pre || '';
+                inp.placeholder = opts.placeholder || 'Ex : Josquin';
+                inp.value = opts.pre || '';
                 const m = document.getElementById('authorModal');
                 m.classList.remove('hidden'); m.classList.add('flex');
                 setTimeout(() => { inp.focus(); inp.select(); }, 30);
             });
         }
+        function askAuthor(pre) { return askName({ title: 'Ton nom (auteur)', label: 'Affiché sur les composants que tu publies', placeholder: 'Ex : Josquin', pre }); }
         function closeAuthorModal() {
             const m = document.getElementById('authorModal');
             m.classList.add('hidden'); m.classList.remove('flex');
@@ -1587,7 +1652,7 @@
             if (!author) {
                 author = await askAuthor('');
                 if (!author) return; // annulé
-                try { localStorage.setItem('ekwa_author', author); } catch (_) { }
+                await setAuthorName(author);
             }
             toast('Publication en ligne…');
             const r = await window.api.sharedPublish({ name: item.name, html: item.html, author, ownerKey: ownerKey() });
@@ -2295,6 +2360,8 @@
                 const b = document.getElementById('usage-badge');
                 if (b) b.title = `Connecté : ${s.email} · ${s.org} (${s.subscription}). ` + b.title;
             }
+            // Demande le nom d'auteur UNE fois (prérempli depuis l'email), stocké dans userData.
+            ensureAuthorAtStartup(s.email);
         }
 
         // --- Aperçu responsive (iframe à la vraie largeur device) ---
@@ -2499,8 +2566,9 @@
             if (r) r.disabled = hIndex >= history.length - 1;
         }
 
-        window.addEventListener('DOMContentLoaded', () => {
+        window.addEventListener('DOMContentLoaded', async () => {
             applyAppTheme('light'); // app en mode clair uniquement
+            await loadSettings();   // nom d'auteur depuis userData (avant runGate qui peut le demander)
             runGate();
             setMode('edit');
             currentWidth = 'desktop';

@@ -13,11 +13,15 @@ contextBridge.exposeInMainWorld('api', {
   libraryList: () => ipcRenderer.invoke('library-list'),
   librarySave: (item) => ipcRenderer.invoke('library-save', item),
   libraryDelete: (id) => ipcRenderer.invoke('library-delete', id),
+  // Réglages persistés (userData/settings.json) — nom d'auteur, etc.
+  settingsGet: () => ipcRenderer.invoke('settings-get'),
+  settingsSet: (patch) => ipcRenderer.invoke('settings-set', patch),
   // Bibliothèque partagée en ligne (Supabase)
   sharedList: () => ipcRenderer.invoke('shared-list'),
   sharedPublish: (item) => ipcRenderer.invoke('shared-publish', item),
   sharedDelete: (payload) => ipcRenderer.invoke('shared-delete', payload),
   sharedUpdate: (payload) => ipcRenderer.invoke('shared-update', payload),
+  sharedRenameAuthor: (payload) => ipcRenderer.invoke('shared-rename-author', payload),
   // Mise à jour
   checkUpdate: () => ipcRenderer.invoke('check-update'),
   openExternal: (url) => ipcRenderer.invoke('open-external', url)

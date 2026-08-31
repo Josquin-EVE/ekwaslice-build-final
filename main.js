@@ -348,6 +348,20 @@ function migrateLibraryIfNeeded() {
     }
   } catch (_) { }
 }
+// Réglages persistés (userData/settings.json) — survivent aux MAJ (userData figé).
+// Sert notamment au nom d'auteur (signalé dans le cloud) + clé de propriété.
+function settingsPath() { return path.join(app.getPath('userData'), 'settings.json'); }
+function readSettings() { try { return JSON.parse(fs.readFileSync(settingsPath(), 'utf8')) || {}; } catch (_) { return {}; } }
+function writeSettings(o) {
+  try { const p = settingsPath(); fs.mkdirSync(path.dirname(p), { recursive: true }); fs.writeFileSync(p, JSON.stringify(o)); return true; }
+  catch (_) { return false; }
+}
+ipcMain.handle('settings-get', async () => readSettings());
+ipcMain.handle('settings-set', async (event, patch) => {
+  const s = Object.assign(readSettings(), patch || {});
+  writeSettings(s);
+  return s;
+});
 ipcMain.handle('library-list', async () => readLibrary());
 ipcMain.handle('library-save', async (event, item) => {
   if (!item || !item.html) return { error: 'Composant vide.' };
@@ -460,13 +474,24 @@ ipcMain.handle('shared-delete', async (event, payload) => {
 // METTRE À JOUR sa publication (idem, true si mis à jour).
 ipcMain.handle('shared-update', async (event, payload) => {
   const id = payload && payload.id, ownerKey = payload && payload.ownerKey;
-  if (!id || !ownerKey || !payload.html) return { error: 'id/clé/html manquant.' };
+  if (!id || !ownerKey) return { error: 'id/clé manquant.' };
+  // name et html optionnels (null → la RPC garde l'ancien via coalesce) → permet un
+  // simple renommage sans toucher au html.
   const r = await sbRpc('update_component', {
     p_id: id, p_owner_key: ownerKey,
-    p_name: (payload.name || '').slice(0, 120), p_html: String(payload.html)
+    p_name: (payload.name != null && payload.name !== '') ? String(payload.name).slice(0, 120) : null,
+    p_html: (payload.html != null) ? String(payload.html) : null
   });
   if (r.error) return r;
   return { ok: r.result === true };
+});
+// Renommer l'auteur sur TOUTES ses publications (owner). Renvoie le nb de lignes touchées.
+ipcMain.handle('shared-rename-author', async (event, payload) => {
+  const ownerKey = payload && payload.ownerKey;
+  if (!ownerKey) return { error: 'clé manquante.' };
+  const r = await sbRpc('rename_author', { p_owner_key: ownerKey, p_author: String((payload && payload.author) || '').slice(0, 80) });
+  if (r.error) return r;
+  return { count: (typeof r.result === 'number') ? r.result : 0 };
 });
 
 // ---------------------------------------------------------------------------
