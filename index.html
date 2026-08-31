@@ -1296,11 +1296,12 @@
         let _hoverRaf = 0, _lastMove = null;
         canvas.addEventListener('mousemove', (e) => {
             if (editing) { hideHover(); return; }
-            _lastMove = e.target;
+            _lastMove = { target: e.target, alt: e.altKey };
             if (_hoverRaf) return;
             _hoverRaf = requestAnimationFrame(() => {
                 _hoverRaf = 0;
-                const t = hoverTargetFor(_lastMove);
+                const base = _lastMove && hoverTargetFor(_lastMove.target);
+                const t = base ? (_lastMove.alt ? sliceRootOf(base) : base) : null; // Alt = widget entier
                 if (t) showHover(t); else hideHover();
             });
         });
@@ -1393,8 +1394,8 @@
             if (editing) return;
             if (!e.target.closest('[data-comp]')) { deselect(); return; }
             e.stopPropagation();
-            const t = clickTargetFor(e.target, e.altKey); // 1er clic = widget entier, re-clic = descend ; Alt = exact
-            if (t) selectElement(t);
+            const base = hoverTargetFor(e.target); // 1 clic = élément exact sous le curseur (= le survol)
+            if (base) selectElement(e.altKey ? sliceRootOf(base) : base); // Alt = widget entier
         });
         // Double-clic sur un élément = édition inline directe
         canvas.addEventListener('dblclick', (e) => {
