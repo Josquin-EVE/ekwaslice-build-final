@@ -1,1 +1,13 @@
+# Dépendances
 node_modules/
+
+# Sorties de build
+dist/
+
+# macOS
+.DS_Store
+
+# Logs / temp
+*.log
+npm-debug.log*
+.cache/
