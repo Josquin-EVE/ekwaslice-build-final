@@ -1230,14 +1230,21 @@
             hoverLabel.style.display = 'block';
         }
         function hideHover() { hoverBox.style.display = 'none'; hoverLabel.style.display = 'none'; }
+        // Cible du SURVOL = élément exact sous le curseur (les enfants sont survolables),
+        // indépendant de la règle de clic (widget d'abord). Alt-clic sélectionne cet élément exact.
+        function hoverTargetFor(t) {
+            if (!t || !t.closest || !t.closest('[data-comp]') || t.closest('#empty-state')) return null;
+            if (t.tagName === 'SCRIPT' || t.tagName === 'STYLE') return null;
+            return t;
+        }
         let _hoverRaf = 0, _lastMove = null;
         canvas.addEventListener('mousemove', (e) => {
             if (editing) { hideHover(); return; }
-            _lastMove = { target: e.target, alt: e.altKey };
+            _lastMove = e.target;
             if (_hoverRaf) return;
             _hoverRaf = requestAnimationFrame(() => {
                 _hoverRaf = 0;
-                const t = _lastMove && clickTargetFor(_lastMove.target, _lastMove.alt);
+                const t = hoverTargetFor(_lastMove);
                 if (t) showHover(t); else hideHover();
             });
         });
