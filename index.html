@@ -183,6 +183,32 @@
             cursor: pointer;
         }
 
+        /* Aperçu au survol : cadre pointillé FIN (distinct du marquee marching-ants de la sélection)
+           + étiquette lisible de ce que le clic va sélectionner. Overlays fixes, pointer-events:none. */
+        #ekw-hover {
+            position: fixed;
+            pointer-events: none;
+            z-index: 68;
+            display: none;
+            border: 1px dashed #74F1E3;
+            border-radius: 3px;
+            background: rgba(116, 241, 227, 0.06);
+        }
+
+        #ekw-hover-label {
+            position: fixed;
+            pointer-events: none;
+            z-index: 69;
+            display: none;
+            font: 600 10px/1.2 system-ui, sans-serif;
+            color: #101c1e;
+            background: #74F1E3;
+            padding: 2px 6px;
+            border-radius: 4px;
+            white-space: nowrap;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, .35);
+        }
+
         /* Cadre de sélection "marching ants" — pointillé alterné NOIR/BLANC (aucun vide)
            → lisible en dark comme en light. Overlay fixe qui suit l'élément (marche aussi sur <img>). */
         #ekw-marquee {
@@ -1159,6 +1185,63 @@
         const marquee = document.createElement('div');
         marquee.id = 'ekw-marquee';
         document.body.appendChild(marquee); // hors canvas → jamais effacé par l'historique/innerHTML
+
+        // --- Aperçu au survol : montre EXACTEMENT ce que le clic va sélectionner ---
+        const hoverBox = document.createElement('div'); hoverBox.id = 'ekw-hover'; document.body.appendChild(hoverBox);
+        const hoverLabel = document.createElement('div'); hoverLabel.id = 'ekw-hover-label'; document.body.appendChild(hoverLabel);
+        function friendlyName(el) {
+            if (!el || el.nodeType !== 1) return 'Bloc';
+            if (el.hasAttribute && el.hasAttribute('data-comp')) return 'Widget';
+            const map = {
+                h1: 'Titre', h2: 'Titre', h3: 'Titre', h4: 'Titre', h5: 'Titre', h6: 'Titre',
+                p: 'Texte', span: 'Texte', strong: 'Texte', em: 'Texte', small: 'Texte',
+                a: 'Lien', button: 'Bouton', img: 'Image', svg: 'Icône', i: 'Icône',
+                ul: 'Liste', ol: 'Liste', li: 'Élément', section: 'Section', article: 'Section',
+                header: 'En-tête', footer: 'Pied', nav: 'Nav', table: 'Tableau', tr: 'Ligne',
+                td: 'Cellule', th: 'Cellule', input: 'Champ', select: 'Champ', textarea: 'Champ',
+                label: 'Label', form: 'Formulaire', figure: 'Figure'
+            };
+            return map[el.tagName.toLowerCase()] || 'Bloc';
+        }
+        function labelFor(el) {
+            let s = friendlyName(el);
+            const txt = (el.textContent || '').trim().replace(/\s+/g, ' ');
+            if (txt && el.children.length === 0) s += ' · ' + (txt.length > 16 ? txt.slice(0, 16) + '…' : txt);
+            return s;
+        }
+        // Élément qu'un clic simple sélectionnerait vu l'état courant (profondeur progressive).
+        function clickTargetFor(clicked, deep) {
+            if (!clicked || !clicked.closest || !clicked.closest('[data-comp]') || (clicked.closest && clicked.closest('#empty-state'))) return null;
+            if (deep) return clicked; // ⌥/Alt-clic = élément exact sous le curseur
+            const root = sliceRootOf(clicked);
+            const path = []; let n = clicked;
+            while (n) { path.unshift(n); if (n === root) break; const p = n.parentElement; if (!p || p === canvas) break; n = p; }
+            if (sel) { const i = path.indexOf(sel); if (i >= 0) return sel === clicked ? sel : path[i + 1]; }
+            return root; // rien de la sélection sur le chemin → widget entier
+        }
+        function showHover(el) {
+            if (!el || el === sel || editing) { hideHover(); return; }
+            const r = el.getBoundingClientRect(); const p = 2;
+            hoverBox.style.left = (r.left - p) + 'px'; hoverBox.style.top = (r.top - p) + 'px';
+            hoverBox.style.width = (r.width + p * 2) + 'px'; hoverBox.style.height = (r.height + p * 2) + 'px';
+            hoverBox.style.display = 'block';
+            hoverLabel.textContent = labelFor(el);
+            hoverLabel.style.left = r.left + 'px'; hoverLabel.style.top = Math.max(2, r.top - 18) + 'px';
+            hoverLabel.style.display = 'block';
+        }
+        function hideHover() { hoverBox.style.display = 'none'; hoverLabel.style.display = 'none'; }
+        let _hoverRaf = 0, _lastMove = null;
+        canvas.addEventListener('mousemove', (e) => {
+            if (editing) { hideHover(); return; }
+            _lastMove = { target: e.target, alt: e.altKey };
+            if (_hoverRaf) return;
+            _hoverRaf = requestAnimationFrame(() => {
+                _hoverRaf = 0;
+                const t = _lastMove && clickTargetFor(_lastMove.target, _lastMove.alt);
+                if (t) showHover(t); else hideHover();
+            });
+        });
+        canvas.addEventListener('mouseleave', hideHover);
         // Le canvas est dézoomé via transform:scale → getBoundingClientRect renvoie toujours
         // le rect VISUEL (viewport). Le marquee fixed suit donc directement le rect.
         function positionMarquee() {
@@ -1198,7 +1281,7 @@
             cr.innerHTML = path.map((el, i) => {
                 const cur = el === sel;
                 return (i ? '<span class="text-slate-600 px-0.5">›</span>' : '')
-                    + '<button data-crumb="' + i + '" class="px-1.5 py-0.5 rounded ' + (cur ? 'bg-primary text-ink-deep font-semibold' : 'text-slate-300 hover:bg-slate-700') + '">' + el.tagName.toLowerCase() + '</button>';
+                    + '<button data-crumb="' + i + '" title="' + el.tagName.toLowerCase() + '" class="px-1.5 py-0.5 rounded whitespace-nowrap ' + (cur ? 'bg-primary text-ink-deep font-semibold' : 'text-slate-300 hover:bg-slate-700') + '">' + escHtml(friendlyName(el)) + '</button>';
             }).join('');
             cr._path = path;
             ['prev', 'parent', 'child', 'next'].forEach(d => { const b = document.querySelector('#editor-nav [data-nav="' + d + '"]'); if (b) b.disabled = !navTarget(d); });
@@ -1209,9 +1292,17 @@
             const nav = e.target.closest('[data-nav]');
             if (nav) { const t = navTarget(nav.dataset.nav); if (t) selectElement(t); return; }
         });
+        // Survol d'un crumb → surligne l'élément dans le canvas (réutilise l'overlay hover)
+        document.getElementById('editor-nav').addEventListener('mouseover', (e) => {
+            const crumb = e.target.closest('[data-crumb]'); if (!crumb) return;
+            const p = document.getElementById('editor-crumbs')._path; const el = p && p[+crumb.dataset.crumb];
+            if (el && el !== sel) showHover(el);
+        });
+        document.getElementById('editor-nav').addEventListener('mouseout', (e) => { if (e.target.closest('[data-crumb]')) hideHover(); });
 
         function selectElement(el) {
             if (!el || el === canvas || !el.closest || !el.closest('[data-comp]') || el.closest('#empty-state')) { deselect(); return; }
+            hideHover();
             if (editing) stopEditing();
             if (sel) sel.classList.remove('ekw-selected');
             sel = el;
@@ -1238,7 +1329,8 @@
             if (editing) return;
             if (!e.target.closest('[data-comp]')) { deselect(); return; }
             e.stopPropagation();
-            selectElement(e.target);
+            const t = clickTargetFor(e.target, e.altKey); // 1er clic = widget entier, re-clic = descend ; Alt = exact
+            if (t) selectElement(t);
         });
         // Double-clic sur un élément = édition inline directe
         canvas.addEventListener('dblclick', (e) => {
@@ -1272,7 +1364,15 @@
             if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || e.key === 'Y')) { e.preventDefault(); redo(); return; }
             if (e.key === 'Escape') {
                 if (linkOpen) { closeLinkBubble(); if (sel) sel.focus(); return; }
-                editing ? stopEditing() : deselect();
+                if (editing) { stopEditing(); return; }
+                if (sel) { const p = navTarget('parent'); if (p) selectElement(p); else deselect(); return; }
+                return;
+            }
+            // Entrée = descendre au premier enfant (hors saisie / édition texte)
+            if (e.key === 'Enter' && sel && !editing) {
+                const ae = document.activeElement;
+                if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable)) return;
+                const c = navTarget('child'); if (c) { e.preventDefault(); selectElement(c); }
                 return;
             }
             // Suppr = supprimer l'élément sélectionné (jamais pendant une saisie / édition texte)
