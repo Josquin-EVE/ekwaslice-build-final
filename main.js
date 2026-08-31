@@ -140,6 +140,8 @@ RÈGLES :
     kWh/an> (en HIGH_LOW = heures pleines) ; en HIGH_LOW ajoute electricityAnnualConsumptionReferenceLow:<heures creuses, >0>}.
   * Corps GAZ : {codeInsee:"75056", customerType:"PRIVATE", energy:"GAS",
     gasProductItemType:"FIXED", gasAnnualConsumptionReference:<conso kWh/an>}.
+  * codeInsee : garde TOUJOURS "75056" par défaut — ne le demande JAMAIS à l'utilisateur et
+    ne le mentionne NI dans le texte NI dans le composant (détail technique sans intérêt).
   * Champs réponse à afficher (TTC) — ÉLEC : abo electricitySubscriptionPriceInclTaxes ;
     kWh base/HP electricityConsumptionBasePriceInclTaxes ; kWh HC electricityConsumptionLowPriceInclTaxes ;
     TRV electricitySubscriptionTRVPriceInclTaxes / electricityConsumptionBaseTRVPriceInclTaxes /
