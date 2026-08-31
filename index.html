@@ -514,10 +514,20 @@
                     </button>
                 </div>
 
+                <!-- Aperçus des images jointes (coller ou importer) -->
+                <div id="chat-images" class="hidden flex-wrap gap-2 mb-2"></div>
+
                 <div
                     class="flex items-end gap-2 bg-white border border-[#d97757]/40 rounded-2xl p-2 focus-within:ring-2 focus-within:ring-[#d97757]/40">
 
-                    <textarea id="chat-input" rows="1" placeholder="Message à Claude…"
+                    <input id="chat-file" type="file" accept="image/*" multiple class="hidden"
+                        onchange="onChatFiles(this.files); this.value='';">
+                    <button onclick="document.getElementById('chat-file').click()" title="Joindre une image"
+                        class="shrink-0 w-9 h-9 flex items-center justify-center text-gray-500 hover:text-[#d97757] transition">
+                        <i class="fa-solid fa-paperclip"></i>
+                    </button>
+
+                    <textarea id="chat-input" rows="1" placeholder="Message à Claude…  (colle une image avec ⌘V)"
                         onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault(); sendChat();}"
                         class="flex-1 bg-transparent resize-none max-h-40 px-2 py-1.5 text-sm text-slate-900 placeholder-slate-500 focus:outline-none"></textarea>
 
@@ -2149,22 +2159,54 @@
             send.innerHTML = b ? '<i class="fa-solid fa-spinner fa-spin"></i>' : '<i class="fa-solid fa-arrow-up"></i>';
         }
 
+        // --- Images jointes au chat (presse-papier ou import) ---
+        let chatImages = []; // { mime, data(base64 sans préfixe), url(dataURL pour l'aperçu) }
+        function dataUrlParts(u) { const m = /^data:([^;]+);base64,(.*)$/.exec(u || ''); return m ? { mime: m[1], data: m[2], url: u } : null; }
+        function addChatImageFromFile(file) {
+            if (!file || !/^image\//.test(file.type || '')) return;
+            const r = new FileReader();
+            r.onload = () => { const p = dataUrlParts(r.result); if (p) { chatImages.push(p); renderChatImages(); } };
+            r.readAsDataURL(file);
+        }
+        function onChatFiles(files) {[...files].forEach(addChatImageFromFile); }
+        function removeChatImage(i) { chatImages.splice(i, 1); renderChatImages(); }
+        function renderChatImages() {
+            const box = document.getElementById('chat-images');
+            if (!chatImages.length) { box.classList.add('hidden'); box.classList.remove('flex'); box.innerHTML = ''; return; }
+            box.classList.remove('hidden'); box.classList.add('flex');
+            box.innerHTML = chatImages.map((im, i) =>
+                '<div class="relative"><img src="' + im.url + '" class="w-14 h-14 object-cover rounded-lg border border-slate-500">'
+                + '<button onclick="removeChatImage(' + i + ')" title="Retirer" class="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black text-white text-[10px] flex items-center justify-center border border-slate-500 hover:bg-red-600"><i class="fa-solid fa-xmark"></i></button></div>'
+            ).join('');
+        }
+        // Coller une image depuis le presse-papier dans le champ de chat
+        document.getElementById('chat-input').addEventListener('paste', (e) => {
+            const items = (e.clipboardData && e.clipboardData.items) || [];
+            let got = false;
+            for (const it of items) { if (it.type && it.type.indexOf('image') === 0) { const f = it.getAsFile(); if (f) { addChatImageFromFile(f); got = true; } } }
+            if (got) e.preventDefault();
+        });
+
         async function sendChat() {
             if (chatBusy) return;
             if (!window.api) { alert("Lancez l'app via Electron (npm start), pas dans un navigateur."); return; }
             const input = document.getElementById('chat-input');
             const msg = input.value.trim();
-            if (!msg) return;
+            if (!msg && !chatImages.length) return;
+            // Images jointes : capture payload + URLs d'aperçu avant de vider
+            const imgsPayload = chatImages.map(im => ({ mime: im.mime, data: im.data }));
+            const imgUrls = chatImages.map(im => im.url);
+            const baseMsg = msg || 'Image(s) de référence jointe(s) — utilise-les comme base/inspiration pour le composant, à la charte Ekwateur.';
             // Cible du message : capture la référence live et bâtit le contexte pour Claude
             let tgt = targetEl;
             if (tgt && !document.body.contains(tgt)) { tgt = null; clearTarget(); }
-            let sendMsg = msg;
+            let sendMsg = baseMsg;
             if (tgt) {
                 const refHtml = cleanHTML(tgt.outerHTML);
                 sendMsg = "Voici un élément HTML existant du composant (déjà à la charte Ekwateur). "
                     + "Modifie UNIQUEMENT cet élément en gardant sa nature, et renvoie sa version modifiée "
                     + "dans UN SEUL bloc ```html (le fragment seul, sans texte superflu) :\n\n"
-                    + "```html\n" + refHtml + "\n```\n\nModification demandée : " + msg;
+                    + "```html\n" + refHtml + "\n```\n\nModification demandée : " + baseMsg;
             }
             // Contexte de largeur : le composant vivra dans un conteneur de cette largeur max.
             const wctx = pageMaxW
@@ -2174,19 +2216,24 @@
                 + pageMaxW + "px (grilles, colonnes, tailles de texte et images pensées pour ~" + pageMaxW + "px de large max)."
                 : "[Contexte d'affichage] Le composant peut occuper toute la largeur de la page (pleine largeur).";
             sendMsg = wctx + "\n\n" + sendMsg;
-            // Bulle utilisateur : message humain + éventuel marqueur de cible
-            const userContent = tgt
-                ? (() => { const d = document.createElement('div'); d.innerHTML = '<div class="text-[10px] opacity-70 mb-1"><i class="fa-solid fa-bullseye mr-1"></i>' + elLabel(tgt).replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div>'; const s = document.createElement('div'); s.className = 'whitespace-pre-wrap'; s.textContent = msg; d.appendChild(s); return d; })()
-                : msg;
+            // Bulle utilisateur : marqueur de cible + vignettes images + texte
+            const userContent = (!tgt && !imgUrls.length) ? msg : (() => {
+                const d = document.createElement('div');
+                if (tgt) { const h = document.createElement('div'); h.className = 'text-[10px] opacity-70 mb-1'; h.innerHTML = '<i class="fa-solid fa-bullseye mr-1"></i>' + elLabel(tgt).replace(/</g, '&lt;').replace(/>/g, '&gt;'); d.appendChild(h); }
+                if (imgUrls.length) { const ir = document.createElement('div'); ir.className = 'flex flex-wrap gap-1.5 mb-1'; ir.innerHTML = imgUrls.map(u => '<img src="' + u + '" class="w-16 h-16 object-cover rounded-lg border border-white/20">').join(''); d.appendChild(ir); }
+                if (msg) { const s = document.createElement('div'); s.className = 'whitespace-pre-wrap'; s.textContent = msg; d.appendChild(s); }
+                return d;
+            })();
             addBubble('user', userContent);
             input.value = ''; input.style.height = 'auto';
+            chatImages = []; renderChatImages(); // vide les pièces jointes après envoi
             // NB : la cible reste "collante" — on peut reprompter la même origine
             // jusqu'à Appliquer/Rejeter/✕, sans casser le code précédent.
             setChatBusy(true);
             const thinkingRow = addBubble('assistant', '');
             thinkingRow.querySelector('div').innerHTML = '<span class="text-slate-500"><i class="fa-solid fa-spinner fa-spin mr-1.5"></i>Claude réfléchit…</span>';
             try {
-                const res = await window.api.sendChat({ message: sendMsg, sessionId: chatSessionId });
+                const res = await window.api.sendChat({ message: sendMsg, sessionId: chatSessionId, images: imgsPayload });
                 thinkingRow.remove();
                 if (res.error) { addBubble('assistant', 'Erreur : ' + res.error); }
                 else {

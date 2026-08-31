@@ -271,9 +271,54 @@ ipcMain.handle('generate-component', async (event, prompt) => {
 ipcMain.handle('send-chat', async (event, payload) => {
   const message = payload && payload.message;
   const sessionId = payload && payload.sessionId;
-  if (!message || !message.trim()) return { error: 'Message vide.' };
+  const images = (payload && payload.images) || [];
+  if ((!message || !message.trim()) && !images.length) return { error: 'Message vide.' };
 
   const bin = resolveClaudeBin();
+
+  // --- Avec image(s) : entrée stream-json (vision native, bloc image base64), sortie stream-json ---
+  if (images.length) {
+    const args = ['-p', '--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose',
+      '--model', MODEL, '--append-system-prompt', CHARTE];
+    if (sessionId) args.push('--resume', sessionId);
+    const content = [{ type: 'text', text: message || 'Utilise cette image comme référence.' }];
+    for (const im of images) {
+      if (im && im.data && im.mime) content.push({ type: 'image', source: { type: 'base64', media_type: im.mime, data: im.data } });
+    }
+    const line = JSON.stringify({ type: 'user', message: { role: 'user', content } }) + '\n';
+    return new Promise((resolve) => {
+      let child;
+      try { child = spawn(bin, args, { cwd: os.tmpdir() }); }
+      catch (e) { return resolve({ error: 'Impossible de lancer claude : ' + e.message }); }
+      let out = '', err = '';
+      const timer = setTimeout(() => { child.kill(); resolve({ error: 'Délai dépassé (180 s).' }); }, 180000);
+      child.stdout.on('data', d => { out += d.toString(); });
+      child.stderr.on('data', d => { err += d.toString(); });
+      child.on('error', (e) => { clearTimeout(timer); resolve({ error: 'CLI claude introuvable : ' + e.message }); });
+      child.on('close', (code) => {
+        clearTimeout(timer);
+        let text = '', sid = sessionId || null, tokens = 0, cost = 0, found = false;
+        out.split('\n').forEach(l => {
+          l = l.trim(); if (!l) return;
+          let j; try { j = JSON.parse(l); } catch (_) { return; }
+          if (j.type === 'result') {
+            found = true;
+            text = j.result || '';
+            sid = j.session_id || sid;
+            const u = j.usage || {};
+            tokens = (u.input_tokens || 0) + (u.output_tokens || 0) + (u.cache_creation_input_tokens || 0) + (u.cache_read_input_tokens || 0);
+            cost = j.total_cost_usd || 0;
+          }
+        });
+        if (!found) return resolve({ error: err.trim() || ('claude a quitté (code ' + code + ')') });
+        resolve({ text, sessionId: sid, tokens, cost });
+      });
+      try { child.stdin.write(line); child.stdin.end(); }
+      catch (e) { clearTimeout(timer); resolve({ error: 'stdin: ' + e.message }); }
+    });
+  }
+
+  // --- Texte seul : chemin d'origine (-p <message>, sortie json) ---
   const args = ['-p', message, '--model', MODEL, '--output-format', 'json', '--append-system-prompt', CHARTE];
   if (sessionId) args.push('--resume', sessionId);
 
