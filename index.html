@@ -292,9 +292,9 @@
             </h1>
         </div>
         <div class="flex gap-3 items-center">
-            <button onclick="openImport()" title="Importer un composant depuis 21st.dev et l'adapter à Ekwateur"
+            <button onclick="openImport()" title="Importer du code (HTML/CSS/JS) — conversion locale en inline"
                 class="px-4 py-2 text-sm bg-slate-700 hover:bg-slate-600 rounded-lg transition text-slate-200 font-medium">
-                <i class="fa-solid fa-cloud-arrow-down mr-2"></i>Importer 21st.dev
+                <i class="fa-solid fa-file-import mr-2"></i>Importer du code
             </button>
             <button onclick="exportCode()"
                 class="px-4 py-2 text-sm bg-secondary hover:brightness-110 rounded-lg transition text-ink-deep font-semibold shadow-lg shadow-secondary/20">
@@ -620,38 +620,46 @@
         </div>
     </div>
 
-    <!-- Modal Import 21st.dev -->
+    <!-- Modal Importer du code (HTML/CSS/JS) -->
     <div id="importModal"
         class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-6">
         <div
             class="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden shadow-2xl">
             <div class="p-4 border-b border-slate-700 flex justify-between items-center shrink-0">
                 <h3 class="font-semibold text-white text-base"><i
-                        class="fa-solid fa-cloud-arrow-down mr-2 text-primary"></i>Importer un composant 21st.dev</h3>
+                        class="fa-solid fa-file-import mr-2 text-primary"></i>Importer du code (HTML / CSS / JS)</h3>
                 <button onclick="closeImport()" class="text-slate-400 hover:text-white transition text-lg"><i
                         class="fa-solid fa-xmark"></i></button>
             </div>
             <div class="p-4 overflow-y-auto flex-1 space-y-3">
-                <p class="text-xs text-slate-400 leading-relaxed">Sur 21st.dev, ouvre l'onglet <b>Code</b> du composant
-                    et copie <b>tout</b> (le fichier du composant + le démo). Colle ici : Claude le convertit en
-                    <b>HTML/JS vanilla</b> adapté à la charte Ekwateur (dark, pilules, pictos, tokens), puis l'insère
-                    dans le canvas.
-                </p>
-                <input id="import-url" type="text" placeholder="URL 21st.dev (optionnel, pour contexte)"
-                    class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-primary">
-                <textarea id="import-code" rows="12" spellcheck="false"
-                    placeholder="Colle ici le code du composant (React/TSX) + le démo…"
-                    class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-[11px] font-mono text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-primary resize-y"></textarea>
-                <p class="text-[10px] text-slate-500">Astuce : les composants simples (cartes, timelines, grilles) se
-                    convertissent le mieux. Les animations très complexes (framer-motion avancé) peuvent nécessiter un
-                    ajustement via le chat ensuite.</p>
+                <p class="text-xs text-slate-400 leading-relaxed">Colle le code d'une slice (ex : les 3 champs Prismic
+                    <b>html_only</b> / <b>css</b> / <b>js</b>). Conversion <b>locale</b> (sans IA) : le CSS est aplati en
+                    <b>styles inline</b> sur les éléments (éditables au clic) ; <code>@media</code>, <code>:hover</code>,
+                    keyframes sont gardés dans un &lt;style&gt; ; le JS va dans le &lt;script&gt; de la slice.</p>
+                <div>
+                    <label class="text-[11px] font-medium text-slate-300 block mb-1">HTML</label>
+                    <textarea id="imp-html" rows="7" spellcheck="false" placeholder="<div>…</div>"
+                        class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-[11px] font-mono text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-primary resize-y"></textarea>
+                </div>
+                <div>
+                    <label class="text-[11px] font-medium text-slate-300 block mb-1">CSS</label>
+                    <textarea id="imp-css" rows="6" spellcheck="false" placeholder=".ma-classe{ color:#fff }"
+                        class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-[11px] font-mono text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-primary resize-y"></textarea>
+                </div>
+                <div>
+                    <label class="text-[11px] font-medium text-slate-300 block mb-1">JS <span class="text-slate-500">(optionnel)</span></label>
+                    <textarea id="imp-js" rows="5" spellcheck="false" placeholder="// script de la slice"
+                        class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-[11px] font-mono text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-primary resize-y"></textarea>
+                </div>
+                <p class="text-[10px] text-slate-500">Astuce : tu peux aussi coller un HTML qui contient déjà
+                    &lt;style&gt; et &lt;script&gt; — ils seront répartis automatiquement.</p>
             </div>
             <div class="p-4 border-t border-slate-700 bg-slate-900/50 flex justify-end gap-3 shrink-0">
                 <button onclick="closeImport()"
                     class="px-4 py-2 text-xs bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 transition">Annuler</button>
-                <button id="import-go" onclick="importConvert()"
+                <button id="import-go" onclick="importCode()"
                     class="px-4 py-2 text-xs bg-secondary text-ink-deep font-semibold rounded-lg hover:brightness-110 transition"><i
-                        class="fa-solid fa-wand-magic-sparkles mr-1.5"></i>Convertir & insérer</button>
+                        class="fa-solid fa-file-import mr-1.5"></i>Importer dans le canvas</button>
             </div>
         </div>
     </div>
@@ -2290,48 +2298,77 @@
             }
         }
 
-        // --- Import 21st.dev → conversion vanilla + charte Ekwateur ---
+        // --- Import de code (HTML/CSS/JS) → aplatissement CSS en inline, 100% LOCAL (sans IA) ---
         function openImport() {
             document.getElementById('importModal').classList.remove('hidden');
-            document.getElementById('import-code').focus();
+            document.getElementById('imp-html').focus();
         }
         function closeImport() { document.getElementById('importModal').classList.add('hidden'); }
-        async function importConvert() {
-            if (chatBusy) return;
-            if (!window.api) { alert("Lancez l'app via Electron (npm start)."); return; }
-            const code = document.getElementById('import-code').value.trim();
-            const url = document.getElementById('import-url').value.trim();
-            if (!code) { alert('Colle le code du composant (onglet Code sur 21st.dev).'); return; }
-            closeImport();
-            const wctx = pageMaxW ? ('conteneur de largeur max ' + pageMaxW + 'px') : 'pleine largeur';
-            const msg =
-                "Convertis ce composant 21st.dev en un fragment AUTONOME pour le studio Ekwateur.\n"
-                + "Contraintes STRICTES :\n"
-                + "- SORTIE = UN SEUL bloc ```html : HTML sémantique + classes Tailwind (tokens Ekwateur) + éventuellement UN <script> vanilla final.\n"
-                + "- ZÉRO React/JSX/TypeScript : pas de useState/useEffect/props/import/export ni 'use client'. Transpose l'état et l'interactivité en JS vanilla (querySelector/addEventListener), script idempotent, sélecteurs internes au composant.\n"
-                + "- Remplace les icônes lucide-react par des SVG inline (stroke=\"currentColor\", taille fixe) ; si un pictogramme Ekwateur correspond, utilise <img data-picto=\"nom\">.\n"
-                + "- COULEURS charte dark Ekwateur : fonds bg-night/bg-ink, bordures border-line, CTA/accents bg-cta/text-cta (#74F1E3), highlight text-secondary (#FFC969), textes text-cloud/text-soft/text-muted. Boutons en pilule rounded-tag. Cartes rounded-card + border-line.\n"
-                + "- Mobile-first, " + wctx + ".\n"
-                + "- Reprends les données du démo en dur (contenu d'exemple), adaptées en français Ekwateur si pertinent.\n"
-                + (url ? ("Source : " + url + "\n") : "")
-                + "\nCODE 21st.dev :\n```tsx\n" + code + "\n```";
-            addBubble('user', 'Import 21st.dev' + (url ? (' — ' + url) : ''));
-            setChatBusy(true);
-            const thinkingRow = addBubble('assistant', '');
-            thinkingRow.querySelector('div').innerHTML = '<span class="text-slate-500"><i class="fa-solid fa-spinner fa-spin mr-1.5"></i>Conversion 21st.dev → Ekwateur…</span>';
+
+        // Applique les règles CSS "inline-ables" en style inline sur les éléments de `root`,
+        // et renvoie le CSS résiduel (@media, :hover, ::x, keyframes…) SCOPÉ sous .scopeClass et
+        // forcé en !important (pour battre l'inline). Mute `root`. Zéro dépendance / zéro IA.
+        function flattenCssToInline(cssText, root, scopeClass) {
+            if (!cssText || !cssText.trim()) return '';
+            const styleEl = document.createElement('style');
+            styleEl.setAttribute('media', 'not all'); // parsé mais n'affecte pas le document
+            styleEl.textContent = cssText;
+            document.head.appendChild(styleEl);
+            const residual = [];
+            const declsImportant = (st) => { let o = ''; for (let i = 0; i < st.length; i++) { const p = st[i]; o += p + ':' + st.getPropertyValue(p) + ' !important;'; } return o; };
+            const scopeSel = (sel) => sel.split(',').map(s => '.' + scopeClass + ' ' + s.trim()).join(', ');
+            const orig = [];
+            root.querySelectorAll('[style]').forEach(el => orig.push([el, el.getAttribute('style')]));
             try {
-                const res = await window.api.sendChat({ message: msg, sessionId: chatSessionId });
-                thinkingRow.remove();
-                if (res.error) { addBubble('assistant', 'Erreur : ' + res.error); }
-                else {
-                    if (res.sessionId) chatSessionId = res.sessionId;
-                    addBubble('assistant', renderAssistant(res.text || '(réponse vide)', null));
-                    trackUsage(res.tokens || 0, res.cost || 0);
-                    document.getElementById('import-code').value = '';
-                    document.getElementById('import-url').value = '';
+                const rules = styleEl.sheet ? styleEl.sheet.cssRules : [];
+                for (let i = 0; i < rules.length; i++) {
+                    const r = rules[i];
+                    if (r.type === 1) { // CSSStyleRule
+                        const parts = r.selectorText.split(',').map(s => s.trim());
+                        parts.filter(s => s.indexOf(':') < 0).forEach(sel => {
+                            let els; try { els = root.querySelectorAll(sel); } catch (_) { return; }
+                            els.forEach(el => { for (let k = 0; k < r.style.length; k++) { const p = r.style[k]; el.style.setProperty(p, r.style.getPropertyValue(p), r.style.getPropertyPriority(p)); } });
+                        });
+                        const pseudo = parts.filter(s => s.indexOf(':') >= 0);
+                        if (pseudo.length) residual.push(scopeSel(pseudo.join(', ')) + '{' + declsImportant(r.style) + '}');
+                    } else if (r.type === 4) { // @media
+                        const inner = [];
+                        for (let k = 0; k < r.cssRules.length; k++) { const mr = r.cssRules[k]; if (mr.type === 1) inner.push(scopeSel(mr.selectorText) + '{' + declsImportant(mr.style) + '}'); }
+                        if (inner.length) residual.push('@media ' + r.media.mediaText + '{' + inner.join('') + '}');
+                    } else if (r.cssText) { residual.push(r.cssText); } // keyframes, font-face…
                 }
-            } catch (e) { thinkingRow.remove(); addBubble('assistant', 'Erreur inattendue : ' + e.message); }
-            finally { setChatBusy(false); }
+            } catch (_) { }
+            document.head.removeChild(styleEl);
+            orig.forEach(([el, txt]) => { const tmp = document.createElement('div'); tmp.setAttribute('style', txt || ''); for (let i = 0; i < tmp.style.length; i++) { const p = tmp.style[i]; el.style.setProperty(p, tmp.style.getPropertyValue(p), tmp.style.getPropertyPriority(p)); } });
+            return residual.join('\n');
+        }
+
+        function importCode() {
+            let html = (document.getElementById('imp-html').value || '').trim();
+            let css = (document.getElementById('imp-css').value || '').trim();
+            let js = (document.getElementById('imp-js').value || '').trim();
+            if (!html && !css && !js) { toast('Colle au moins du HTML.'); return; }
+            const holder = document.createElement('div');
+            holder.innerHTML = html;
+            // récupère un <style>/<script> éventuellement collés dans le HTML
+            holder.querySelectorAll('style').forEach(s => { css += '\n' + s.textContent; s.remove(); });
+            holder.querySelectorAll('script').forEach(s => { js += '\n' + s.textContent; s.remove(); });
+            if (!holder.children.length && !holder.textContent.trim()) { toast('HTML vide.'); return; }
+            const scope = 'eks-imp-' + Math.random().toString(36).slice(2, 8);
+            const residual = flattenCssToInline(css, holder, scope);
+            const wrap = document.createElement('div');
+            wrap.className = scope;
+            if (residual.trim()) { const st = document.createElement('style'); st.textContent = residual; wrap.appendChild(st); }
+            while (holder.firstChild) wrap.appendChild(holder.firstChild);
+            if (js.trim()) { const sc = document.createElement('script'); sc.type = 'text/ekw-js'; sc.textContent = js.trim(); wrap.appendChild(sc); }
+            closeImport();
+            deselect();
+            const el = injectGenerated(wrap.outerHTML);
+            if (el) { selectElement(el); el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+            document.getElementById('imp-html').value = '';
+            document.getElementById('imp-css').value = '';
+            document.getElementById('imp-js').value = '';
+            toast('Composant importé (CSS aplati en inline)');
         }
 
         function newChat() {
