@@ -327,7 +327,12 @@ function runClaudeStream(bin, args, stdinLine, timeoutMs, onDelta) {
     try { child = spawn(bin, args, { cwd: os.tmpdir() }); }
     catch (e) { return resolve({ error: 'Impossible de lancer claude : ' + e.message }); }
     let buf = '', err = '', text = '', sid = null, tokens = 0, cost = 0, found = false;
-    const timer = setTimeout(() => { child.kill(); resolve({ error: 'Délai dépassé.' }); }, timeoutMs);
+    // Timeout d'INACTIVITÉ (pas de plafond total) : remis à zéro à chaque sortie du
+    // modèle. Une réflexion longue streame des tokens → jamais coupée ; seul un
+    // process réellement muet pendant timeoutMs est arrêté.
+    let timer;
+    const armIdle = () => { if (timer) clearTimeout(timer); timer = setTimeout(() => { try { child.kill(); } catch (_) { } resolve({ error: 'Aucune réponse du modèle depuis ' + Math.round(timeoutMs / 1000) + ' s — arrêté. Réessaie.' }); }, timeoutMs); };
+    armIdle();
     function handleLine(l) {
       l = l.trim(); if (!l) return;
       let j; try { j = JSON.parse(l); } catch (_) { return; }
@@ -349,6 +354,7 @@ function runClaudeStream(bin, args, stdinLine, timeoutMs, onDelta) {
       }
     }
     child.stdout.on('data', d => {
+      armIdle(); // toute sortie (thinking inclus) repousse le timeout
       buf += d.toString();
       let i;
       while ((i = buf.indexOf('\n')) >= 0) { const line = buf.slice(0, i); buf = buf.slice(i + 1); handleLine(line); }
@@ -388,7 +394,7 @@ ipcMain.handle('send-chat', async (event, payload) => {
       if (im && im.data && im.mime) content.push({ type: 'image', source: { type: 'base64', media_type: im.mime, data: im.data } });
     }
     const line = JSON.stringify({ type: 'user', message: { role: 'user', content } }) + '\n';
-    const r = await runClaudeStream(bin, args, line, 180000, onDelta);
+    const r = await runClaudeStream(bin, args, line, 300000, onDelta);
     if (r.error) return { error: r.error };
     return { text: r.text, sessionId: r.sessionId || sessionId || null, tokens: r.tokens, cost: r.cost };
   }
@@ -397,7 +403,7 @@ ipcMain.handle('send-chat', async (event, payload) => {
   const args = ['-p', message, '--model', model, '--output-format', 'stream-json', '--verbose',
     '--include-partial-messages', '--append-system-prompt', CHARTE];
   if (sessionId) args.push('--resume', sessionId);
-  const r = await runClaudeStream(bin, args, null, 120000, onDelta);
+  const r = await runClaudeStream(bin, args, null, 300000, onDelta);
   if (r.error) return { error: r.error };
   return { text: r.text, sessionId: r.sessionId || sessionId || null, tokens: r.tokens, cost: r.cost };
 });
