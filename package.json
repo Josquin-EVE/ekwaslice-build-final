@@ -1,6 +1,6 @@
 {
     "name": "Ekwaslice",
-    "version": "1.0.7",
+    "version": "1.0.8",
     "description": "Générateur de composants web EkwaSlice",
     "main": "main.js",
     "scripts": {
