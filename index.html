@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>EkwaSlice</title>
     <script src="assets/vendor/tailwindcss.js"></script>
+    <script src="lib/prismic-slice.js"></script>
     <script>
         // Tokens de la charte graphique Ekwateur (Design System)
         window.EKW_TW = {
@@ -300,6 +301,10 @@
                 title="Envoyer la slice du canvas directement vers Prismic (brouillon)"
                 class="px-3 py-2 text-sm bg-[#d97757] hover:brightness-110 rounded-lg transition text-white font-semibold flex items-center gap-2">
                 <i class="fa-solid fa-cloud-arrow-up"></i>Envoi Prismic
+            </button>
+            <button onclick="openPrismicImport()" title="Importer une slice existante depuis Prismic (verbatim)"
+                class="px-3 py-2 text-sm bg-slate-700 hover:bg-slate-600 rounded-lg transition text-slate-200 font-medium flex items-center gap-2">
+                <i class="fa-solid fa-cloud-arrow-down"></i>Importer Prismic
             </button>
             <button onclick="exportCode()"
                 class="px-4 py-2 text-sm bg-secondary hover:brightness-110 rounded-lg transition text-ink-deep font-semibold shadow-lg shadow-secondary/20">
@@ -2506,6 +2511,36 @@
         }
         function closeImport() { document.getElementById('importModal').classList.add('hidden'); }
 
+        // --- Import verbatim d'une slice depuis Prismic (aucune conversion/aplatissement) ---
+        function openPrismicImport() { document.getElementById('prismicImportModal').classList.remove('hidden'); document.getElementById('prismic-import-input').focus(); }
+        function closePrismicImport() { document.getElementById('prismicImportModal').classList.add('hidden'); }
+        function injectVerbatimSlice(trio, meta) {
+          const html = window.PrismicSlice.buildVerbatimSliceHTML(trio);
+          const el = injectGenerated(html);
+          if (el && meta) {
+            el.setAttribute('data-remote-id', meta.documentId || '');
+            el.setAttribute('data-base-version', meta.baseVersionId || '');
+            if (meta.title) el.setAttribute('data-remote-title', meta.title);
+          }
+          if (currentMode !== 'edit') setMode('edit');
+          if (el) { selectElement(el); el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+          return el;
+        }
+        async function doPrismicImport(btn) {
+          if (!window.api || !window.api.pullPrismic) { toast("Dispo seulement dans l'app"); return; }
+          const raw = (document.getElementById('prismic-import-input').value || '').trim();
+          if (!raw) { toast('Colle une URL ou un id.'); return; }
+          const o = btn ? btn.innerHTML : '';
+          if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1.5"></i>Import…'; }
+          let r; try { r = await window.api.pullPrismic(raw); } catch (e) { r = { error: e.message }; }
+          if (btn) { btn.disabled = false; btn.innerHTML = o; }
+          if (!r || r.error || !r.ok) { toast('Échec import : ' + ((r && (r.error || r.raw)) || 'inconnu')); return; }
+          closePrismicImport();
+          injectVerbatimSlice(r.trio, { documentId: r.documentId, baseVersionId: r.baseVersionId, title: r.title });
+          document.getElementById('prismic-import-input').value = '';
+          toast('Slice importée depuis Prismic (verbatim) ✓');
+        }
+
         // Applique les règles CSS "inline-ables" en style inline sur les éléments de `root`,
         // et renvoie le CSS résiduel (@media, :hover, ::x, keyframes…) SCOPÉ sous .scopeClass et
         // forcé en !important (pour battre l'inline). Mute `root`. Zéro dépendance / zéro IA.
@@ -3123,6 +3158,19 @@
             checkForUpdate();
         });
     </script>
+
+    <div id="prismicImportModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-6">
+      <div class="bg-slate-800 rounded-2xl p-6 w-full max-w-lg space-y-4">
+        <h2 class="text-white font-bold text-lg">Importer depuis Prismic</h2>
+        <p class="text-slate-400 text-sm">Colle l'URL du document (builder) ou son identifiant. La slice est importée telle quelle (verbatim).</p>
+        <input id="prismic-import-input" type="text" placeholder="https://ekwateur-edito.prismic.io/builder/pages/… ou aamJGhAAACQALA7F"
+          class="w-full bg-slate-950 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-primary">
+        <div class="flex justify-end gap-2">
+          <button onclick="closePrismicImport()" class="px-4 py-2 text-sm text-slate-300 hover:text-white">Annuler</button>
+          <button id="prismic-import-go" onclick="doPrismicImport(this)" class="px-4 py-2 text-sm bg-[#d97757] hover:brightness-110 rounded-lg text-white font-semibold">Importer</button>
+        </div>
+      </div>
+    </div>
 </body>
 
 </html>
