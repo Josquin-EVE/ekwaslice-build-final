@@ -28,6 +28,8 @@ contextBridge.exposeInMainWorld('api', {
   pushPrismic: (payload) => ipcRenderer.invoke('push-prismic', payload),
   // Lecture d'une slice existante depuis Prismic (trio html_only/css/js/html verbatim)
   pullPrismic: (docId) => ipcRenderer.invoke('pull-prismic', docId),
+  // Mise à jour d'un document Prismic existant (update_document, brouillon)
+  updatePrismic: (payload) => ipcRenderer.invoke('update-prismic', payload),
   // Proxy prix API-SO (Referer forcé) pour que l'aperçu affiche les vrais prix
   getQuotation: (body) => ipcRenderer.invoke('get-quotation', body),
   // Mise à jour

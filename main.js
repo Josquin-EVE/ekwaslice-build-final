@@ -719,6 +719,60 @@ ipcMain.handle('pull-prismic', async (event, docId) => {
 });
 
 // ---------------------------------------------------------------------------
+// UPDATE PRISMIC — met à jour un document Prismic EXISTANT (custom_slice) via
+// le CLI headless + MCP Prismic (update_document). Nécessite documentId ET
+// baseVersionId (jamais de spawn sans les deux). NE PUBLIE JAMAIS.
+// ---------------------------------------------------------------------------
+ipcMain.handle('update-prismic', async (event, payload) => {
+  const documentId = ((payload && payload.documentId) || '').trim();
+  const baseVersionId = ((payload && payload.baseVersionId) || '').trim();
+  const html = (payload && payload.html) || '';
+  const css = (payload && payload.css) || '';
+  const js = (payload && payload.js) || '';
+  if (!documentId || !baseVersionId) return { error: 'Document/version Prismic manquant (réimporte la slice).' };
+  const bin = resolveClaudeBin();
+  const prompt = [
+    'Objectif : METTRE À JOUR un document Prismic existant via le MCP Prismic (repository "ekwateur-edito").',
+    'Les outils MCP Prismic sont déférés : charge-les avec ToolSearch si nécessaire.',
+    'Étapes STRICTES :',
+    '1. update_document : repository "ekwateur-edito", documentId ' + JSON.stringify(documentId) + ', baseVersionId ' + JSON.stringify(baseVersionId) + ',',
+    '   updates = { "html_only": {"__TYPE__":"FieldContent","type":"Text","value": <HTML>},',
+    '               "css": {"__TYPE__":"FieldContent","type":"Text","value": <CSS>},',
+    '               "js": {"__TYPE__":"FieldContent","type":"Text","value": <JS>} }',
+    '   où <HTML>/<CSS>/<JS> sont EXACTEMENT les blocs délimités ci-dessous (ne les modifie pas).',
+    '2. NE PUBLIE JAMAIS (pas de publish_release).',
+    'Termine par UNE SEULE ligne JSON et rien d\'autre : {"documentId":"…","ok":true}',
+    '',
+    '===HTML_ONLY_START===', html, '===HTML_ONLY_END===',
+    '===CSS_START===', css, '===CSS_END===',
+    '===JS_START===', js, '===JS_END==='
+  ].join('\n');
+  const args = ['-p', prompt,
+    '--allowedTools', 'ToolSearch', 'mcp__claude_ai_Prismic', 'mcp__claude_ai_Prismic__update_document',
+    '--model', MODEL, '--output-format', 'json'];
+  return new Promise((resolve) => {
+    let child;
+    try { child = spawn(bin, args, { cwd: os.tmpdir() }); }
+    catch (e) { return resolve({ error: 'Impossible de lancer claude : ' + e.message }); }
+    let out = '', err = '';
+    const timer = setTimeout(() => { child.kill(); resolve({ error: 'Délai dépassé (180 s).' }); }, 180000);
+    child.stdout.on('data', d => { out += d.toString(); });
+    child.stderr.on('data', d => { err += d.toString(); });
+    child.on('error', (e) => { clearTimeout(timer); resolve({ error: 'CLI claude introuvable : ' + e.message }); });
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      if (code !== 0) return resolve({ error: err.trim() || ('claude a quitté (code ' + code + ')') });
+      let result = '';
+      try { result = JSON.parse(out).result || ''; } catch (_) { return resolve({ error: 'Parsing réponse impossible.' }); }
+      const m = result.match(/\{[^{}]*"documentId"[^{}]*\}/);
+      let info = null; if (m) { try { info = JSON.parse(m[0]); } catch (_) { } }
+      if (info && info.documentId) return resolve({ ok: true, documentId: info.documentId });
+      return resolve({ ok: false, error: 'Réponse inattendue de Claude', raw: result.slice(0, 300) });
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // MISE À JOUR — vérif légère (sans signature) : compare la version locale à la
 // dernière GitHub Release. Ne télécharge/installe RIEN ; le renderer affiche une
 // bannière avec un lien de téléchargement (install manuelle).
