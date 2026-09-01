@@ -5,6 +5,7 @@
     "main": "main.js",
     "scripts": {
         "start": "electron .",
+        "test": "node --test test/",
         "build:win": "electron-builder --windows",
         "build:mac": "electron-builder --mac",
         "build:linux": "electron-builder --linux",
