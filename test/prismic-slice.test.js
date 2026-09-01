@@ -36,6 +36,10 @@ test('buildVerbatimSliceHTML: script déjà typé non doublé', () => {
   const out = buildVerbatimSliceHTML({ html: '<script type="application/json">{}<\/script>' });
   assert.match(out, /<script type="application\/json">/);
 });
+test('buildVerbatimSliceHTML: data-type ne bloque pas la neutralisation', () => {
+  const out = buildVerbatimSliceHTML({ html: '<script data-type="x">go()<\/script>' });
+  assert.match(out, /type="text\/ekw-js"/);
+});
 
 test('extractTrio: bloc json fencé', () => {
   const txt = 'Voici le doc :\n```json\n{"title":"T","documentId":"d1","baseVersionId":"v1","html_only":"<p>x</p>","css":"","js":""}\n```\nfini';
