@@ -26,7 +26,8 @@
             "main.js",
             "preload.js",
             "index.html",
-            "assets/**"
+            "assets/**",
+            "lib/**"
         ],
         "publish": [
             {
