@@ -692,17 +692,16 @@ ipcMain.handle('pull-prismic', async (event, docId) => {
   if (!id) return { error: 'Identifiant Prismic invalide.' };
   const bin = resolveClaudeBin();
   const prompt = [
-    'Objectif : LIRE un document Prismic (repository "ekwateur-edito") et renvoyer son contenu.',
-    'Les outils MCP Prismic sont déférés : charge-les avec ToolSearch si nécessaire.',
-    '1. get_document repository "ekwateur-edito", documentId ' + JSON.stringify(id) + '.',
-    '2. Renvoie UNIQUEMENT un bloc ```json contenant EXACTEMENT :',
-    '   {"title":"…","documentId":"' + id + '","baseVersionId":"<version.id renvoyé>",',
-    '    "html_only":"<valeur du champ html_only ou \\"\\">","css":"<champ css>","js":"<champ js>","html":"<champ html>"}',
-    '   Valeurs texte EXACTES des champs (chaîne vide si le champ est absent). Ne modifie rien. Aucune autre sortie.'
+    'Tâche mécanique, AUCUNE réflexion ni préambule : charge get_document via ToolSearch, appelle-le UNE fois, renvoie le JSON. Rien d\'autre.',
+    'get_document repository "ekwateur-edito", documentId ' + JSON.stringify(id) + '.',
+    'Réponds UNIQUEMENT par un bloc ```json contenant EXACTEMENT :',
+    '{"title":"…","documentId":"' + id + '","baseVersionId":"<version.id renvoyé>",',
+    ' "html_only":"<champ html_only ou \\"\\">","css":"<champ css>","js":"<champ js>","html":"<champ html>"}',
+    'Valeurs texte EXACTES des champs (chaîne vide si absent). Ne modifie rien.'
   ].join('\n');
   const args = ['-p', prompt,
     '--allowedTools', 'ToolSearch', 'mcp__claude_ai_Prismic', 'mcp__claude_ai_Prismic__get_document',
-    '--model', MODEL, '--output-format', 'json'];
+    '--model', 'claude-haiku-4-5', '--output-format', 'json'];
   return new Promise((resolve) => {
     let child;
     try { child = spawn(bin, args, { cwd: os.tmpdir() }); }
