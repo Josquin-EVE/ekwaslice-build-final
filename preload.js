@@ -26,6 +26,8 @@ contextBridge.exposeInMainWorld('api', {
   sharedRenameAuthor: (payload) => ipcRenderer.invoke('shared-rename-author', payload),
   // Push direct d'une slice vers Prismic (custom_slice)
   pushPrismic: (payload) => ipcRenderer.invoke('push-prismic', payload),
+  // Lecture d'une slice existante depuis Prismic (trio html_only/css/js/html verbatim)
+  pullPrismic: (docId) => ipcRenderer.invoke('pull-prismic', docId),
   // Proxy prix API-SO (Referer forcé) pour que l'aperçu affiche les vrais prix
   getQuotation: (body) => ipcRenderer.invoke('get-quotation', body),
   // Mise à jour

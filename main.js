@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, shell } = require('electron');
 const path = require('path');
 const os = require('os');
+const PrismicSlice = require('./lib/prismic-slice.js');
 const fs = require('fs');
 const { spawn, execSync } = require('child_process');
 
@@ -671,6 +672,48 @@ ipcMain.handle('push-prismic', async (event, payload) => {
         return resolve({ ok: true, documentId: info.documentId, releaseId: info.releaseId || null });
       }
       return resolve({ ok: false, error: 'Réponse inattendue de Claude', raw: result.slice(0, 300) });
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PULL PRISMIC — lit un document Prismic (custom_slice) via le CLI headless +
+// MCP Prismic et renvoie le trio html_only/css/js/html verbatim. Lecture seule
+// (get_document), ne modifie rien côté Prismic.
+// ---------------------------------------------------------------------------
+ipcMain.handle('pull-prismic', async (event, docId) => {
+  const id = PrismicSlice.parsePrismicDocId(docId);
+  if (!id) return { error: 'Identifiant Prismic invalide.' };
+  const bin = resolveClaudeBin();
+  const prompt = [
+    'Objectif : LIRE un document Prismic (repository "ekwateur-edito") et renvoyer son contenu.',
+    'Les outils MCP Prismic sont déférés : charge-les avec ToolSearch si nécessaire.',
+    '1. get_document repository "ekwateur-edito", documentId ' + JSON.stringify(id) + '.',
+    '2. Renvoie UNIQUEMENT un bloc ```json contenant EXACTEMENT :',
+    '   {"title":"…","documentId":"' + id + '","baseVersionId":"<version.id renvoyé>",',
+    '    "html_only":"<valeur du champ html_only ou \\"\\">","css":"<champ css>","js":"<champ js>","html":"<champ html>"}',
+    '   Valeurs texte EXACTES des champs (chaîne vide si le champ est absent). Ne modifie rien. Aucune autre sortie.'
+  ].join('\n');
+  const args = ['-p', prompt,
+    '--allowedTools', 'ToolSearch', 'mcp__claude_ai_Prismic', 'mcp__claude_ai_Prismic__get_document',
+    '--model', MODEL, '--output-format', 'json'];
+  return new Promise((resolve) => {
+    let child;
+    try { child = spawn(bin, args, { cwd: os.tmpdir() }); }
+    catch (e) { return resolve({ error: 'Impossible de lancer claude : ' + e.message }); }
+    let out = '', err = '';
+    const timer = setTimeout(() => { child.kill(); resolve({ error: 'Délai dépassé (180 s).' }); }, 180000);
+    child.stdout.on('data', d => { out += d.toString(); });
+    child.stderr.on('data', d => { err += d.toString(); });
+    child.on('error', (e) => { clearTimeout(timer); resolve({ error: 'CLI claude introuvable : ' + e.message }); });
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      if (code !== 0) return resolve({ error: err.trim() || ('claude a quitté (code ' + code + ')') });
+      let result = '';
+      try { result = JSON.parse(out).result || ''; } catch (_) { return resolve({ error: 'Parsing réponse impossible.' }); }
+      const o = PrismicSlice.extractTrioFromClaudeResult(result);
+      if (!o || !o.documentId) return resolve({ error: 'Réponse inattendue de Claude', raw: result.slice(0, 300) });
+      resolve({ ok: true, trio: { html_only: o.html_only || '', css: o.css || '', js: o.js || '', html: o.html || '' }, documentId: o.documentId, baseVersionId: o.baseVersionId || '', title: o.title || '' });
     });
   });
 });
