@@ -2897,11 +2897,15 @@
         // pour repousser vers le MÊME champ Prismic que celui d'origine (aucun aplatissement).
         function extractVerbatimForExport(el) {
             const field = el.getAttribute('data-remote-field') || 'html_only';
-            const clone = el.cloneNode(true);
+            const src = el.firstElementChild || el;   // le <div> synthétique de buildVerbatimSliceHTML
+            const clone = src.cloneNode(true);
+            const EDIT_ATTRS = ['data-comp', 'data-remote-id', 'data-base-version', 'data-remote-title', 'data-remote-field', 'draggable', 'contenteditable'];
             clone.querySelectorAll('[data-comp]').forEach(e => e.removeAttribute('data-comp'));
-            ['data-comp', 'data-remote-id', 'data-base-version', 'data-remote-title', 'data-remote-field', 'draggable', 'contenteditable'].forEach(a => clone.removeAttribute(a));
+            EDIT_ATTRS.forEach(a => clone.removeAttribute(a));
+            clone.querySelectorAll('[draggable],[contenteditable],[data-remote-id],[data-base-version],[data-remote-title],[data-remote-field]')
+                .forEach(e => EDIT_ATTRS.forEach(a => e.removeAttribute(a)));
             if (field === 'html') {
-                let inner = clone.innerHTML.replace(/<script\s+type=["']text\/ekw-js["']\s*>/gi, '<script>');
+                const inner = clone.innerHTML.replace(/(<script[^>]*?)\s+type=["']text\/ekw-js["']/gi, '$1');
                 return { field: 'html', html: inner.trim(), css: '', js: '' };
             }
             let css = '', js = '';
