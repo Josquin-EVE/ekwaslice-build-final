@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { parsePrismicDocId, buildVerbatimSliceHTML } = require('../lib/prismic-slice.js');
+const { parsePrismicDocId, buildVerbatimSliceHTML, extractTrioFromClaudeResult } = require('../lib/prismic-slice.js');
 
 test('parsePrismicDocId: URL builder avec query', () => {
   assert.strictEqual(
@@ -35,4 +35,20 @@ test('buildVerbatimSliceHTML: vide', () => {
 test('buildVerbatimSliceHTML: script déjà typé non doublé', () => {
   const out = buildVerbatimSliceHTML({ html: '<script type="application/json">{}<\/script>' });
   assert.match(out, /<script type="application\/json">/);
+});
+
+test('extractTrio: bloc json fencé', () => {
+  const txt = 'Voici le doc :\n```json\n{"title":"T","documentId":"d1","baseVersionId":"v1","html_only":"<p>x</p>","css":"","js":""}\n```\nfini';
+  const o = extractTrioFromClaudeResult(txt);
+  assert.strictEqual(o.documentId, 'd1');
+  assert.strictEqual(o.baseVersionId, 'v1');
+  assert.strictEqual(o.html_only, '<p>x</p>');
+});
+test('extractTrio: json brut', () => {
+  const o = extractTrioFromClaudeResult('{"html":"<div></div>","css":"a{}"}');
+  assert.strictEqual(o.css, 'a{}');
+});
+test('extractTrio: pas de trio → null', () => {
+  assert.strictEqual(extractTrioFromClaudeResult('aucun json ici'), null);
+  assert.strictEqual(extractTrioFromClaudeResult('{"foo":1}'), null);
 });
