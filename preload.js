@@ -7,6 +7,8 @@ contextBridge.exposeInMainWorld('api', {
   generateComponent: (prompt) => ipcRenderer.invoke('generate-component', prompt),
   // Conversation continue avec Claude (garde le contexte via session_id)
   sendChat: (payload) => ipcRenderer.invoke('send-chat', payload),
+  // Deltas de streaming du chat (texte au fil de l'eau). Retourne un désabonnement.
+  onChatDelta: (cb) => { const h = (e, t) => cb(t); ipcRenderer.on('chat-delta', h); return () => ipcRenderer.removeListener('chat-delta', h); },
   // Vérifie que le CLI claude est trouvable sur la machine
   checkClaude: () => ipcRenderer.invoke('check-claude'),
   // Bibliothèque de composants (persistée sur disque)

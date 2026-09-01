@@ -286,7 +286,7 @@
 
     <!-- Header -->
     <header class="bg-slate-800 border-b border-slate-700 px-6 py-4 flex justify-between items-center shrink-0">
-        <div>
+        <div class="flex items-center gap-4">
             <h1 class="text-xl font-bold text-white flex items-center gap-2">
                 <img src="assets/logo.png" alt="EkwaSlice" class="w-9 h-9 rounded-lg object-cover"> EkwaSlice
             </h1>
@@ -295,6 +295,11 @@
             <button onclick="openImport()" title="Importer du code (HTML/CSS/JS) — conversion locale en inline"
                 class="px-4 py-2 text-sm bg-slate-700 hover:bg-slate-600 rounded-lg transition text-slate-200 font-medium">
                 <i class="fa-solid fa-file-import mr-2"></i>Importer du code
+            </button>
+            <button onclick="quickPushPrismic(this)"
+                title="Envoyer la slice du canvas directement vers Prismic (brouillon)"
+                class="px-3 py-2 text-sm bg-[#d97757] hover:brightness-110 rounded-lg transition text-white font-semibold flex items-center gap-2">
+                <i class="fa-solid fa-cloud-arrow-up"></i>Envoi Prismic
             </button>
             <button onclick="exportCode()"
                 class="px-4 py-2 text-sm bg-secondary hover:brightness-110 rounded-lg transition text-ink-deep font-semibold shadow-lg shadow-secondary/20">
@@ -530,6 +535,12 @@
                         <i class="fa-solid fa-paperclip"></i>
                     </button>
 
+                    <button id="chat-fast" onclick="toggleChatFast()"
+                        title="Réponse rapide (modèle haiku) — plus vite, qualité moindre"
+                        class="shrink-0 w-9 h-9 flex items-center justify-center text-gray-500 hover:text-[#d97757] transition">
+                        <i class="fa-solid fa-bolt"></i>
+                    </button>
+
                     <textarea id="chat-input" rows="1" placeholder="Message à Claude…"
                         onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault(); sendChat();}"
                         class="flex-1 bg-transparent resize-none max-h-40 px-2 py-1.5 text-sm text-slate-900 placeholder-slate-500 focus:outline-none"></textarea>
@@ -633,9 +644,12 @@
             </div>
             <div class="p-4 overflow-y-auto flex-1 space-y-3">
                 <p class="text-xs text-slate-400 leading-relaxed">Colle le code d'une slice (ex : les 3 champs Prismic
-                    <b>html_only</b> / <b>css</b> / <b>js</b>). Conversion <b>locale</b> (sans IA) : le CSS est aplati en
-                    <b>styles inline</b> sur les éléments (éditables au clic) ; <code>@media</code>, <code>:hover</code>,
-                    keyframes sont gardés dans un &lt;style&gt; ; le JS va dans le &lt;script&gt; de la slice.</p>
+                    <b>html_only</b> / <b>css</b> / <b>js</b>). Conversion <b>locale</b> (sans IA) : le CSS est aplati
+                    en
+                    <b>styles inline</b> sur les éléments (éditables au clic) ; <code>@media</code>,
+                    <code>:hover</code>,
+                    keyframes sont gardés dans un &lt;style&gt; ; le JS va dans le &lt;script&gt; de la slice.
+                </p>
                 <div>
                     <label class="text-[11px] font-medium text-slate-300 block mb-1">HTML</label>
                     <textarea id="imp-html" rows="7" spellcheck="false" placeholder="<div>…</div>"
@@ -647,7 +661,8 @@
                         class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-[11px] font-mono text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-primary resize-y"></textarea>
                 </div>
                 <div>
-                    <label class="text-[11px] font-medium text-slate-300 block mb-1">JS <span class="text-slate-500">(optionnel)</span></label>
+                    <label class="text-[11px] font-medium text-slate-300 block mb-1">JS <span
+                            class="text-slate-500">(optionnel)</span></label>
                     <textarea id="imp-js" rows="5" spellcheck="false" placeholder="// script de la slice"
                         class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-[11px] font-mono text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-primary resize-y"></textarea>
                 </div>
@@ -1106,16 +1121,20 @@
             + '<div class="space-y-1"><span class="text-[11px] font-medium text-slate-300">Arrondi des coins</span>'
             + '<div>' + spStepper('radius', 'all', '') + '<span class="ml-1 text-[10px] text-slate-500">px</span></div></div>';
         const fFond = _colorRow('bgcolor', 'Sans fond');
-        const fTexte = '<div><span class="text-[11px] font-medium text-slate-300">Taille de police</span>'
+        const fTexte = '<div class="mb-2"><span class="text-[11px] font-medium text-slate-300">Police</span>'
+            + '<select data-fontfam class="w-full mt-1 bg-slate-950 border border-slate-600 rounded px-1.5 py-1 text-[11px] text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary">'
+            + '<option value="">Par défaut (hérité)</option>'
+            + '<option value="&#39;Carnero&#39;, Georgia, serif">Titre — Carnero</option>'
+            + '<option value="&#39;Gothic A1&#39;, system-ui, sans-serif">Corps — Gothic A1</option>'
+            + '</select></div>'
+            + '<div><span class="text-[11px] font-medium text-slate-300">Taille de police</span>'
             + '<div>' + spStepper('font', 'all', '') + '<span class="ml-1 text-[10px] text-slate-500">px</span></div></div>';
         const fTaille = '<div class="grid grid-cols-2 gap-1.5">' + spStepper('width', 'all', 'L') + spStepper('height', 'all', 'H') + '</div>'
             + '<span class="text-[10px] text-slate-500">px · 0 = auto (idéal SVG/picto)</span>';
         const fCss = '<textarea id="css-editor" rows="4" spellcheck="false" placeholder="border: 2px solid #17E7D0;&#10;box-shadow: 0 8px 24px rgba(0,0,0,.35);&#10;background: linear-gradient(...);" '
             + 'class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-2 text-[11px] font-mono leading-relaxed text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-primary resize-y"></textarea>'
             + '<span class="text-[10px] text-slate-500 leading-snug block mt-1">Style inline de l\'élément — édite librement (ombre, dégradé…). Appliqué en direct, synchro avec les contrôles ci-dessus.</span>';
-        const fJs = '<textarea id="js-editor" rows="6" spellcheck="false" placeholder="// JS de la slice (interactions, récup prix…)" '
-            + 'class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-2 text-[11px] font-mono leading-relaxed text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-primary resize-y"></textarea>'
-            + '<span class="text-[10px] text-slate-500 leading-snug block mt-1">Script de la slice entière (extrait tel quel à l\'export). Le texte des libellés doit rester dans le HTML ; ici = la logique et les valeurs.</span>';
+        const fJs = '<div id="js-texts" class="space-y-2"></div>';
         const _acc = accState();
         const _o = (id, def) => (id in _acc) ? !!_acc[id] : def;
         styleBox.innerHTML =
@@ -1125,7 +1144,7 @@
             + accSection('texte', 'fa-font', 'Texte', fTexte, _o('texte', false))
             + accSection('taille', 'fa-ruler-combined', 'Taille', fTaille, _o('taille', false))
             + accSection('css', 'fa-code', 'CSS avancé', fCss, _o('css', false))
-            + accSection('jscomp', 'fa-terminal', 'JS du composant', fJs, _o('jscomp', false));
+            + accSection('jscomp', 'fa-i-cursor', 'Textes dynamiques', fJs, _o('jscomp', false));
         // Show/hide + ouverture contextuelle d'une section (sans écraser un choix explicite mémorisé)
         function setSectionVisible(id, vis) { const s = styleBox.querySelector('[data-acc="' + id + '"]'); if (s) s.classList.toggle('hidden', !vis); }
         function setSectionOpen(id, open) {
@@ -1167,6 +1186,14 @@
             });
             spSetInput('radius', 'all', spRead(sel, 'radius', 'all'));
             spSetInput('font', 'all', spRead(sel, 'font', 'all'));
+            const ff = styleBox.querySelector('[data-fontfam]');
+            if (ff) {
+                const norm = (s) => (s || '').replace(/["']/g, '').replace(/\s+/g, '').toLowerCase();
+                const cur = norm(sel.style.fontFamily);
+                let matched = '';
+                Array.from(ff.options).forEach(o => { if (o.value && norm(o.value) === cur) matched = o.value; });
+                ff.value = matched;
+            }
             spSetInput('width', 'all', spRead(sel, 'width', 'all'));
             spSetInput('height', 'all', spRead(sel, 'height', 'all'));
             spSyncColorPickers();
@@ -1189,11 +1216,93 @@
             if (!s && create) { s = document.createElement('script'); s.type = 'text/ekw-js'; root.appendChild(s); }
             return s;
         }
+        // --- Édition intuitive des textes du JS (sans toucher au code) ---
+        // Scanne les littéraux de chaîne avec leurs positions exactes (offsets) → patch
+        // par offset = zéro risque de remplacer la mauvaise occurrence. Templates ` sautés (v1).
+        function extractJsTextLiterals(src) {
+            const out = []; let i = 0; const n = src.length;
+            while (i < n) {
+                const c = src[i];
+                if (c === '/' && src[i + 1] === '/') { i += 2; while (i < n && src[i] !== '\n') i++; continue; }
+                if (c === '/' && src[i + 1] === '*') { i += 2; while (i < n && !(src[i] === '*' && src[i + 1] === '/')) i++; i += 2; continue; }
+                if (c === '"' || c === "'") {
+                    const q = c, start = i; i++; let val = '';
+                    while (i < n) { const d = src[i]; if (d === '\\') { val += (src[i + 1] || ''); i += 2; continue; } if (d === q) { i++; break; } val += d; i++; }
+                    out.push({ value: val, quote: q, start, end: i }); continue;
+                }
+                if (c === '`') { i++; while (i < n) { const d = src[i]; if (d === '\\') { i += 2; continue; } if (d === '`') { i++; break; } i++; } continue; }
+                i++;
+            }
+            return out;
+        }
+        // Constantes de l'appel API (jamais du texte d'affichage) → hors "Textes dynamiques".
+        const API_STOP = new Set(['PRIVATE', 'PROFESSIONAL', 'GAS', 'ELECTRICITY', 'FIXED', 'BASE', 'HIGH_LOW',
+            'POST', 'GET', 'PUT', 'PATCH', 'DELETE', 'PSFO', 'EKWATEUR', 'GGO', 'LINKY', 'CHF', 'BI',
+            'application/json', 'application/json; charset=utf-8']);
+        function isDisplayText(v) {
+            const s = (v || '').trim();
+            if (s.length < 2) return false;
+            if (API_STOP.has(s)) return false;                                          // constante API
+            if (/^[A-Z0-9_]{2,12}$/.test(s) && /\d/.test(s)) return false;              // code type AGO34
+            if (/^[a-z]{2}[-_][a-z]{2,4}$/i.test(s)) return false;                       // locale fr-FR / en-US
+            if (/^[a-z]{2}$/.test(s)) return false;                                      // fr/en minuscule (garde "OK", "Go")
+            if (!/[A-Za-zÀ-ÿ]/.test(s)) return false;                                   // doit contenir une lettre
+            if (/^https?:|^\/\//i.test(s) || /\.(svg|png|jpe?g|webp|gif|css|js|ttf|otf|woff2?)(\?|#|$)/i.test(s)) return false; // url/fichier
+            if (/^#[0-9a-f]{3,8}$/i.test(s)) return false;                              // couleur hex
+            if (/^[.#\[]/.test(s)) return false;                                        // sélecteur CSS
+            if (/<[a-z!\/]/i.test(s)) return false;                                      // contient du HTML → territoire portage
+            if (/^[a-z][a-z0-9-]*$/.test(s) && /-/.test(s)) return false;               // kebab-case (classe)
+            if (/^[a-z0-9_]+$/.test(s) && s === s.toLowerCase()) return false;          // un mot minuscule = clé/identifiant
+            return true;
+        }
+        function escForQuote(v, q) { return String(v).replace(/\\/g, '\\\\').replace(new RegExp(q, 'g'), '\\' + q).replace(/\r?\n/g, '\\n'); }
+        function rebuildJsTexts(src, groups) {
+            const edits = [];
+            groups.forEach(g => { if (g.newValue !== g.value) g.spans.forEach(sp => edits.push({ start: sp.start, end: sp.end, text: g.quote + escForQuote(g.newValue, g.quote) + g.quote })); });
+            edits.sort((a, b) => a.start - b.start);
+            let out = '', last = 0;
+            edits.forEach(e => { out += src.slice(last, e.start) + e.text; last = e.end; });
+            return out + src.slice(last);
+        }
+        // ===== Panneaux dynamiques (Textes + Paramètres de prix) — un SEUL snapshot =====
+        // Tout est reconstruit depuis un snapshot unique du <script> à chaque édition →
+        // offsets toujours valides, les deux panneaux restent cohérents entre eux.
+        function escAttr(s) { return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
+        function buildTextGroups(src) {
+            const lits = extractJsTextLiterals(src).filter(l => isDisplayText(l.value));
+            const map = new Map();
+            lits.forEach(l => { if (!map.has(l.value)) map.set(l.value, { value: l.value, newValue: l.value, quote: l.quote, spans: [] }); map.get(l.value).spans.push({ start: l.start, end: l.end }); });
+            return Array.from(map.values());
+        }
+        let editSnapshot = null;
+        function applyDynamicEdits() {
+            const s = sliceScriptNode(true); if (!s || !editSnapshot) return;
+            const edits = [];
+            editSnapshot.textGroups.forEach(g => { if (g.newValue !== g.value) g.spans.forEach(sp => edits.push({ start: sp.start, end: sp.end, text: g.quote + escForQuote(g.newValue, g.quote) + g.quote })); });
+            edits.sort((a, b) => a.start - b.start);
+            let out = '', last = 0; edits.forEach(e => { out += editSnapshot.src.slice(last, e.start) + e.text; last = e.end; });
+            out += editSnapshot.src.slice(last);
+            try { new Function(out); } catch (_) { toast('Modif ignorée (JS invalide)'); return; } // garde-fou : jamais de JS cassé
+            s.textContent = out;
+        }
+        function renderTextPanel() {
+            const box = document.getElementById('js-texts'); if (!box) return;
+            if (!editSnapshot) { box.innerHTML = ''; return; }
+            if (!editSnapshot.src.trim()) { box.innerHTML = '<div class="text-[11px] text-slate-500 italic">Aucun texte dynamique ici.</div>'; return; }
+            const groups = editSnapshot.textGroups;
+            if (!groups.length) { box.innerHTML = '<div class="text-[11px] text-slate-500 italic">Aucun texte éditable détecté.</div>'; return; }
+            box.innerHTML = groups.map((g, i) =>
+                '<div><input data-jstext="' + i + '" value="' + escAttr(g.value) + '" '
+                + 'class="w-full bg-slate-950 border border-slate-600 rounded px-2 py-1.5 text-[11px] text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary">'
+                + (g.spans.length > 1 ? '<span class="text-[9px] text-slate-500 block mt-0.5">× ' + g.spans.length + ' occurrences</span>' : '')
+                + '</div>'
+            ).join('');
+        }
         function jsEditorSync() {
-            const t = document.getElementById('js-editor');
-            if (!t || !sel || document.activeElement === t) return;
             const s = sliceScriptNode(false);
-            t.value = s ? (s.textContent || '') : '';
+            const src = s ? (s.textContent || '') : '';
+            editSnapshot = sel ? { src, textGroups: buildTextGroups(src) } : null;
+            renderTextPanel();
         }
 
         styleBox.addEventListener('mousedown', (e) => { if (e.target.closest('button')) e.preventDefault(); });
@@ -1235,9 +1344,15 @@
                 if (sel) { sel.style.cssText = e.target.value; spSync(); }
                 return;
             }
-            // Zone JS : le texte EST le <script> de la slice (inerte dans le studio)
-            if (e.target.id === 'js-editor') {
-                if (sel) { const s = sliceScriptNode(true); if (s) s.textContent = e.target.value; }
+            // Textes dynamiques : édition d'un texte du JS → patch par offset
+            if (e.target.matches('[data-jstext]') && sel && editSnapshot) {
+                const g = editSnapshot.textGroups[parseInt(e.target.dataset.jstext, 10)];
+                if (g) { g.newValue = e.target.value; applyDynamicEdits(); }
+                return;
+            }
+            // Sélecteur de police (charte)
+            if (e.target.matches('[data-fontfam]') && sel) {
+                sel.style.fontFamily = e.target.value || '';
                 return;
             }
             // Roue de couleur / hex (bordure & fond)
@@ -2132,9 +2247,15 @@
                     const code = part.replace(/^[a-zA-Z0-9]*\n/, '').replace(/\s+$/, '');
                     const card = document.createElement('div');
                     card.className = 'border border-slate-700 rounded-xl overflow-hidden';
+                    // Code masqué par défaut (bruit pour l'utilisateur) — repliable à la demande.
                     const pre = document.createElement('pre');
-                    pre.className = 'bg-slate-950 text-emerald-400 text-[11px] p-3 overflow-x-auto max-h-48 whitespace-pre-wrap';
+                    pre.className = 'bg-slate-950 text-emerald-400 text-[11px] p-3 overflow-x-auto max-h-48 whitespace-pre-wrap hidden';
                     pre.textContent = code;
+                    const toggle = document.createElement('button');
+                    toggle.className = 'w-full text-left text-[10px] text-slate-400 hover:text-cloud bg-slate-900 px-3 py-1.5 flex items-center gap-1.5';
+                    toggle.innerHTML = '<i class="fa-solid fa-code text-slate-500"></i><span>Voir le code</span>';
+                    toggle.onclick = () => { const h = pre.classList.toggle('hidden'); toggle.querySelector('span').textContent = h ? 'Voir le code' : 'Masquer le code'; };
+                    card.appendChild(toggle);
                     card.appendChild(pre);
                     if (code.trim().startsWith('<')) {
                         const isReplace = replaceTarget && !replaceUsed;
@@ -2235,6 +2356,68 @@
             if (got) e.preventDefault();
         });
 
+        // --- Conscience du canvas : Claude "voit" la slice qu'il édite ---
+        // Périmètre = slice englobante si un élément est ciblé, sinon tout le canvas.
+        // Ré-envoyée seulement si elle a changé depuis le dernier message de la session
+        // (--resume garde l'historique → inutile de renvoyer un contenu identique).
+        let lastCanvasCtx = { sessionId: null, hash: '' };
+        function hashStr(s) { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return String(h); }
+        function sliceContextHTML(tgt) {
+            let html = '';
+            if (tgt) {
+                const root = tgt.closest('[data-comp]');
+                html = root ? root.outerHTML : tgt.outerHTML;
+            } else {
+                canvas.querySelectorAll(':scope > [data-comp]').forEach(r => { html += r.outerHTML + '\n'; });
+            }
+            if (!html.trim()) return '';
+            let clean = cleanHTML(html);
+            // Le JS de la slice est inerte (text/ekw-js) → le rendre lisible comme du vrai JS.
+            clean = clean.replace(/<script\s+type=["']text\/ekw-js["']\s*>/gi, '<script>');
+            return clean.trim();
+        }
+
+        // --- Réponse rapide (toggle modèle haiku) ---
+        let chatFast = false;
+        try { chatFast = localStorage.getItem('ekwa_chat_fast') === '1'; } catch (_) { }
+        function reflectChatFast() {
+            const b = document.getElementById('chat-fast');
+            if (!b) return;
+            b.classList.toggle('text-[#d97757]', chatFast);
+            b.classList.toggle('bg-[#d97757]/10', chatFast);
+            b.title = chatFast
+                ? 'Réponse rapide ACTIVE (haiku) — clic pour repasser en qualité (sonnet)'
+                : 'Réponse rapide (modèle haiku) — plus vite, qualité moindre';
+        }
+        function toggleChatFast() {
+            chatFast = !chatFast;
+            try { localStorage.setItem('ekwa_chat_fast', chatFast ? '1' : '0'); } catch (_) { }
+            reflectChatFast();
+            toast(chatFast ? 'Réponse rapide activée (haiku)' : 'Qualité maximale (sonnet)');
+        }
+        document.addEventListener('DOMContentLoaded', reflectChatFast);
+        reflectChatFast();
+
+        // --- Streaming du chat : deltas texte au fil de l'eau ---
+        // Vue épurée : on montre la réflexion (prose), on remplace le code en cours
+        // de génération par un repère discret (le code final ira dans la carte d'action).
+        let streamState = null;
+        function cleanStreamView(buf) {
+            const parts = String(buf).split('```');
+            let out = '';
+            parts.forEach((p, i) => { out += (i % 2 === 0) ? p : '\n⟨ génération du composant… ⟩\n'; });
+            return out.replace(/\n{3,}/g, '\n\n').trim();
+        }
+        if (window.api && window.api.onChatDelta) {
+            window.api.onChatDelta((t) => {
+                if (!streamState || !streamState.el) return;
+                streamState.buf += t;
+                const view = cleanStreamView(streamState.buf);
+                if (view) streamState.el.textContent = view;
+                const log = chatLogEl(); if (log) log.scrollTop = log.scrollHeight;
+            });
+        }
+
         async function sendChat() {
             if (chatBusy) return;
             if (!window.api) { alert("Lancez l'app via Electron (npm start), pas dans un navigateur."); return; }
@@ -2264,6 +2447,19 @@
                 + pageMaxW + "px (grilles, colonnes, tailles de texte et images pensées pour ~" + pageMaxW + "px de large max)."
                 : "[Contexte d'affichage] Le composant peut occuper toute la largeur de la page (pleine largeur).";
             sendMsg = wctx + "\n\n" + sendMsg;
+            // Conscience du canvas : joindre la slice (une fois par session, ou si changée)
+            const ctxHtml = sliceContextHTML(tgt);
+            let ctxHash = '';
+            if (ctxHtml) {
+                ctxHash = hashStr(ctxHtml);
+                const sameSession = lastCanvasCtx.sessionId && lastCanvasCtx.sessionId === chatSessionId;
+                if (!sameSession || lastCanvasCtx.hash !== ctxHash) {
+                    const label = tgt
+                        ? "[Contexte : slice complète où vit l'élément ci-dessus — pour comprendre son CSS/JS/frères. Ne renvoie QUE le fragment demandé, PAS toute la slice]"
+                        : "[État actuel du canvas — la/les slice(s) présentes. Base-toi dessus pour répondre ou éditer]";
+                    sendMsg = label + "\n\n```html\n" + ctxHtml + "\n```\n\n" + sendMsg;
+                }
+            }
             // Bulle utilisateur : marqueur de cible + vignettes images + texte
             const userContent = (!tgt && !imgUrls.length) ? msg : (() => {
                 const d = document.createElement('div');
@@ -2279,13 +2475,17 @@
             // jusqu'à Appliquer/Rejeter/✕, sans casser le code précédent.
             setChatBusy(true);
             const thinkingRow = addBubble('assistant', '');
-            thinkingRow.querySelector('div').innerHTML = '<span class="text-slate-500"><i class="fa-solid fa-spinner fa-spin mr-1.5"></i>Claude réfléchit…</span>';
+            const streamEl = thinkingRow.querySelector('div');
+            streamEl.innerHTML = '<span class="text-slate-500"><i class="fa-solid fa-spinner fa-spin mr-1.5"></i>Claude réfléchit…</span>';
+            streamEl.style.whiteSpace = 'pre-wrap';
+            streamState = { el: streamEl, buf: '' }; // le texte s'affiche au fil de l'eau
             try {
-                const res = await window.api.sendChat({ message: sendMsg, sessionId: chatSessionId, images: imgsPayload });
+                const res = await window.api.sendChat({ message: sendMsg, sessionId: chatSessionId, images: imgsPayload, model: chatFast ? 'claude-haiku-4-5' : 'claude-sonnet-5' });
                 thinkingRow.remove();
                 if (res.error) { addBubble('assistant', 'Erreur : ' + res.error); }
                 else {
                     if (res.sessionId) chatSessionId = res.sessionId;
+                    if (ctxHtml) lastCanvasCtx = { sessionId: chatSessionId, hash: ctxHash };
                     addBubble('assistant', renderAssistant(res.text || '(réponse vide)', tgt));
                     trackUsage(res.tokens || 0, res.cost || 0);
                 }
@@ -2293,6 +2493,7 @@
                 thinkingRow.remove();
                 addBubble('assistant', 'Erreur inattendue : ' + e.message);
             } finally {
+                streamState = null;
                 setChatBusy(false);
                 input.focus();
             }
@@ -2373,6 +2574,7 @@
 
         function newChat() {
             chatSessionId = null;
+            lastCanvasCtx = { sessionId: null, hash: '' };
             pending = null; pendingDisablePrev = null;
             clearTarget();
             chatLogEl().innerHTML = '<div id="chat-welcome" class="text-slate-500 text-xs leading-relaxed">'
@@ -2610,6 +2812,14 @@
             navigator.clipboard.writeText(txt).then(() => {
                 if (btn) { const o = btn.innerHTML; btn.innerHTML = '<i class="fa-solid fa-check mr-1"></i>Copié'; setTimeout(() => btn.innerHTML = o, 1200); }
             });
+        }
+
+        // Raccourci header : construit l'export du canvas puis envoie vers Prismic.
+        async function quickPushPrismic(btn) {
+            if (!window.api || !window.api.pushPrismic) { toast("Dispo seulement dans l'app"); return; }
+            if (canvas.querySelectorAll(':scope > [data-comp]').length === 0) { toast('Canvas vide — rien à envoyer'); return; }
+            exportPlain(); // renseigne lastExport
+            return pushToPrismic(btn);
         }
 
         // Envoi direct de la slice vers Prismic (custom_slice, brouillon dans la release "EkwaSlice").

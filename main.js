@@ -315,89 +315,90 @@ ipcMain.handle('generate-component', async (event, prompt) => {
 });
 
 // --- IPC : conversation continue avec Claude (garde le contexte) ---
+// Modèles autorisés pour le chat (le renderer peut demander un modèle rapide).
+const ALLOWED_MODELS = { 'claude-sonnet-5': 1, 'claude-haiku-4-5': 1, 'claude-opus-5': 1 };
+
+// Runner commun : spawn claude en sortie stream-json + messages partiels, pousse les
+// deltas de texte au renderer au fil de l'eau (onDelta), résout avec le résultat final.
+function runClaudeStream(bin, args, stdinLine, timeoutMs, onDelta) {
+  return new Promise((resolve) => {
+    let child;
+    try { child = spawn(bin, args, { cwd: os.tmpdir() }); }
+    catch (e) { return resolve({ error: 'Impossible de lancer claude : ' + e.message }); }
+    let buf = '', err = '', text = '', sid = null, tokens = 0, cost = 0, found = false;
+    const timer = setTimeout(() => { child.kill(); resolve({ error: 'Délai dépassé.' }); }, timeoutMs);
+    function handleLine(l) {
+      l = l.trim(); if (!l) return;
+      let j; try { j = JSON.parse(l); } catch (_) { return; }
+      if (j.type === 'stream_event' && j.event) {
+        const ev = j.event;
+        if (ev.type === 'content_block_delta' && ev.delta && ev.delta.type === 'text_delta') {
+          const t = ev.delta.text || '';
+          if (t) { text += t; try { onDelta && onDelta(t); } catch (_) { } }
+        }
+      } else if (j.type === 'result') {
+        found = true;
+        if (typeof j.result === 'string' && j.result) text = j.result; // autorité finale
+        sid = j.session_id || sid;
+        const u = j.usage || {};
+        tokens = (u.input_tokens || 0) + (u.output_tokens || 0) + (u.cache_creation_input_tokens || 0) + (u.cache_read_input_tokens || 0);
+        cost = j.total_cost_usd || 0;
+      } else if (j.type === 'system' && j.session_id) {
+        sid = j.session_id || sid;
+      }
+    }
+    child.stdout.on('data', d => {
+      buf += d.toString();
+      let i;
+      while ((i = buf.indexOf('\n')) >= 0) { const line = buf.slice(0, i); buf = buf.slice(i + 1); handleLine(line); }
+    });
+    child.stderr.on('data', d => { err += d.toString(); });
+    child.on('error', (e) => { clearTimeout(timer); resolve({ error: 'CLI claude introuvable : ' + e.message }); });
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      if (buf.trim()) handleLine(buf); // dernière ligne éventuelle sans \n
+      if (!found) return resolve({ error: err.trim() || ('claude a quitté (code ' + code + ')') });
+      resolve({ text, sessionId: sid, tokens, cost });
+    });
+    if (stdinLine != null) {
+      try { child.stdin.write(stdinLine); child.stdin.end(); }
+      catch (e) { clearTimeout(timer); resolve({ error: 'stdin: ' + e.message }); }
+    }
+  });
+}
+
 ipcMain.handle('send-chat', async (event, payload) => {
   const message = payload && payload.message;
   const sessionId = payload && payload.sessionId;
   const images = (payload && payload.images) || [];
   if ((!message || !message.trim()) && !images.length) return { error: 'Message vide.' };
 
+  const model = (payload && payload.model && ALLOWED_MODELS[payload.model]) ? payload.model : MODEL;
   const bin = resolveClaudeBin();
+  const onDelta = (t) => { try { event.sender.send('chat-delta', t); } catch (_) { } };
 
-  // --- Avec image(s) : entrée stream-json (vision native, bloc image base64), sortie stream-json ---
+  // --- Avec image(s) : entrée stream-json (vision native), sortie stream-json + deltas live ---
   if (images.length) {
     const args = ['-p', '--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose',
-      '--model', MODEL, '--append-system-prompt', CHARTE];
+      '--include-partial-messages', '--model', model, '--append-system-prompt', CHARTE];
     if (sessionId) args.push('--resume', sessionId);
     const content = [{ type: 'text', text: message || 'Utilise cette image comme référence.' }];
     for (const im of images) {
       if (im && im.data && im.mime) content.push({ type: 'image', source: { type: 'base64', media_type: im.mime, data: im.data } });
     }
     const line = JSON.stringify({ type: 'user', message: { role: 'user', content } }) + '\n';
-    return new Promise((resolve) => {
-      let child;
-      try { child = spawn(bin, args, { cwd: os.tmpdir() }); }
-      catch (e) { return resolve({ error: 'Impossible de lancer claude : ' + e.message }); }
-      let out = '', err = '';
-      const timer = setTimeout(() => { child.kill(); resolve({ error: 'Délai dépassé (180 s).' }); }, 180000);
-      child.stdout.on('data', d => { out += d.toString(); });
-      child.stderr.on('data', d => { err += d.toString(); });
-      child.on('error', (e) => { clearTimeout(timer); resolve({ error: 'CLI claude introuvable : ' + e.message }); });
-      child.on('close', (code) => {
-        clearTimeout(timer);
-        let text = '', sid = sessionId || null, tokens = 0, cost = 0, found = false;
-        out.split('\n').forEach(l => {
-          l = l.trim(); if (!l) return;
-          let j; try { j = JSON.parse(l); } catch (_) { return; }
-          if (j.type === 'result') {
-            found = true;
-            text = j.result || '';
-            sid = j.session_id || sid;
-            const u = j.usage || {};
-            tokens = (u.input_tokens || 0) + (u.output_tokens || 0) + (u.cache_creation_input_tokens || 0) + (u.cache_read_input_tokens || 0);
-            cost = j.total_cost_usd || 0;
-          }
-        });
-        if (!found) return resolve({ error: err.trim() || ('claude a quitté (code ' + code + ')') });
-        resolve({ text, sessionId: sid, tokens, cost });
-      });
-      try { child.stdin.write(line); child.stdin.end(); }
-      catch (e) { clearTimeout(timer); resolve({ error: 'stdin: ' + e.message }); }
-    });
+    const r = await runClaudeStream(bin, args, line, 180000, onDelta);
+    if (r.error) return { error: r.error };
+    return { text: r.text, sessionId: r.sessionId || sessionId || null, tokens: r.tokens, cost: r.cost };
   }
 
-  // --- Texte seul : chemin d'origine (-p <message>, sortie json) ---
-  const args = ['-p', message, '--model', MODEL, '--output-format', 'json', '--append-system-prompt', CHARTE];
+  // --- Texte seul : stream-json + deltas live (premier token quasi-instantané) ---
+  const args = ['-p', message, '--model', model, '--output-format', 'stream-json', '--verbose',
+    '--include-partial-messages', '--append-system-prompt', CHARTE];
   if (sessionId) args.push('--resume', sessionId);
-
-  return new Promise((resolve) => {
-    let child;
-    try {
-      child = spawn(bin, args, { cwd: os.tmpdir() });
-    } catch (e) {
-      return resolve({ error: 'Impossible de lancer claude : ' + e.message });
-    }
-    let out = '', err = '';
-    const timer = setTimeout(() => {
-      child.kill();
-      resolve({ error: 'Délai dépassé (120 s).' });
-    }, 120000);
-    child.stdout.on('data', d => { out += d.toString(); });
-    child.stderr.on('data', d => { err += d.toString(); });
-    child.on('error', (e) => { clearTimeout(timer); resolve({ error: 'CLI claude introuvable : ' + e.message }); });
-    child.on('close', (code) => {
-      clearTimeout(timer);
-      if (code !== 0) return resolve({ error: err.trim() || ('claude a quitté (code ' + code + ')') });
-      try {
-        const j = JSON.parse(out);
-        const u = j.usage || {};
-        const tokens = (u.input_tokens || 0) + (u.output_tokens || 0)
-          + (u.cache_creation_input_tokens || 0) + (u.cache_read_input_tokens || 0);
-        resolve({ text: j.result || '', sessionId: j.session_id || sessionId || null, tokens, cost: j.total_cost_usd || 0 });
-      } catch (e) {
-        resolve({ error: 'Parsing impossible : ' + e.message });
-      }
-    });
-  });
+  const r = await runClaudeStream(bin, args, null, 120000, onDelta);
+  if (r.error) return { error: r.error };
+  return { text: r.text, sessionId: r.sessionId || sessionId || null, tokens: r.tokens, cost: r.cost };
 });
 
 // ---------------------------------------------------------------------------
@@ -605,13 +606,25 @@ ipcMain.handle('push-prismic', async (event, payload) => {
   // et pas de collision de label entre users). Fallback "EkwaSlice" si pas de nom.
   const author = ((payload && payload.author) || '').trim();
   const releaseLabel = author ? ('EkwaSlice — ' + author) : 'EkwaSlice';
-  const prompt = [
-    'Objectif : créer UN document dans Prismic via le MCP Prismic (repository "ekwateur-edito").',
+  // Cache du releaseId par auteur : évite le list_releases/create_release à chaque envoi.
+  const relKey = author || '__default__';
+  const settings = readSettings();
+  const relCache = settings.prismicReleases || {};
+  const cachedRel = relCache[relKey];
+
+  const steps = ['Objectif : créer UN document dans Prismic via le MCP Prismic (repository "ekwateur-edito").',
     'Les outils MCP Prismic sont déférés : charge-les avec ToolSearch si nécessaire.',
-    'Étapes STRICTES :',
-    '1. list_releases sur "ekwateur-edito" ; trouve la release dont le label est EXACTEMENT ' + JSON.stringify(releaseLabel) + '.',
-    '   Si aucune, crée-la avec create_release (label ' + JSON.stringify(releaseLabel) + ').',
-    '2. create_document : repository "ekwateur-edito", customTypeId "custom_slice", locale "fr-fr",',
+    'Étapes STRICTES :'];
+  if (cachedRel) {
+    // Chemin rapide : release connue → un seul appel create_document.
+    steps.push('1. Utilise DIRECTEMENT releaseId = ' + JSON.stringify(cachedRel) + ' (ne fais PAS list_releases).');
+    steps.push('   Repli SEULEMENT si create_document échoue car cette release est introuvable/invalide :');
+    steps.push('   alors list_releases, trouve/crée la release de label ' + JSON.stringify(releaseLabel) + ', et recommence.');
+  } else {
+    steps.push('1. list_releases sur "ekwateur-edito" ; trouve la release dont le label est EXACTEMENT ' + JSON.stringify(releaseLabel) + '.');
+    steps.push('   Si aucune, crée-la avec create_release (label ' + JSON.stringify(releaseLabel) + ').');
+  }
+  steps.push('2. create_document : repository "ekwateur-edito", customTypeId "custom_slice", locale "fr-fr",',
     '   releaseId = cette release, title = ' + JSON.stringify(title) + ', content =',
     '   { "html_only": {"__TYPE__":"FieldContent","type":"Text","value": <HTML>},',
     '     "css": {"__TYPE__":"FieldContent","type":"Text","value": <CSS>},',
@@ -622,8 +635,8 @@ ipcMain.handle('push-prismic', async (event, payload) => {
     '',
     '===HTML_ONLY_START===', html, '===HTML_ONLY_END===',
     '===CSS_START===', css, '===CSS_END===',
-    '===JS_START===', js, '===JS_END==='
-  ].join('\n');
+    '===JS_START===', js, '===JS_END===');
+  const prompt = steps.join('\n');
 
   const args = ['-p', prompt,
     '--allowedTools', 'ToolSearch',
@@ -631,7 +644,7 @@ ipcMain.handle('push-prismic', async (event, payload) => {
     'mcp__claude_ai_Prismic__list_releases',
     'mcp__claude_ai_Prismic__create_release',
     'mcp__claude_ai_Prismic__create_document',
-    '--model', MODEL, '--output-format', 'json'];
+    '--model', 'claude-haiku-4-5', '--output-format', 'json'];
 
   return new Promise((resolve) => {
     let child;
@@ -650,7 +663,13 @@ ipcMain.handle('push-prismic', async (event, payload) => {
       let info = null;
       const m = result.match(/\{[^{}]*"documentId"[^{}]*\}/);
       if (m) { try { info = JSON.parse(m[0]); } catch (_) { } }
-      if (info && info.documentId) return resolve({ ok: true, documentId: info.documentId, releaseId: info.releaseId || null });
+      if (info && info.documentId) {
+        // Mémorise le releaseId pour accélérer les prochains envois de cet auteur.
+        if (info.releaseId && info.releaseId !== cachedRel) {
+          try { const s = readSettings(); s.prismicReleases = s.prismicReleases || {}; s.prismicReleases[relKey] = info.releaseId; writeSettings(s); } catch (_) { }
+        }
+        return resolve({ ok: true, documentId: info.documentId, releaseId: info.releaseId || null });
+      }
       return resolve({ ok: false, error: 'Réponse inattendue de Claude', raw: result.slice(0, 300) });
     });
   });
