@@ -714,7 +714,7 @@ ipcMain.handle('pull-prismic', async (event, docId) => {
       if (!d) return { error: 'Document introuvable (id ' + id + ') ou non publié.' };
       const data = d.data || {};
       const str = v => (typeof v === 'string' ? v : '');
-      return { ok: true, trio: { html_only: str(data.html_only), css: str(data.css), js: str(data.js), html: str(data.html) }, documentId: d.id, baseVersionId: '', title: str(data.title) || d.uid || d.id };
+      return { ok: true, trio: { html_only: str(data.html_only), css: str(data.css), js: str(data.js), html: str(data.html) }, documentId: d.id, uid: d.uid || '', baseVersionId: '', title: str(data.title) || d.uid || d.id };
     } catch (e) { return { error: 'API Content Prismic: ' + e.message }; }
   }
 
@@ -759,68 +759,38 @@ ipcMain.handle('pull-prismic', async (event, docId) => {
 // ---------------------------------------------------------------------------
 ipcMain.handle('update-prismic', async (event, payload) => {
   const documentId = ((payload && payload.documentId) || '').trim();
+  const uid = ((payload && payload.uid) || '').trim();
   const field = ((payload && payload.field) || 'html_only').trim();
   const html = (payload && payload.html) || '';
   const css = (payload && payload.css) || '';
   const js = (payload && payload.js) || '';
-  const author = ((payload && payload.author) || '').trim();
   if (!documentId) return { error: 'Document Prismic manquant (réimporte la slice).' };
   if (!html && !css && !js) return { error: 'Contenu vide.' };
-  const bin = resolveClaudeBin();
-  // Release par auteur (comme push) + cache du releaseId. baseVersionId récupéré
-  // FRAIS via get_document (l'import rapide API Content ne le fournit pas, et frais
-  // = jamais périmé → une 2e maj d'affilée marche).
-  const releaseLabel = author ? ('EkwaSlice — ' + author) : 'EkwaSlice';
-  const relKey = author || '__default__';
-  const relCache = (readSettings().prismicReleases) || {};
-  const cachedRel = relCache[relKey];
-  const updatesDesc = field === 'html'
-    ? '   updates = { "html": {"__TYPE__":"FieldContent","type":"Text","value": <HTML>} } (ce doc utilise le champ "html" ; ne touche PAS "css"/"js"). <HTML> = bloc délimité ci-dessous, ne le modifie pas.'
-    : '   updates = { "html_only": {"__TYPE__":"FieldContent","type":"Text","value": <HTML>}, "css": {"__TYPE__":"FieldContent","type":"Text","value": <CSS>}, "js": {"__TYPE__":"FieldContent","type":"Text","value": <JS>} }  <HTML>/<CSS>/<JS> = blocs délimités ci-dessous, ne les modifie pas.';
-  const steps = [
-    'Objectif : METTRE À JOUR un document Prismic existant via le MCP Prismic (repository "ekwateur-edito").',
-    'Les outils MCP Prismic sont déférés : charge-les avec ToolSearch si nécessaire.',
-    'Étapes STRICTES :',
-    '1. list_document_versions repository "ekwateur-edito", documentId ' + JSON.stringify(documentId) + ' → prends l\'id de la version PUBLISHED (sinon la plus récente) = baseVersionId. NE lis PAS le contenu du doc (inutile, plus rapide).'
-  ];
-  if (cachedRel) {
-    steps.push('2. Utilise DIRECTEMENT releaseId = ' + JSON.stringify(cachedRel) + '. Repli SEULEMENT si invalide : list_releases puis trouve/crée la release de label ' + JSON.stringify(releaseLabel) + ' (create_release).');
-  } else {
-    steps.push('2. list_releases ; trouve la release de label EXACTEMENT ' + JSON.stringify(releaseLabel) + '. Si absente, crée-la (create_release, label ' + JSON.stringify(releaseLabel) + ').');
-  }
-  steps.push(
-    '3. update_document : repository "ekwateur-edito", documentId ' + JSON.stringify(documentId) + ', baseVersionId = le version.id de l\'étape 1, releaseId = la release de l\'étape 2,',
-    updatesDesc,
-    '4. NE PUBLIE JAMAIS (pas de publish_release).',
-    'Termine par UNE SEULE ligne JSON et rien d\'autre : {"documentId":"…","ok":true,"releaseId":"<id de la release utilisée>"}',
-    '',
-    '===HTML_ONLY_START===', html, '===HTML_ONLY_END===',
-    '===CSS_START===', css, '===CSS_END===',
-    '===JS_START===', js, '===JS_END==='
-  );
-  const prompt = steps.join('\n');
-  const args = ['-p', prompt,
-    '--allowedTools', 'ToolSearch',
-    'mcp__claude_ai_Prismic__list_document_versions',
-    'mcp__claude_ai_Prismic__list_releases',
-    'mcp__claude_ai_Prismic__create_release',
-    'mcp__claude_ai_Prismic__update_document',
-    '--model', 'claude-haiku-4-5', '--output-format', 'stream-json', '--verbose', '--include-partial-messages'];
-  // Timeout d'INACTIVITÉ (300 s sans aucune sortie) : la maj enchaîne plusieurs
-  // appels MCP + écrit ~20KB → dépassait le plafond fixe de 180 s. Chaque étape
-  // émet des events → le timer se remet à zéro, seul un vrai blocage coupe.
-  const r = await runClaudeStream(bin, args, null, 300000, null);
-  if (r.error) return { error: r.error };
-  const result = r.text || '';
-  const m = result.match(/\{[^{}]*"documentId"[^{}]*\}/);
-  let info = null; if (m) { try { info = JSON.parse(m[0]); } catch (_) { } }
-  if (info && info.documentId) {
-    if (info.releaseId && info.releaseId !== cachedRel) {
-      try { const s = readSettings(); s.prismicReleases = s.prismicReleases || {}; s.prismicReleases[relKey] = info.releaseId; writeSettings(s); } catch (_) { }
-    }
-    return { ok: true, documentId: info.documentId, releaseId: info.releaseId || null };
-  }
-  return { ok: false, error: 'Réponse inattendue de Claude', raw: result.slice(0, 300) };
+  const token = (readSettings().prismicWriteToken || '').trim();
+  if (!token) return { error: 'NO_WRITE_TOKEN' }; // le renderer demandera le token puis réessaiera
+  // Écriture DIRECTE via Migration API (zéro LLM) — brouillon, jamais publié.
+  // On envoie les 4 champs (mode-html OU mode-html_only + les autres vides) pour
+  // ne pas dépendre d'un merge/replace : reflète l'état d'origine (un seul côté rempli).
+  const data = (field === 'html')
+    ? { html: html, html_only: '', css: '', js: '' }
+    : { html_only: html, css: css, js: js, html: '' };
+  const body = { data };
+  if (uid) body.uid = uid;
+  try {
+    const res = await fetch('https://migration.prismic.io/documents/' + encodeURIComponent(documentId) + '/', {
+      method: 'PUT',
+      headers: {
+        'Authorization': 'Bearer ' + token,
+        'repository': 'ekwateur-edito',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(body)
+    });
+    const txt = await res.text();
+    if (res.status === 401 || res.status === 403) return { error: 'Token d\'écriture refusé (' + res.status + ') — vérifie-le dans les réglages.' };
+    if (!res.ok) return { error: 'Migration API: HTTP ' + res.status + ' — ' + txt.slice(0, 300) };
+    return { ok: true, documentId, raw: txt.slice(0, 200) };
+  } catch (e) { return { error: 'Migration API: ' + e.message }; }
 });
 
 // ---------------------------------------------------------------------------

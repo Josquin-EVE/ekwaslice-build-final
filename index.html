@@ -2531,6 +2531,7 @@
                 el.setAttribute('data-base-version', meta.baseVersionId || '');
                 if (meta.title) el.setAttribute('data-remote-title', meta.title);
                 if (meta.field) el.setAttribute('data-remote-field', meta.field);
+                if (meta.uid) el.setAttribute('data-remote-uid', meta.uid);
             }
             if (currentMode !== 'edit') setMode('edit');
             if (el) { selectElement(el); el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
@@ -2554,7 +2555,7 @@
             if (!r || r.error || !r.ok) { toast('Échec import : ' + ((r && (r.error || r.raw)) || 'inconnu')); return; }
             closePrismicImport();
             const field = (r.trio && r.trio.html_only && r.trio.html_only.trim()) ? 'html_only' : 'html';
-            injectVerbatimSlice(r.trio, { documentId: r.documentId, baseVersionId: r.baseVersionId, title: r.title, field });
+            injectVerbatimSlice(r.trio, { documentId: r.documentId, baseVersionId: r.baseVersionId, title: r.title, field, uid: r.uid });
             document.getElementById('prismic-import-input').value = '';
             toast('Slice importée depuis Prismic (verbatim) ✓');
         }
@@ -2926,19 +2927,31 @@
         }
 
         // Repousse les modifications du canvas vers le document Prismic importé (round-trip).
+        // Token d'ÉCRITURE Prismic (Migration API) — saisi dans l'app, stocké en local (userData), jamais partagé.
+        async function ensurePrismicWriteToken() {
+            if (APP_SETTINGS && APP_SETTINGS.prismicWriteToken) return APP_SETTINGS.prismicWriteToken;
+            const tk = await askName({ title: 'Token d\'écriture Prismic', label: 'Permanent token — Prismic → Settings → API & Security → Write APIs. Stocké en local, jamais partagé.', placeholder: 'colle le token…', pre: '' });
+            if (!tk || !tk.trim()) return '';
+            APP_SETTINGS.prismicWriteToken = tk.trim();
+            if (window.api && window.api.settingsSet) { try { await window.api.settingsSet({ prismicWriteToken: tk.trim() }); } catch (_) { } }
+            return APP_SETTINGS.prismicWriteToken;
+        }
         async function updateInPrismic(btn) {
             if (!window.api || !window.api.updatePrismic) { toast("Dispo seulement dans l'app"); return; }
             const el = document.querySelector('#canvas [data-comp][data-remote-id]');
             if (!el) { toast('Aucune slice importée de Prismic.'); return; }
+            const tok = await ensurePrismicWriteToken();
+            if (!tok) { toast('Token d\'écriture requis pour la maj.'); return; }
             const t = extractVerbatimForExport(el);
             const o = btn ? btn.innerHTML : '';
             if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1.5"></i>MàJ…'; }
             let r; try {
-                r = await window.api.updatePrismic({ documentId: el.getAttribute('data-remote-id'), field: t.field, html: t.html, css: t.css, js: t.js, author: authorName() });
+                r = await window.api.updatePrismic({ documentId: el.getAttribute('data-remote-id'), uid: el.getAttribute('data-remote-uid') || '', field: t.field, html: t.html, css: t.css, js: t.js });
             } catch (e) { r = { error: e.message }; }
             if (btn) { btn.disabled = false; btn.innerHTML = o; }
+            if (r && r.error === 'NO_WRITE_TOKEN') { APP_SETTINGS.prismicWriteToken = ''; toast('Token d\'écriture manquant — reclique pour le saisir.'); return; }
             if (!r || r.error || !r.ok) { toast('Échec MàJ : ' + ((r && (r.error || r.raw)) || 'inconnu')); return; }
-            toast('Document Prismic mis à jour (brouillon dans ta release) ✓ — à publier dans le dashboard');
+            toast('Document Prismic mis à jour (brouillon) ✓ — à publier dans le dashboard');
         }
 
         // --- Écran de garde : connexion Claude ---
