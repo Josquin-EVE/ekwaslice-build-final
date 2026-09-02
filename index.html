@@ -2934,12 +2934,11 @@
             const o = btn ? btn.innerHTML : '';
             if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1.5"></i>MàJ…'; }
             let r; try {
-                r = await window.api.updatePrismic({ documentId: el.getAttribute('data-remote-id'), baseVersionId: el.getAttribute('data-base-version'), field: t.field, html: t.html, css: t.css, js: t.js });
+                r = await window.api.updatePrismic({ documentId: el.getAttribute('data-remote-id'), field: t.field, html: t.html, css: t.css, js: t.js, author: authorName() });
             } catch (e) { r = { error: e.message }; }
             if (btn) { btn.disabled = false; btn.innerHTML = o; }
             if (!r || r.error || !r.ok) { toast('Échec MàJ : ' + ((r && (r.error || r.raw)) || 'inconnu')); return; }
-            if (r.baseVersionId) el.setAttribute('data-base-version', r.baseVersionId);
-            toast('Document Prismic mis à jour (brouillon) ✓ — à publier dans le dashboard');
+            toast('Document Prismic mis à jour (brouillon dans ta release) ✓ — à publier dans le dashboard');
         }
 
         // --- Écran de garde : connexion Claude ---
