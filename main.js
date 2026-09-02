@@ -781,7 +781,7 @@ ipcMain.handle('update-prismic', async (event, payload) => {
     'Objectif : METTRE À JOUR un document Prismic existant via le MCP Prismic (repository "ekwateur-edito").',
     'Les outils MCP Prismic sont déférés : charge-les avec ToolSearch si nécessaire.',
     'Étapes STRICTES :',
-    '1. get_document repository "ekwateur-edito", documentId ' + JSON.stringify(documentId) + ' → note version.id (= baseVersionId à jour).'
+    '1. list_document_versions repository "ekwateur-edito", documentId ' + JSON.stringify(documentId) + ' → prends l\'id de la version PUBLISHED (sinon la plus récente) = baseVersionId. NE lis PAS le contenu du doc (inutile, plus rapide).'
   ];
   if (cachedRel) {
     steps.push('2. Utilise DIRECTEMENT releaseId = ' + JSON.stringify(cachedRel) + '. Repli SEULEMENT si invalide : list_releases puis trouve/crée la release de label ' + JSON.stringify(releaseLabel) + ' (create_release).');
@@ -801,36 +801,26 @@ ipcMain.handle('update-prismic', async (event, payload) => {
   const prompt = steps.join('\n');
   const args = ['-p', prompt,
     '--allowedTools', 'ToolSearch',
-    'mcp__claude_ai_Prismic__get_document',
+    'mcp__claude_ai_Prismic__list_document_versions',
     'mcp__claude_ai_Prismic__list_releases',
     'mcp__claude_ai_Prismic__create_release',
     'mcp__claude_ai_Prismic__update_document',
-    '--model', 'claude-haiku-4-5', '--output-format', 'json'];
-  return new Promise((resolve) => {
-    let child;
-    try { child = spawn(bin, args, { cwd: os.tmpdir() }); }
-    catch (e) { return resolve({ error: 'Impossible de lancer claude : ' + e.message }); }
-    let out = '', err = '';
-    const timer = setTimeout(() => { child.kill(); resolve({ error: 'Délai dépassé (180 s).' }); }, 180000);
-    child.stdout.on('data', d => { out += d.toString(); });
-    child.stderr.on('data', d => { err += d.toString(); });
-    child.on('error', (e) => { clearTimeout(timer); resolve({ error: 'CLI claude introuvable : ' + e.message }); });
-    child.on('close', (code) => {
-      clearTimeout(timer);
-      if (code !== 0) return resolve({ error: err.trim() || ('claude a quitté (code ' + code + ')') });
-      let result = '';
-      try { result = JSON.parse(out).result || ''; } catch (_) { return resolve({ error: 'Parsing réponse impossible.' }); }
-      const m = result.match(/\{[^{}]*"documentId"[^{}]*\}/);
-      let info = null; if (m) { try { info = JSON.parse(m[0]); } catch (_) { } }
-      if (info && info.documentId) {
-        if (info.releaseId && info.releaseId !== cachedRel) {
-          try { const s = readSettings(); s.prismicReleases = s.prismicReleases || {}; s.prismicReleases[relKey] = info.releaseId; writeSettings(s); } catch (_) { }
-        }
-        return resolve({ ok: true, documentId: info.documentId, releaseId: info.releaseId || null });
-      }
-      return resolve({ ok: false, error: 'Réponse inattendue de Claude', raw: result.slice(0, 300) });
-    });
-  });
+    '--model', 'claude-haiku-4-5', '--output-format', 'stream-json', '--verbose', '--include-partial-messages'];
+  // Timeout d'INACTIVITÉ (300 s sans aucune sortie) : la maj enchaîne plusieurs
+  // appels MCP + écrit ~20KB → dépassait le plafond fixe de 180 s. Chaque étape
+  // émet des events → le timer se remet à zéro, seul un vrai blocage coupe.
+  const r = await runClaudeStream(bin, args, null, 300000, null);
+  if (r.error) return { error: r.error };
+  const result = r.text || '';
+  const m = result.match(/\{[^{}]*"documentId"[^{}]*\}/);
+  let info = null; if (m) { try { info = JSON.parse(m[0]); } catch (_) { } }
+  if (info && info.documentId) {
+    if (info.releaseId && info.releaseId !== cachedRel) {
+      try { const s = readSettings(); s.prismicReleases = s.prismicReleases || {}; s.prismicReleases[relKey] = info.releaseId; writeSettings(s); } catch (_) { }
+    }
+    return { ok: true, documentId: info.documentId, releaseId: info.releaseId || null };
+  }
+  return { ok: false, error: 'Réponse inattendue de Claude', raw: result.slice(0, 300) };
 });
 
 // ---------------------------------------------------------------------------
