@@ -690,6 +690,35 @@ ipcMain.handle('push-prismic', async (event, payload) => {
 ipcMain.handle('pull-prismic', async (event, docId) => {
   const id = PrismicSlice.parsePrismicDocId(docId);
   if (!id) return { error: 'Identifiant Prismic invalide.' };
+
+  // --- CHEMIN RAPIDE : API Content Prismic en direct (si token configuré) ---
+  // Quasi instantané, sans LLM ni ré-sérialisation. Token de LECTURE stocké
+  // localement (userData), jamais embarqué/distribué. access_token = mécanisme
+  // d'auth documenté de l'API Content Prismic (HTTPS vers l'API Prismic elle-même).
+  const token = (readSettings().prismicToken || '').trim();
+  if (token) {
+    try {
+      const base = 'https://ekwateur-edito.cdn.prismic.io/api/v2';
+      const apiRes = await fetch(base + '?access_token=' + encodeURIComponent(token));
+      if (apiRes.status === 401 || apiRes.status === 403) return { error: 'Token Prismic refusé (' + apiRes.status + ') — vérifie-le dans les réglages.' };
+      if (!apiRes.ok) return { error: 'API Prismic: HTTP ' + apiRes.status };
+      const apiJson = await apiRes.json();
+      const master = (apiJson.refs || []).find(r => r.isMasterRef) || (apiJson.refs || [])[0];
+      if (!master) return { error: 'Réponse API Prismic inattendue (pas de ref).' };
+      const q = '[[at(document.id,"' + id + '")]]';
+      const url = base + '/documents/search?ref=' + encodeURIComponent(master.ref) + '&q=' + encodeURIComponent(q) + '&access_token=' + encodeURIComponent(token);
+      const res = await fetch(url);
+      if (!res.ok) return { error: 'API Content Prismic: HTTP ' + res.status };
+      const j = await res.json();
+      const d = (j.results || [])[0];
+      if (!d) return { error: 'Document introuvable (id ' + id + ') ou non publié.' };
+      const data = d.data || {};
+      const str = v => (typeof v === 'string' ? v : '');
+      return { ok: true, trio: { html_only: str(data.html_only), css: str(data.css), js: str(data.js), html: str(data.html) }, documentId: d.id, baseVersionId: '', title: str(data.title) || d.uid || d.id };
+    } catch (e) { return { error: 'API Content Prismic: ' + e.message }; }
+  }
+
+  // --- REPLI : LLM + MCP (lent) si aucun token configuré ---
   const bin = resolveClaudeBin();
   const prompt = [
     'Tâche mécanique, AUCUNE réflexion ni préambule : charge get_document via ToolSearch, appelle-le UNE fois, renvoie le JSON. Rien d\'autre.',

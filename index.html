@@ -2516,7 +2516,12 @@
         function closeImport() { document.getElementById('importModal').classList.add('hidden'); }
 
         // --- Import verbatim d'une slice depuis Prismic (aucune conversion/aplatissement) ---
-        function openPrismicImport() { document.getElementById('prismicImportModal').classList.remove('hidden'); document.getElementById('prismic-import-input').focus(); }
+        function openPrismicImport() {
+            document.getElementById('prismicImportModal').classList.remove('hidden');
+            const tk = document.getElementById('prismic-token-input');
+            if (tk) tk.value = (APP_SETTINGS && APP_SETTINGS.prismicToken) || '';
+            document.getElementById('prismic-import-input').focus();
+        }
         function closePrismicImport() { document.getElementById('prismicImportModal').classList.add('hidden'); }
         function injectVerbatimSlice(trio, meta) {
             const html = window.PrismicSlice.buildVerbatimSliceHTML(trio);
@@ -2536,6 +2541,12 @@
             if (!window.api || !window.api.pullPrismic) { toast("Dispo seulement dans l'app"); return; }
             const raw = (document.getElementById('prismic-import-input').value || '').trim();
             if (!raw) { toast('Colle une URL ou un id.'); return; }
+            // Token de lecture (stocké en local) : sauvé avant le pull → chemin rapide API
+            const tk = (document.getElementById('prismic-token-input').value || '').trim();
+            if (tk && tk !== (APP_SETTINGS && APP_SETTINGS.prismicToken)) {
+                APP_SETTINGS.prismicToken = tk;
+                if (window.api && window.api.settingsSet) { try { await window.api.settingsSet({ prismicToken: tk }); } catch (_) { } }
+            }
             const o = btn ? btn.innerHTML : '';
             if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1.5"></i>Import…'; }
             let r; try { r = await window.api.pullPrismic(raw); } catch (e) { r = { error: e.message }; }
@@ -3223,6 +3234,12 @@
             <input id="prismic-import-input" type="text"
                 placeholder="https://ekwateur-edito.prismic.io/builder/pages/… ou aamJGhAAACQALA7F"
                 class="w-full bg-slate-950 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-primary">
+            <div>
+                <input id="prismic-token-input" type="password" autocomplete="off" spellcheck="false"
+                    placeholder="Token de lecture Prismic (stocké en local, une seule fois)"
+                    class="w-full bg-slate-950 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-primary">
+                <span class="text-[11px] text-slate-500 leading-snug block mt-1">Import instantané via l'API Prismic. Génère un <b>Permanent access token</b> : Prismic → Settings → API &amp; Security. Sans token, import lent (via Claude). Le token reste sur ta machine (jamais partagé).</span>
+            </div>
             <div class="flex justify-end gap-2">
                 <button onclick="closePrismicImport()"
                     class="px-4 py-2 text-sm text-slate-300 hover:text-white">Annuler</button>
