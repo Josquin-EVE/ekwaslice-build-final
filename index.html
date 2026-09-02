@@ -2951,7 +2951,7 @@
             if (btn) { btn.disabled = false; btn.innerHTML = o; }
             if (r && r.error === 'NO_WRITE_TOKEN') { APP_SETTINGS.prismicWriteToken = ''; toast('Token d\'écriture manquant — reclique pour le saisir.'); return; }
             if (!r || r.error || !r.ok) { toast('Échec MàJ : ' + ((r && (r.error || r.raw)) || 'inconnu')); return; }
-            toast('Document Prismic mis à jour (brouillon) ✓ — à publier dans le dashboard');
+            toast('Maj envoyée ✓ — à revoir/publier dans l\'onglet « Migration Releases » de Prismic');
         }
 
         // --- Écran de garde : connexion Claude ---
