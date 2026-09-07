@@ -301,14 +301,15 @@
                 class="px-3 py-2 text-sm bg-slate-700 hover:bg-slate-600 rounded-lg transition text-slate-200 font-medium flex items-center gap-2">
                 <i class="fa-solid fa-cloud-arrow-down"></i>Importer Prismic
             </button>
-            <button id="prismic-update-btn" onclick="updateInPrismic(this)" title="Repousser les modifications vers le document Prismic importé"
-                class="hidden px-3 py-2 text-sm bg-emerald-600 hover:brightness-110 rounded-lg transition text-white font-semibold items-center gap-2">
-                <i class="fa-solid fa-cloud-arrow-up"></i>Mettre à jour Prismic
-            </button>
             <button onclick="quickPushPrismic(this)"
                 title="Envoyer la slice du canvas directement vers Prismic (brouillon)"
                 class="px-3 py-2 text-sm bg-[#d97757] hover:brightness-110 rounded-lg transition text-white font-semibold flex items-center gap-2">
                 <i class="fa-solid fa-cloud-arrow-up"></i>Envoi Prismic
+            </button>
+            <button id="prismic-update-btn" onclick="updateInPrismic(this)"
+                title="Mettre à jour la slice Prismic importée (brouillon en Migration Release)"
+                class="px-3 py-2 text-sm bg-indigo-600 hover:brightness-110 rounded-lg transition text-white font-semibold hidden items-center gap-2">
+                <i class="fa-solid fa-rotate"></i>MAJ Prismic
             </button>
             <button onclick="exportCode()"
                 class="px-4 py-2 text-sm bg-secondary hover:brightness-110 rounded-lg transition text-ink-deep font-semibold shadow-lg shadow-secondary/20">
@@ -755,6 +756,16 @@
         const emptyState = document.getElementById('empty-state');
         const codeModal = document.getElementById('codeModal');
 
+        // Le bouton "MAJ Prismic" doit suivre l'état réel du canvas (import, suppression, clear,
+        // undo…). Un observer recalcule sa visibilité à chaque changement de contenu.
+        (function () {
+            let raf = 0;
+            new MutationObserver(() => {
+                if (raf) return;
+                raf = requestAnimationFrame(() => { raf = 0; try { refreshPrismicUpdateBtn(); } catch (_) { } });
+            }).observe(canvas, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-remote-id'] });
+        })();
+
         // Fond du canvas = imite le fond du site Ekwateur. Change ici pour l'ajuster.
         const SITE_BG = '#101c1e';
         canvas.style.backgroundColor = SITE_BG;
@@ -783,6 +794,7 @@
         // --- Éditeur low-code : sélection d'un élément + mini-toolbar ---
         let sel = null;       // élément sélectionné
         let editing = false;  // édition de texte en cours ?
+        let prismicTarget = null; // dernière slice importée ciblée (survit au deselect du clic bouton)
 
         // Prépare un slice monté : marqueur + nettoyage des artefacts
         function mountSlice(el) {
@@ -1542,6 +1554,8 @@
             if (sel) sel.classList.remove('ekw-selected');
             sel = el;
             sel.classList.add('ekw-selected');
+            const pt = el.closest && el.closest('#canvas [data-comp][data-remote-id]');
+            if (pt) prismicTarget = pt;   // retient la slice Prismic pour la MAJ (indépendant du deselect)
             spSync();
             showEditor();
             showActions(true);
@@ -2518,9 +2532,21 @@
         // --- Import verbatim d'une slice depuis Prismic (aucune conversion/aplatissement) ---
         function openPrismicImport() {
             document.getElementById('prismicImportModal').classList.remove('hidden');
+            const saved = !!(APP_SETTINGS && APP_SETTINGS.prismicToken);
             const tk = document.getElementById('prismic-token-input');
-            if (tk) tk.value = (APP_SETTINGS && APP_SETTINGS.prismicToken) || '';
+            const wrap = document.getElementById('prismic-token-wrap');
+            const savedRow = document.getElementById('prismic-token-saved');
+            if (tk) tk.value = '';                       // jamais réafficher le token
+            if (wrap) wrap.classList.toggle('hidden', saved);   // champ masqué une fois renseigné
+            if (savedRow) { savedRow.classList.toggle('hidden', !saved); savedRow.classList.toggle('flex', saved); }
             document.getElementById('prismic-import-input').focus();
+        }
+        function editPrismicToken() {
+            const wrap = document.getElementById('prismic-token-wrap');
+            const savedRow = document.getElementById('prismic-token-saved');
+            if (wrap) wrap.classList.remove('hidden');
+            if (savedRow) { savedRow.classList.add('hidden'); savedRow.classList.remove('flex'); }
+            const tk = document.getElementById('prismic-token-input'); if (tk) tk.focus();
         }
         function closePrismicImport() { document.getElementById('prismicImportModal').classList.add('hidden'); }
         function injectVerbatimSlice(trio, meta) {
@@ -2533,6 +2559,7 @@
                 if (meta.field) el.setAttribute('data-remote-field', meta.field);
                 if (meta.uid) el.setAttribute('data-remote-uid', meta.uid);
             }
+            if (el) prismicTarget = el;   // slice fraîchement importée = cible MAJ par défaut
             if (currentMode !== 'edit') setMode('edit');
             if (el) { selectElement(el); el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
             refreshPrismicUpdateBtn();
@@ -2900,6 +2927,7 @@
         function refreshPrismicUpdateBtn() {
             const b = document.getElementById('prismic-update-btn');
             if (!b) return;
+            if (prismicTarget && !document.body.contains(prismicTarget)) prismicTarget = null; // cible retirée du canvas
             const has = !!document.querySelector('#canvas [data-comp][data-remote-id]');
             b.classList.toggle('hidden', !has);
             b.classList.toggle('flex', has);
@@ -2938,8 +2966,14 @@
         }
         async function updateInPrismic(btn) {
             if (!window.api || !window.api.updatePrismic) { toast("Dispo seulement dans l'app"); return; }
-            const el = document.querySelector('#canvas [data-comp][data-remote-id]');
-            if (!el) { toast('Aucune slice importée de Prismic.'); return; }
+            const all = document.querySelectorAll('#canvas [data-comp][data-remote-id]');
+            if (!all.length) { toast('Aucune slice importée de Prismic.'); return; }
+            // Cible : la dernière slice importée/sélectionnée (mémorisée, survit au deselect du clic bouton) ;
+            // sinon la sélection courante ; sinon l'unique slice du canvas.
+            let el = (prismicTarget && document.body.contains(prismicTarget)) ? prismicTarget
+                : (sel && sel.closest && sel.closest('#canvas [data-comp][data-remote-id]'));
+            if (!el && all.length === 1) el = all[0];
+            if (!el) { toast('Plusieurs slices importées — clique celle à mettre à jour d\'abord.'); return; }
             const tok = await ensurePrismicWriteToken();
             if (!tok) { toast('Token d\'écriture requis pour la maj.'); return; }
             const t = extractVerbatimForExport(el);
@@ -3241,16 +3275,21 @@
         class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-6">
         <div class="bg-slate-800 rounded-2xl p-6 w-full max-w-lg space-y-4">
             <h2 class="text-white font-bold text-lg">Importer depuis Prismic</h2>
-            <p class="text-slate-400 text-sm">Colle l'URL du document (builder) ou son identifiant. La slice est
-                importée telle quelle (verbatim).</p>
-            <input id="prismic-import-input" type="text"
-                placeholder="https://ekwateur-edito.prismic.io/builder/pages/… ou aamJGhAAACQALA7F"
+            <p class="text-slate-400 text-sm">Colle l'URL du document</p>
+            <input id="prismic-import-input" type="text" placeholder="URL Prismic"
                 class="w-full bg-slate-950 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-primary">
-            <div>
+            <div id="prismic-token-wrap">
                 <input id="prismic-token-input" type="password" autocomplete="off" spellcheck="false"
-                    placeholder="Token de lecture Prismic (stocké en local, une seule fois)"
-                    class="w-full bg-slate-950 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-primary">
-                <span class="text-[11px] text-slate-500 leading-snug block mt-1">Import instantané via l'API Prismic. Génère un <b>Permanent access token</b> : Prismic → Settings → API &amp; Security. Sans token, import lent (via Claude). Le token reste sur ta machine (jamais partagé).</span>
+                    class="w-full bg-slate-950 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary">
+                <span class="text-[11px] text-slate-500 leading-snug block mt-1">Import instantané via l'API Prismic.
+                    Génère un <b>Permanent access token</b> : Prismic → Settings → API &amp; Security. Sans token,
+                    import lent (via Claude). Le token reste sur ta machine (jamais partagé).</span>
+            </div>
+            <div id="prismic-token-saved" class="hidden items-center gap-2 text-[12px] text-slate-400">
+                <i class="fa-solid fa-circle-check text-emerald-500"></i>
+                <span>Token de lecture enregistré</span>
+                <button type="button" onclick="editPrismicToken()"
+                    class="text-primary hover:underline">Modifier</button>
             </div>
             <div class="flex justify-end gap-2">
                 <button onclick="closePrismicImport()"

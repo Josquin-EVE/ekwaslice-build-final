@@ -160,9 +160,19 @@ RÈGLES :
     TRV electricitySubscriptionTRVPriceInclTaxes / electricityConsumptionBaseTRVPriceInclTaxes /
     electricityConsumptionLowTrvPriceInclTaxes. GAZ : abo gasSubscriptionPriceInclTaxes ;
     kWh gasConsumptionBasePriceInclTaxes ; TRV gasSubscriptionTRVPriceInclTaxes / gasConsumptionBaseTRVPriceInclTaxes.
-  * BUDGET ANNUEL : utilise TOUJOURS les totaux de l'API — totalAnnualAmount (Ekwateur) et
-    totalAnnualTRVAmount (TRV). NE recalcule JAMAIS abo×12+conso×kWh pour Ekwateur : une remise
-    est incluse dans totalAnnualAmount. Économie = totalAnnualTRVAmount − totalAnnualAmount.
+  * BUDGET ANNUEL : calcule-le EN LOCAL, sans appel API par conso. Fais UN SEUL appel pour
+    obtenir l'abo + le prix du kWh, puis budget = abo×12 + prixKWh × CAR, où CAR = la conso de
+    référence RENSEIGNÉE ou SAUVEGARDÉE dans la slice (attribut/param du composant, ex data-car),
+    JAMAIS un nouvel appel. Quand la CAR change (input/slider), RECALCULE le budget en JS en
+    local — AUCUN nouvel appel à l'API. En HIGH_LOW : budget = abo×12 + kWhHP×carHP + kWhHC×carHC.
+    Idem TRV : budgetTRV = aboTRV×12 + kWhTRV × CAR. Économie = budgetTRV − budget (masquée si ≤ 0).
+    NB : vérifié en live 2026-09-03 — abo×12+kWh×CAR = totalAnnualAmount de l'API (ex 6kVA/4200 :
+    926,58 ≈ 927). Pas de remise cachée ; totalAnnualAmountSaved = écart vs TRV, pas une ristourne.
+    Le calcul local est donc EXACT (si un promoCode non-null apparaît un jour, lui seul creuserait un écart).
+    NOMBRE D'APPELS : un appel par CONFIG tarifaire distincte (puissance kVA, option BASE/HIGH_LOW,
+    énergie élec/gaz, GGO, offre FR/UE) — car abo et kWh dépendent de ces paramètres. JAMAIS un
+    appel par CAR : la CAR ne fait que multiplier le kWh en local. Ex : une grille de 3 puissances
+    = 3 appels (une fois), et chacune recalcule son budget localement quand la CAR bouge.
   * PIÈGE : l'API répond 201 même avec des prix null (champ manquant / conso 0). Juge la validité
     sur la présence des prix (ex : if (j.electricitySubscriptionPriceInclTaxes == null) → repli),
     JAMAIS sur le code HTTP.
