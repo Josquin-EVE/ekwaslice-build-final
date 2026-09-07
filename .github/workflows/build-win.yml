@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write # nécessaire pour créer la Release + y attacher l'installeur
+  contents: write # nécessaire pour attacher l'installeur à la Release
 
 jobs:
   build:
@@ -26,7 +26,18 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Build & publish .exe to GitHub Releases
-        run: npm run release:win
+      # Build seul (pas de publish) — electron-builder refuse d'uploader sur une
+      # release publiée il y a +2h ; on uploade nous-mêmes juste après.
+      - name: Build .exe (no publish)
+        run: npm run build:win
+
+      # Upload direct sur la Release existante via gh (contourne le garde-fou 2h).
+      - name: Upload installer to GitHub Release
+        shell: bash
+        run: |
+          VER=$(node -p "require('./package.json').version")
+          gh release upload "v$VER" \
+            dist/*.exe dist/*.exe.blockmap dist/latest.yml \
+            --clobber --repo "$GITHUB_REPOSITORY"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
