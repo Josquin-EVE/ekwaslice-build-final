@@ -9,7 +9,8 @@
         "build:win": "electron-builder --windows",
         "build:mac": "electron-builder --mac",
         "build:linux": "electron-builder --linux",
-        "release:mac": "electron-builder --mac --publish always"
+        "release:mac": "electron-builder --mac --publish always",
+        "release:win": "electron-builder --windows --publish always"
     },
     "devDependencies": {
         "electron": "^30.0.0",
@@ -38,7 +39,8 @@
             }
         ],
         "win": {
-            "target": "nsis"
+            "target": "nsis",
+            "icon": "assets/logo.png"
         },
         "mac": {
             "target": "dmg",
