@@ -293,10 +293,7 @@
             </h1>
         </div>
         <div class="flex gap-3 items-center">
-            <button onclick="openImport()" title="Importer du code (HTML/CSS/JS) — conversion locale en inline"
-                class="px-4 py-2 text-sm bg-slate-700 hover:bg-slate-600 rounded-lg transition text-slate-200 font-medium">
-                <i class="fa-solid fa-file-import mr-2"></i>Importer du code
-            </button>
+
             <button onclick="openPrismicImport()" title="Importer une slice existante depuis Prismic (verbatim)"
                 class="px-3 py-2 text-sm bg-slate-700 hover:bg-slate-600 rounded-lg transition text-slate-200 font-medium flex items-center gap-2">
                 <i class="fa-solid fa-cloud-arrow-down"></i>Importer Prismic
@@ -315,6 +312,10 @@
                 class="px-4 py-2 text-sm bg-secondary hover:brightness-110 rounded-lg transition text-ink-deep font-semibold shadow-lg shadow-secondary/20">
                 <i class="fa-solid fa-code mr-2"></i>Exporter le Code
             </button>
+            <button onclick="openPrismicSettings()" title="Réglages Prismic — tokens lecture & écriture"
+                class="w-9 h-9 flex items-center justify-center text-sm bg-slate-700 hover:bg-slate-600 rounded-lg transition text-slate-300">
+                <i class="fa-solid fa-gear"></i>
+            </button>
         </div>
     </header>
 
@@ -332,8 +333,9 @@
                             class="inline-flex rounded-lg bg-slate-900 border border-slate-700 p-0.5 text-[11px] font-semibold shrink-0">
                             <button id="tab-local" onclick="setLibTab('local')"
                                 class="px-2.5 py-1 rounded-md transition">Local</button>
+                            <!-- Biblio partagée (cloud) en STANDBY — onglet masqué (feature en pause) -->
                             <button id="tab-shared" onclick="setLibTab('shared')"
-                                class="px-2.5 py-1 rounded-md transition flex items-center gap-1"><i
+                                class="hidden px-2.5 py-1 rounded-md transition items-center gap-1"><i
                                     class="fa-solid fa-cloud text-[9px]"></i>Partagée</button>
                         </div>
                         <button id="shared-reload" onclick="loadShared()" title="Recharger la bibliothèque partagée"
@@ -399,14 +401,23 @@
                     class="hidden mx-4 mt-3 p-2 rounded-xl bg-slate-900 border border-slate-700 flex-wrap items-center gap-1">
                 </div>
                 <div id="editor-style" class="p-4 space-y-3 overflow-y-auto flex-1"></div>
-                <!-- Pictos accessibles pendant la sélection (remplacer / insérer) -->
-                <div class="border-t border-slate-700 p-3 shrink-0">
-                    <span class="text-[11px] font-medium text-slate-300 block mb-2">Pictogrammes</span>
-                    <input type="text" placeholder="Rechercher…" oninput="renderPictoGrid(this.value)"
-                        class="w-full mb-2 bg-slate-900 border border-slate-600/50 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-primary">
-                    <div data-picto-grid class="grid grid-cols-5 gap-1.5 max-h-40 overflow-y-auto pr-1"></div>
-                    <p class="text-[10px] text-slate-600 mt-1 leading-snug">Clic = remplace le picto sélectionné, sinon
-                        insère dans l'élément.</p>
+                <!-- Pictos accessibles pendant la sélection (remplacer / insérer) — repliable -->
+                <div class="border-t border-slate-700 shrink-0">
+                    <button type="button" onclick="toggleEditorPictos()"
+                        class="w-full px-3 py-2.5 flex items-center gap-2 text-left hover:bg-slate-700/40 transition">
+                        <i class="fa-solid fa-shapes text-slate-400 text-xs"></i>
+                        <span class="flex-1 text-[11px] font-medium text-slate-300">Pictogrammes</span>
+                        <i data-epicto-chev
+                            class="fa-solid fa-chevron-down text-[10px] text-slate-500 transition-transform -rotate-90"></i>
+                    </button>
+                    <div id="editor-picto-body" class="hidden px-3 pb-3">
+                        <input type="text" placeholder="Rechercher…" oninput="renderPictoGrid(this.value)"
+                            class="w-full mb-2 bg-slate-900 border border-slate-600/50 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-primary">
+                        <div data-picto-grid class="grid grid-cols-5 gap-1.5 max-h-40 overflow-y-auto pr-1"></div>
+                        <p class="text-[10px] text-slate-600 mt-1 leading-snug">Clic = remplace le picto sélectionné,
+                            sinon
+                            insère dans l'élément.</p>
+                    </div>
                 </div>
             </div>
         </aside>
@@ -1086,6 +1097,23 @@
                 const h = styleBox.querySelector('[data-chex="' + g + '"]');
                 if (w && document.activeElement !== w && hex) w.value = hex;
                 if (h && document.activeElement !== h) h.value = hex || '';
+                // Anneau sur la pastille de la palette qui correspond à la couleur courante.
+                const attr = g === 'border' ? 'bcolor' : 'bgcolor';
+                const cur = (hex || '').toLowerCase();
+                const RING = ['ring-2', 'ring-white', 'ring-offset-2', 'ring-offset-slate-800'];
+                styleBox.querySelectorAll('[data-' + attr + ']').forEach(btn => {
+                    const on = !!cur && (btn.getAttribute('data-' + attr) || '').toLowerCase() === cur;
+                    RING.forEach(c => btn.classList.toggle(c, on));
+                });
+                // Opacité du fond (canal alpha) → champ %.
+                if (g === 'bg') {
+                    const op = styleBox.querySelector('[data-copacity]');
+                    if (op && document.activeElement !== op) {
+                        const m = (col || '').match(/rgba?\([^)]*,\s*([\d.]+)\s*\)/);
+                        const a = m ? parseFloat(m[1]) : 1;
+                        op.value = Math.round((isNaN(a) ? 1 : a) * 100);
+                    }
+                }
             });
         }
 
@@ -1097,16 +1125,22 @@
                 + '<button data-sp-step="1" data-sp-g="' + group + '" data-sp-s="' + side + '" class="w-6 h-6 rounded bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm leading-none">+</button>'
                 + '</div>';
         }
-        function spSpacingGroup(group, title) {
+        // Espacement façon Figma : widget en CROIX (Haut/Droite/Bas/Gauche autour d'un
+        // centre) + bouton chaîne pour lier les 4 côtés. Plomberie inchangée (data-sp-g/-s).
+        function spSpacingGroup(group, title, center) {
+            const cell = (s, name) => '<input data-sp-in="1" data-sp-g="' + group + '" data-sp-s="' + s + '" type="number" min="0" title="' + name + '" class="w-full h-7 bg-slate-900 border border-slate-700 rounded text-center text-[11px] text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary">';
+            const gap = '<span></span>';
             return '<div class="space-y-1.5" data-sp-group="' + group + '">'
                 + '<div class="flex items-center justify-between">'
                 + '<span class="text-[11px] font-medium text-slate-300">' + title + '</span>'
-                + '<button data-sp-link="' + group + '" title="Lier / délier les 4 côtés" class="w-6 h-6 rounded text-slate-400 hover:bg-slate-700 text-xs"><i class="fa-solid fa-link"></i></button>'
+                + '<button data-sp-link="' + group + '" title="Lier / délier les 4 côtés" class="w-6 h-6 rounded text-primary hover:bg-slate-700 text-xs"><i class="fa-solid fa-link"></i></button>'
                 + '</div>'
-                + '<div data-sp-linked="' + group + '">' + spStepper(group, 'all', '') + '<span class="ml-1 text-[10px] text-slate-500">px · 4 côtés</span></div>'
-                + '<div data-sp-sides="' + group + '" class="hidden grid grid-cols-2 gap-1.5">'
-                + spStepper(group, 'top', 'H') + spStepper(group, 'right', 'D')
-                + spStepper(group, 'bottom', 'B') + spStepper(group, 'left', 'G')
+                + '<div class="grid grid-cols-3 gap-1 items-center max-w-[176px] mx-auto">'
+                + gap + cell('top', 'Haut') + gap
+                + cell('left', 'Gauche')
+                + '<span class="h-7 flex items-center justify-center text-[10px] font-semibold text-slate-500 bg-slate-800/60 rounded">' + center + '</span>'
+                + cell('right', 'Droite')
+                + gap + cell('bottom', 'Bas') + gap
                 + '</div>'
                 + '</div>';
         }
@@ -1119,28 +1153,40 @@
         function accSave(s) { try { localStorage.setItem(ACC_LS, JSON.stringify(s)); } catch (_) { } }
         function accSection(id, icon, title, body, open) {
             return '<div class="acc border-b border-slate-700/70" data-acc="' + id + '">'
-                + '<button type="button" data-acc-head="' + id + '" class="w-full flex items-center gap-2 py-2.5 text-left text-[12px] font-semibold text-slate-200 hover:text-cloud">'
-                + '<i class="fa-solid ' + icon + ' text-slate-400 w-4 text-center text-[11px]"></i>'
+                + '<button type="button" data-acc-head="' + id + '" class="w-full flex items-center gap-2 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-400 hover:text-slate-200">'
+                + '<i class="fa-solid ' + icon + ' text-slate-500 w-4 text-center text-[11px]"></i>'
                 + '<span class="flex-1">' + title + '</span>'
                 + '<i class="fa-solid fa-chevron-down text-[10px] text-slate-500 transition-transform ' + (open ? '' : '-rotate-90') + '" data-acc-chev></i>'
                 + '</button>'
-                + '<div data-acc-body class="pb-3 space-y-2 ' + (open ? '' : 'hidden') + '">' + body + '</div>'
+                + '<div data-acc-body class="pb-3 space-y-2.5 ' + (open ? '' : 'hidden') + '">' + body + '</div>'
                 + '</div>';
         }
         const _div = '<div class="h-px bg-slate-700/70"></div>';
-        const _colorRow = (attr, noneLabel) =>
-            '<div class="flex items-center gap-1 flex-wrap">'
-            + styleColors.map(([hex, name]) => '<button data-' + attr + '="' + hex + '" title="' + name + '" class="w-5 h-5 rounded-full border border-slate-500 hover:scale-110 transition" style="background:' + hex + '"></button>').join('')
-            + '<button data-' + attr + '="none" title="' + noneLabel + '" class="w-5 h-5 rounded-full border border-slate-500 text-slate-300 text-[10px] flex items-center justify-center hover:bg-slate-700">∅</button>'
-            + '<input type="color" data-cwheel="' + (attr === 'bcolor' ? 'border' : 'bg') + '" title="Roue de couleur" class="w-6 h-6 p-0 rounded cursor-pointer bg-transparent border border-slate-500">'
-            + '<input type="text" data-chex="' + (attr === 'bcolor' ? 'border' : 'bg') + '" placeholder="#RRGGBB" spellcheck="false" class="w-[74px] bg-slate-950 border border-slate-600 rounded px-1.5 py-1 text-[11px] font-mono text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-primary">'
-            + '</div>';
+        // Couleur façon Figma : ligne 1 = chip (sélecteur) + #hex + opacité (fond only) ;
+        // ligne 2 = palette de marque Ekwateur (chemin rapide charte, conservé).
+        const _colorRow = (attr, noneLabel) => {
+            const g = attr === 'bcolor' ? 'border' : 'bg';
+            const opac = (attr === 'bgcolor')
+                ? '<div class="flex items-center gap-1 shrink-0"><input type="number" min="0" max="100" data-copacity title="Opacité du fond (%)" class="w-12 h-7 bg-slate-950 border border-slate-600 rounded text-center text-[11px] text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"><span class="text-[10px] text-slate-500">%</span></div>'
+                : '';
+            return '<div class="space-y-1.5">'
+                + '<div class="flex items-center gap-1.5">'
+                + '<input type="color" data-cwheel="' + g + '" title="Choisir une couleur" class="w-8 h-7 p-0 rounded cursor-pointer bg-transparent border border-slate-500 shrink-0">'
+                + '<input type="text" data-chex="' + g + '" placeholder="#RRGGBB" spellcheck="false" class="flex-1 min-w-0 bg-slate-950 border border-slate-600 rounded px-2 py-1 text-[11px] font-mono text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-primary">'
+                + opac
+                + '</div>'
+                + '<div class="flex items-center gap-1 flex-wrap">'
+                + styleColors.map(([hex, name]) => '<button data-' + attr + '="' + hex + '" title="' + name + '" class="w-5 h-5 rounded-full border border-slate-500 hover:scale-110 transition" style="background:' + hex + '"></button>').join('')
+                + '<button data-' + attr + '="none" title="' + noneLabel + '" class="w-5 h-5 rounded-full border border-slate-500 text-slate-300 text-[10px] flex items-center justify-center hover:bg-slate-700">∅</button>'
+                + '</div>'
+                + '</div>';
+        };
         // Fragments de contrôles (réutilisés dans les sections)
-        const fEspacement = spSpacingGroup('margin', 'Marge') + _div + spSpacingGroup('padding', 'Padding');
-        const fBordure = spSpacingGroup('border', 'Épaisseur') + _div
+        const fEspacement = spSpacingGroup('margin', 'Marge', 'M') + _div + spSpacingGroup('padding', 'Padding', 'P');
+        const fBordure = spSpacingGroup('border', 'Épaisseur', '<i class="fa-solid fa-border-top-left"></i>') + _div
             + '<span class="text-[10px] text-slate-500 block mb-0.5">Couleur</span>' + _colorRow('bcolor', 'Sans bordure') + _div
             + '<div class="space-y-1"><span class="text-[11px] font-medium text-slate-300">Arrondi des coins</span>'
-            + '<div>' + spStepper('radius', 'all', '') + '<span class="ml-1 text-[10px] text-slate-500">px</span></div></div>';
+            + '<div>' + spStepper('radius', 'all', '<i class="fa-solid fa-border-top-left" title="Rayon"></i>') + '<span class="ml-1 text-[10px] text-slate-500">px</span></div></div>';
         const fFond = _colorRow('bgcolor', 'Sans fond');
         const fTexte = '<div class="mb-2"><span class="text-[11px] font-medium text-slate-300">Police</span>'
             + '<select data-fontfam class="w-full mt-1 bg-slate-950 border border-slate-600 rounded px-1.5 py-1 text-[11px] text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary">'
@@ -1150,22 +1196,25 @@
             + '</select></div>'
             + '<div><span class="text-[11px] font-medium text-slate-300">Taille de police</span>'
             + '<div>' + spStepper('font', 'all', '') + '<span class="ml-1 text-[10px] text-slate-500">px</span></div></div>';
-        const fTaille = '<div class="grid grid-cols-2 gap-1.5">' + spStepper('width', 'all', 'L') + spStepper('height', 'all', 'H') + '</div>'
-            + '<span class="text-[10px] text-slate-500">px · 0 = auto (idéal SVG/picto)</span>';
+        const fTaille = '<div class="grid grid-cols-2 gap-1.5">'
+            + spStepper('width', 'all', '<i class="fa-solid fa-arrows-left-right" title="Largeur"></i>')
+            + spStepper('height', 'all', '<i class="fa-solid fa-arrows-up-down" title="Hauteur"></i>') + '</div>'
+            + '<span class="text-[10px] text-slate-500">px · 0 = automatique</span>';
         const fCss = '<textarea id="css-editor" rows="4" spellcheck="false" placeholder="border: 2px solid #17E7D0;&#10;box-shadow: 0 8px 24px rgba(0,0,0,.35);&#10;background: linear-gradient(...);" '
             + 'class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-2 text-[11px] font-mono leading-relaxed text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-primary resize-y"></textarea>'
             + '<span class="text-[10px] text-slate-500 leading-snug block mt-1">Style inline de l\'élément — édite librement (ombre, dégradé…). Appliqué en direct, synchro avec les contrôles ci-dessus.</span>';
         const fJs = '<div id="js-texts" class="space-y-2"></div>';
         const _acc = accState();
         const _o = (id, def) => (id in _acc) ? !!_acc[id] : def;
+        // Ordre = du plus utilisé au plus avancé : Contenu → Style → Disposition → Avancé.
         styleBox.innerHTML =
-            accSection('espacement', 'fa-up-down-left-right', 'Espacement', fEspacement, _o('espacement', true))
-            + accSection('bordure', 'fa-border-top-left', 'Bordure & coins', fBordure, _o('bordure', true))
-            + accSection('fond', 'fa-fill-drip', 'Fond', fFond, _o('fond', false))
+            accSection('jscomp', 'fa-i-cursor', 'Texte affiché', fJs, _o('jscomp', false))
             + accSection('texte', 'fa-font', 'Texte', fTexte, _o('texte', false))
-            + accSection('taille', 'fa-ruler-combined', 'Taille', fTaille, _o('taille', false))
-            + accSection('css', 'fa-code', 'CSS avancé', fCss, _o('css', false))
-            + accSection('jscomp', 'fa-i-cursor', 'Textes dynamiques', fJs, _o('jscomp', false));
+            + accSection('fond', 'fa-fill-drip', 'Fond', fFond, _o('fond', false))
+            + accSection('bordure', 'fa-border-top-left', 'Bordure & coins', fBordure, _o('bordure', true))
+            + accSection('espacement', 'fa-up-down-left-right', 'Espacement', fEspacement, _o('espacement', true))
+            + accSection('taille', 'fa-ruler-combined', 'Dimensions', fTaille, _o('taille', false))
+            + accSection('css', 'fa-code', 'CSS avancé', fCss, _o('css', false));
         // Show/hide + ouverture contextuelle d'une section (sans écraser un choix explicite mémorisé)
         function setSectionVisible(id, vis) { const s = styleBox.querySelector('[data-acc="' + id + '"]'); if (s) s.classList.toggle('hidden', !vis); }
         function setSectionOpen(id, open) {
@@ -1197,12 +1246,14 @@
             if (!sel) return;
             ['margin', 'padding', 'border'].forEach(g => {
                 const linked = linkState[g];
-                styleBox.querySelector('[data-sp-linked="' + g + '"]').classList.toggle('hidden', !linked);
-                styleBox.querySelector('[data-sp-sides="' + g + '"]').classList.toggle('hidden', linked);
                 const lb = styleBox.querySelector('[data-sp-link="' + g + '"]');
-                lb.classList.toggle('text-primary', linked);
-                lb.classList.toggle('text-slate-400', !linked);
-                spSetInput(g, 'all', spRead(sel, g, 'top'));
+                if (lb) {
+                    lb.classList.toggle('text-primary', linked);
+                    lb.classList.toggle('text-slate-400', !linked);
+                    lb.title = linked ? '4 côtés liés — cliquer pour délier' : '4 côtés indépendants — cliquer pour lier';
+                    const li = lb.querySelector('i');
+                    if (li) li.className = 'fa-solid ' + (linked ? 'fa-link' : 'fa-link-slash');
+                }
                 ['top', 'right', 'bottom', 'left'].forEach(s => spSetInput(g, s, spRead(sel, g, s)));
             });
             spSetInput('radius', 'all', spRead(sel, 'radius', 'all'));
@@ -1308,10 +1359,11 @@
         }
         function renderTextPanel() {
             const box = document.getElementById('js-texts'); if (!box) return;
-            if (!editSnapshot) { box.innerHTML = ''; return; }
-            if (!editSnapshot.src.trim()) { box.innerHTML = '<div class="text-[11px] text-slate-500 italic">Aucun texte dynamique ici.</div>'; return; }
-            const groups = editSnapshot.textGroups;
-            if (!groups.length) { box.innerHTML = '<div class="text-[11px] text-slate-500 italic">Aucun texte éditable détecté.</div>'; return; }
+            // La section « Texte affiché » n'a de sens que pour une slice à textes pilotés
+            // par JS → masquée sinon (évite un bloc « Aucun texte » en tête de panneau).
+            const groups = (editSnapshot && editSnapshot.src.trim()) ? editSnapshot.textGroups : [];
+            setSectionVisible('jscomp', groups.length > 0);
+            if (!groups.length) { box.innerHTML = ''; return; }
             box.innerHTML = groups.map((g, i) =>
                 '<div><input data-jstext="' + i + '" value="' + escAttr(g.value) + '" '
                 + 'class="w-full bg-slate-950 border border-slate-600 rounded px-2 py-1.5 text-[11px] text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary">'
@@ -1388,6 +1440,16 @@
                     const g = e.target.dataset.chex;
                     (g === 'border' ? spSetBorderColor : spSetBgColor)(v);
                 }
+                return;
+            }
+            // Opacité du fond (%) → canal alpha rgba, en gardant la couleur RGB courante.
+            if (e.target.matches('[data-copacity]') && sel) {
+                let p = parseFloat(e.target.value); if (isNaN(p)) return;
+                p = Math.max(0, Math.min(100, p));
+                const m = getComputedStyle(sel).backgroundColor.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+                const rgb = m ? (m[1] + ',' + m[2] + ',' + m[3]) : '0,0,0';
+                sel.style.backgroundColor = 'rgba(' + rgb + ',' + (p / 100) + ')';
+                spSync();
                 return;
             }
             const i = e.target.closest('input[data-sp-in]'); if (!i || !sel) return;
@@ -1768,6 +1830,21 @@
             if (b) b.classList.toggle('hidden', !open);
             if (chev) chev.classList.toggle('-rotate-90', !open);
         }
+        // Pictogrammes de l'éditeur (remplacer / insérer) — repliable, fermé par défaut.
+        function toggleEditorPictos() {
+            const b = document.getElementById('editor-picto-body'); if (!b) return;
+            const chev = document.querySelector('[data-epicto-chev]');
+            const open = b.classList.contains('hidden'); // clic = va ouvrir
+            b.classList.toggle('hidden', !open);
+            if (chev) chev.classList.toggle('-rotate-90', !open);
+            try { localStorage.setItem('ekwa_editor_pictos_open', open ? '1' : '0'); } catch (_) { }
+        }
+        function initEditorPictosAccordion() {
+            let open = false; try { open = localStorage.getItem('ekwa_editor_pictos_open') === '1'; } catch (_) { }
+            const b = document.getElementById('editor-picto-body'); const chev = document.querySelector('[data-epicto-chev]');
+            if (b) b.classList.toggle('hidden', !open);
+            if (chev) chev.classList.toggle('-rotate-90', !open);
+        }
 
         async function loadLibrary() {
             if (window.api && window.api.libraryList) { try { LIB = await window.api.libraryList() || []; } catch (_) { LIB = []; } }
@@ -1844,12 +1921,14 @@
         // ===== ONGLETS Local / Partagée =====
         let currentLibTab = 'local';
         let SHARED = [];   // catalogue cloud (live, NON persisté — c'est le cloud la source)
+        const CLOUD_LIB = false;   // biblio partagée EN STANDBY → masque tout l'UI cloud (publier/partagée)
         function setLibTab(t) {
+            if (t === 'shared' && !CLOUD_LIB) t = 'local';   // cloud en standby → jamais l'onglet partagé
             currentLibTab = t;
             const loc = document.getElementById('tab-local'), sh = document.getElementById('tab-shared');
             const on = 'bg-secondary text-ink-deep', off = 'text-slate-400 hover:text-slate-200';
             loc.className = 'px-2.5 py-1 rounded-md transition ' + (t === 'local' ? on : off);
-            sh.className = 'px-2.5 py-1 rounded-md transition flex items-center gap-1 ' + (t === 'shared' ? on : off);
+            sh.className = (CLOUD_LIB ? '' : 'hidden ') + 'px-2.5 py-1 rounded-md transition flex items-center gap-1 ' + (t === 'shared' ? on : off);
             const rl = document.getElementById('shared-reload');
             rl.classList.toggle('hidden', t !== 'shared'); rl.classList.toggle('flex', t === 'shared');
             renderCompGrid();
@@ -1877,10 +1956,10 @@
                 const card = document.createElement('div');
                 card.title = 'Insérer : ' + item.name;
                 libCardShell(card, item.html, item.name);
-                const cloudTag = linked ? '<div class="absolute top-1 left-1 w-4 h-4 rounded bg-secondary/90 text-ink-deep text-[9px] font-bold flex items-center justify-center" title="Publié en ligne"><i class="fa-solid fa-cloud"></i></div>' : '';
-                const actBtn = linked
+                const cloudTag = (CLOUD_LIB && linked) ? '<div class="absolute top-1 left-1 w-4 h-4 rounded bg-secondary/90 text-ink-deep text-[9px] font-bold flex items-center justify-center" title="Publié en ligne"><i class="fa-solid fa-cloud"></i></div>' : '';
+                const actBtn = !CLOUD_LIB ? '' : (linked
                     ? '<button data-upd title="Mettre à jour la version en ligne" class="absolute top-1 right-7 w-5 h-5 rounded bg-black/60 text-secondary opacity-0 group-hover:opacity-100 transition text-[10px] flex items-center justify-center"><i class="fa-solid fa-rotate"></i></button>'
-                    : '<button data-pub title="Publier en ligne" class="absolute top-1 right-7 w-5 h-5 rounded bg-black/60 text-secondary opacity-0 group-hover:opacity-100 transition text-[10px] flex items-center justify-center"><i class="fa-solid fa-cloud-arrow-up"></i></button>';
+                    : '<button data-pub title="Publier en ligne" class="absolute top-1 right-7 w-5 h-5 rounded bg-black/60 text-secondary opacity-0 group-hover:opacity-100 transition text-[10px] flex items-center justify-center"><i class="fa-solid fa-cloud-arrow-up"></i></button>');
                 card.insertAdjacentHTML('beforeend', cloudTag + actBtn
                     + '<button data-del title="Retirer du local" class="absolute top-1 right-1 w-5 h-5 rounded bg-black/60 text-red-300 opacity-0 group-hover:opacity-100 transition text-[10px] flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>');
                 card.addEventListener('click', (e) => {
@@ -2954,6 +3033,43 @@
             return { field: 'html_only', html: clone.innerHTML.trim(), css, js };
         }
 
+        // --- Réglages Prismic : édition des 2 tokens (lecture + écriture) après coup ---
+        const PS_KEY = { read: 'prismicToken', write: 'prismicWriteToken' };
+        function psRenderRow(kind) {
+            const has = !!(APP_SETTINGS && APP_SETTINGS[PS_KEY[kind]]);
+            const wrap = document.getElementById('ps-' + kind + '-wrap');
+            const saved = document.getElementById('ps-' + kind + '-saved');
+            const inp = document.getElementById('ps-' + kind + '-input');
+            if (inp) inp.value = '';
+            if (wrap) wrap.classList.toggle('hidden', has);      // input caché si déjà enregistré
+            if (saved) { saved.classList.toggle('hidden', !has); saved.classList.toggle('flex', has); }
+        }
+        function openPrismicSettings() {
+            document.getElementById('prismicSettingsModal').classList.remove('hidden');
+            psRenderRow('read'); psRenderRow('write');
+        }
+        function closePrismicSettings() { document.getElementById('prismicSettingsModal').classList.add('hidden'); }
+        function editPsToken(kind) {
+            const wrap = document.getElementById('ps-' + kind + '-wrap');
+            const saved = document.getElementById('ps-' + kind + '-saved');
+            if (wrap) wrap.classList.remove('hidden');
+            if (saved) { saved.classList.add('hidden'); saved.classList.remove('flex'); }
+            const inp = document.getElementById('ps-' + kind + '-input'); if (inp) inp.focus();
+        }
+        async function savePsToken(kind) {
+            const inp = document.getElementById('ps-' + kind + '-input');
+            const v = (inp && inp.value || '').trim();
+            if (!v) { toast('Colle un token.'); return; }
+            APP_SETTINGS[PS_KEY[kind]] = v;
+            if (window.api && window.api.settingsSet) { try { await window.api.settingsSet({ [PS_KEY[kind]]: v }); } catch (_) { } }
+            toast('Token enregistré ✓'); psRenderRow(kind);
+        }
+        async function clearPsToken(kind) {
+            APP_SETTINGS[PS_KEY[kind]] = '';
+            if (window.api && window.api.settingsSet) { try { await window.api.settingsSet({ [PS_KEY[kind]]: '' }); } catch (_) { } }
+            toast('Token effacé'); psRenderRow(kind);
+        }
+
         // Repousse les modifications du canvas vers le document Prismic importé (round-trip).
         // Token d'ÉCRITURE Prismic (Migration API) — saisi dans l'app, stocké en local (userData), jamais partagé.
         async function ensurePrismicWriteToken() {
@@ -3267,6 +3383,7 @@
             startHistory();
             loadLibrary();
             initPictosAccordion();
+            initEditorPictosAccordion();
             checkForUpdate();
         });
     </script>
@@ -3296,6 +3413,58 @@
                     class="px-4 py-2 text-sm text-slate-300 hover:text-white">Annuler</button>
                 <button id="prismic-import-go" onclick="doPrismicImport(this)"
                     class="px-4 py-2 text-sm bg-[#d97757] hover:brightness-110 rounded-lg text-white font-semibold">Importer</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Réglages Prismic : gère les 2 tokens (lecture / écriture) — enregistré · Modifier · Effacer -->
+    <div id="prismicSettingsModal"
+        class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-6">
+        <div class="bg-slate-800 rounded-2xl p-6 w-full max-w-lg space-y-5">
+            <h2 class="text-white font-bold text-lg">Token Prismic</h2>
+            <div class="space-y-1.5">
+                <span class="text-[12px] font-semibold text-slate-200">Token de lecture <span
+                        class="text-slate-500 font-normal">— import de slices</span></span>
+                <div id="ps-read-wrap" class="flex gap-2">
+                    <input id="ps-read-input" type="password" autocomplete="off" spellcheck="false"
+                        placeholder="colle le token de lecture…"
+                        class="flex-1 min-w-0 bg-slate-950 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-primary">
+                    <button onclick="savePsToken('read')"
+                        class="px-3 py-2 text-sm bg-primary hover:brightness-110 rounded-lg text-white font-semibold shrink-0">Enregistrer</button>
+                </div>
+                <div id="ps-read-saved" class="hidden items-center gap-2 text-[12px] text-slate-400">
+                    <i class="fa-solid fa-circle-check text-emerald-500"></i>
+                    <span class="flex-1">Token de lecture enregistré</span>
+                    <button type="button" onclick="editPsToken('read')"
+                        class="text-primary hover:underline">Modifier</button>
+                    <button type="button" onclick="clearPsToken('read')"
+                        class="text-red-400 hover:underline">Effacer</button>
+                </div>
+            </div>
+
+            <div class="space-y-1.5">
+                <span class="text-[12px] font-semibold text-slate-200">Token d'écriture <span
+                        class="text-slate-500 font-normal">— mise à jour de slices</span></span>
+                <div id="ps-write-wrap" class="flex gap-2">
+                    <input id="ps-write-input" type="password" autocomplete="off" spellcheck="false"
+                        placeholder="colle le token d'écriture…"
+                        class="flex-1 min-w-0 bg-slate-950 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-primary">
+                    <button onclick="savePsToken('write')"
+                        class="px-3 py-2 text-sm bg-primary hover:brightness-110 rounded-lg text-white font-semibold shrink-0">Enregistrer</button>
+                </div>
+                <div id="ps-write-saved" class="hidden items-center gap-2 text-[12px] text-slate-400">
+                    <i class="fa-solid fa-circle-check text-emerald-500"></i>
+                    <span class="flex-1">Token d'écriture enregistré</span>
+                    <button type="button" onclick="editPsToken('write')"
+                        class="text-primary hover:underline">Modifier</button>
+                    <button type="button" onclick="clearPsToken('write')"
+                        class="text-red-400 hover:underline">Effacer</button>
+                </div>
+            </div>
+
+            <div class="flex justify-end">
+                <button onclick="closePrismicSettings()"
+                    class="px-4 py-2 text-sm bg-slate-700 hover:bg-slate-600 rounded-lg text-slate-200 font-semibold">Fermer</button>
             </div>
         </div>
     </div>
