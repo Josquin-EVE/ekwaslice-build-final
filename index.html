@@ -401,7 +401,7 @@
                     <button data-estate="active" type="button" class="est-btn px-2.5 py-1 rounded-md text-[11px] transition">Actif</button>
                 </div>
                 <div id="editor-state-hint" class="hidden px-4 pt-1 text-[10px] text-slate-500"></div>
-                <div id="editor-style" class="px-4 flex flex-col overflow-hidden flex-1 min-h-0"></div>
+                <div id="editor-style" class="px-4 overflow-y-auto flex-1 min-h-0"></div>
                 <!-- Pictos accessibles pendant la sélection (remplacer / insérer) — repliable -->
                 <div class="border-t border-slate-700 shrink-0">
                     <button type="button" onclick="toggleEditorPictos()"
@@ -1184,15 +1184,20 @@
         const ACC_LS = 'ekwa_acc';
         function accState() { try { return JSON.parse(localStorage.getItem(ACC_LS)) || {}; } catch (_) { return {}; } }
         function accSave(s) { try { localStorage.setItem(ACC_LS, JSON.stringify(s)); } catch (_) { } }
-        function accSection(id, icon, title, body, open) {
-            return '<div class="acc border-b border-slate-700/70 flex flex-col min-h-0' + (open ? ' flex-1' : '') + '" data-acc="' + id + '">'
-                + '<button type="button" data-acc-head="' + id + '" class="w-full flex items-center gap-2 py-2 text-left text-[12px] font-semibold text-slate-300 hover:text-slate-100 shrink-0">'
+        // Ligne compacte repliable (multi-ouvrable). Garde les hooks data-acc* existants.
+        function row(id, icon, title, body, open) {
+            return '<div class="ekw-row border-b border-slate-700/70" data-acc="' + id + '">'
+                + '<button type="button" data-acc-head="' + id + '" class="w-full flex items-center gap-2 py-2.5 text-left text-[12px] font-medium text-slate-300 hover:text-slate-100">'
                 + '<i class="fa-solid ' + icon + ' text-slate-500 w-4 text-center text-[11px]"></i>'
                 + '<span class="flex-1">' + title + '</span>'
                 + '<i class="fa-solid fa-chevron-down text-[10px] text-slate-500 transition-transform ' + (open ? '' : '-rotate-90') + '" data-acc-chev></i>'
                 + '</button>'
-                + '<div data-acc-body class="pb-3 space-y-2.5 min-h-0 ' + (open ? 'flex-1 overflow-y-auto' : 'hidden') + '">' + body + '</div>'
+                + '<div data-acc-body class="pb-3 space-y-2.5 ' + (open ? '' : 'hidden') + '">' + body + '</div>'
                 + '</div>';
+        }
+        // En-tête de groupe (non cliquable, casse normale — pas d'uppercase)
+        function groupHeader(title) {
+            return '<div class="pt-3 pb-1 text-[10px] font-semibold tracking-wide text-slate-500">' + title + '</div>';
         }
         const _div = '<div class="h-px bg-slate-700/70"></div>';
         // Couleur façon Figma : ligne 1 = chip (sélecteur) + #hex + opacité (fond only) ;
@@ -1236,38 +1241,45 @@
             + 'class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-2 text-[11px] font-mono leading-relaxed text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-secondary resize-y"></textarea>'
             + '<span class="text-[10px] text-slate-500 leading-snug block mt-1">Style inline de l\'élément — édite librement (ombre, dégradé…). Appliqué en direct, synchro avec les contrôles ci-dessus.</span>';
         const fJs = '<div id="js-texts" class="space-y-2"></div>';
-        const _acc = accState();
-        const _openId0 = _acc.open || 'texte';   // mode focus : UNE seule section ouverte
-        const _o = (id) => id === _openId0;
-        // Ordre = du plus utilisé au plus avancé : Contenu → Style → Disposition → Avancé.
+        // Groupes + lignes compactes (multi-ouvrables). L'ouverture réelle est
+        // restaurée par applyRowState() / applyContextualSections().
         styleBox.innerHTML =
-            accSection('jscomp', 'fa-i-cursor', 'Texte affiché', fJs, _o('jscomp'))
-            + accSection('texte', 'fa-font', 'Texte', fTexte, _o('texte'))
-            + accSection('fond', 'fa-fill-drip', 'Fond', fFond, _o('fond'))
-            + accSection('bordure', 'fa-border-top-left', 'Bordure & coins', fBordure, _o('bordure'))
-            + accSection('espacement', 'fa-up-down-left-right', 'Espacement', fEspacement, _o('espacement'))
-            + accSection('taille', 'fa-ruler-combined', 'Dimensions', fTaille, _o('taille'))
-            + accSection('css', 'fa-code', 'CSS avancé', fCss, _o('css'));
+            row('jscomp', 'fa-i-cursor', 'Contenu', fJs, false)
+            + groupHeader('Apparence')
+            + row('texte', 'fa-font', 'Texte', fTexte, false)
+            + row('fond', 'fa-fill-drip', 'Fond', fFond, false)
+            + row('bordure', 'fa-border-top-left', 'Bordure & coins', fBordure, false)
+            + groupHeader('Mise en page')
+            + row('taille', 'fa-ruler-combined', 'Dimensions', fTaille, false)
+            + row('espacement', 'fa-up-down-left-right', 'Espacement', fEspacement, false)
+            + groupHeader('Avancé')
+            + row('css', 'fa-code', 'CSS avancé', fCss, false);
         function setSectionVisible(id, vis) { const s = styleBox.querySelector('[data-acc="' + id + '"]'); if (s) s.classList.toggle('hidden', !vis); }
         // Mode focus : ouvre UNE section (qui prend toute la hauteur), replie les autres.
         // Si la cible est masquée, bascule sur la 1re section visible.
-        function openOnly(id) {
-            const secs = [...styleBox.querySelectorAll('[data-acc]')];
-            let target = styleBox.querySelector('[data-acc="' + id + '"]');
-            if (!target || target.classList.contains('hidden')) {
-                target = secs.find(s => !s.classList.contains('hidden'));
-                id = target ? target.getAttribute('data-acc') : id;
-            }
-            secs.forEach(s => {
-                const open = s.getAttribute('data-acc') === id;
-                s.classList.toggle('flex-1', open);
-                const body = s.querySelector('[data-acc-body]');
-                body.classList.toggle('hidden', !open);
-                body.classList.toggle('flex-1', open);
-                body.classList.toggle('overflow-y-auto', open);
-                s.querySelector('[data-acc-chev]').classList.toggle('-rotate-90', !open);
+        // Ouverture des lignes : multi-ouvrable, mémorisée par id dans localStorage.
+        function rowOpenState() { const s = accState(); return (s && s.rows) || {}; }
+        function rowSaveOpen(id, open) { const s = accState(); s.rows = s.rows || {}; s.rows[id] = open; accSave(s); }
+        function setRowOpen(id, open) {
+            const sec = styleBox.querySelector('[data-acc="' + id + '"]'); if (!sec) return;
+            const body = sec.querySelector('[data-acc-body]');
+            const chev = sec.querySelector('[data-acc-chev]');
+            body.classList.toggle('hidden', !open);
+            if (chev) chev.classList.toggle('-rotate-90', !open);
+        }
+        function toggleRow(id) {
+            const sec = styleBox.querySelector('[data-acc="' + id + '"]'); if (!sec) return;
+            const body = sec.querySelector('[data-acc-body]');
+            const open = body.classList.contains('hidden'); // état cible = ouvert si actuellement masqué
+            setRowOpen(id, open);
+            rowSaveOpen(id, open);
+        }
+        function applyRowState() {
+            const st = rowOpenState();
+            styleBox.querySelectorAll('[data-acc]').forEach(sec => {
+                const id = sec.getAttribute('data-acc');
+                setRowOpen(id, !!st[id]);
             });
-            const st = accState(); st.open = id; accSave(st);
         }
         function applyContextualSections() {
             if (!sel) return;
@@ -1278,9 +1290,13 @@
             const imgish = ['img', 'svg', 'i'].includes(tag) || (sel.hasAttribute && sel.hasAttribute('data-picto'));
             const isContainer = sel.children.length > 0 && !showTexte;
             setSectionVisible('texte', showTexte); // taille police hors-sujet si pas de texte
-            // Ouvre la section la plus pertinente pour l'élément (mode focus).
-            const pref = showTexte ? 'texte' : (imgish ? 'taille' : (isContainer ? 'fond' : (accState().open || 'fond')));
-            openOnly(pref);
+            void isContainer;
+            // Restaure l'ouverture mémorisée ; si aucune préférence encore, ouvre une ligne pertinente.
+            if (!Object.keys(rowOpenState()).length) {
+                const pref = showTexte ? 'texte' : (imgish ? 'taille' : 'fond');
+                rowSaveOpen(pref, true);
+            }
+            applyRowState();
         }
 
         function spSetInput(g, s, v) {
@@ -1426,7 +1442,7 @@
         styleBox.addEventListener('mousedown', (e) => { if (e.target.closest('button')) e.preventDefault(); });
         styleBox.addEventListener('click', (e) => {
             const head = e.target.closest('[data-acc-head]');
-            if (head) { openOnly(head.dataset.accHead); return; }
+            if (head) { toggleRow(head.dataset.accHead); return; }
             const link = e.target.closest('[data-sp-link]');
             if (link && sel) {
                 const g = link.dataset.spLink;
