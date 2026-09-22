@@ -1120,7 +1120,11 @@
             val = Math.max(0, val | 0);
             if (group === 'font') { el.style.fontSize = val ? val + 'px' : ''; return; }
             if (group === 'radius') { el.style.borderRadius = val + 'px'; return; }
-            if (group === 'width' || group === 'height') { el.style[group] = val ? val + (dimUnit[group] || 'px') : ''; return; }
+            if (['width', 'height', 'minWidth', 'maxWidth', 'minHeight', 'maxHeight'].includes(group)) {
+                const unit = (group === 'width' || group === 'height') ? (dimUnit[group] || 'px') : 'px';
+                el.style[group] = val ? val + unit : '';
+                return;
+            }
             if (group === 'border') {
                 const S = spCap(side);
                 el.style['border' + S + 'Width'] = val + 'px';
@@ -1285,12 +1289,37 @@
             + '<option value="&#39;Carnero&#39;, Georgia, serif">Carnero</option>'
             + '</select></div>'
             + '<div><span class="text-[11px] font-medium text-slate-300">Taille de police</span>'
-            + '<div>' + spStepper('font', 'all', '') + '<span class="ml-1 text-[10px] text-slate-500">px</span></div></div>';
+            + '<div>' + spStepper('font', 'all', '') + '<span class="ml-1 text-[10px] text-slate-500">px</span></div></div>'
+            + '<div class="mt-2"><span class="text-[11px] font-medium text-slate-300">Alignement</span>'
+            + '<div class="flex gap-1 mt-1">'
+            + [['left', 'fa-align-left', 'Gauche'], ['center', 'fa-align-center', 'Centre'], ['right', 'fa-align-right', 'Droite'], ['justify', 'fa-align-justify', 'Justifié']].map(a => '<button data-styleset="textAlign:' + a[0] + '" title="' + a[2] + '" class="flex-1 h-7 rounded bg-slate-950 border border-slate-600 text-slate-300 hover:border-slate-500 text-xs"><i class="fa-solid ' + a[1] + '"></i></button>').join('')
+            + '</div></div>';
         const _dimUnitSel = (g) => '<select data-dimunit="' + g + '" title="Unité" class="h-6 bg-slate-900 border border-slate-700 rounded text-[10px] text-slate-100 px-1 focus:outline-none focus:ring-1 focus:ring-secondary"><option value="px">px</option><option value="%">%</option></select>';
         const fTaille = '<div class="space-y-1.5">'
             + '<div class="flex items-center gap-1">' + spStepper('width', 'all', '<i class="fa-solid fa-arrows-left-right" title="Largeur"></i>') + _dimUnitSel('width') + '</div>'
             + '<div class="flex items-center gap-1">' + spStepper('height', 'all', '<i class="fa-solid fa-arrows-up-down" title="Hauteur"></i>') + _dimUnitSel('height') + '</div>'
+            + '<div class="grid grid-cols-2 gap-x-2 gap-y-1 pt-1.5 mt-1 border-t border-slate-700/50">'
+            + '<div class="flex items-center gap-1"><span class="w-9 text-[10px] text-slate-500 shrink-0">min L</span>' + spStepper('minWidth', 'all', '') + '</div>'
+            + '<div class="flex items-center gap-1"><span class="w-9 text-[10px] text-slate-500 shrink-0">max L</span>' + spStepper('maxWidth', 'all', '') + '</div>'
+            + '<div class="flex items-center gap-1"><span class="w-9 text-[10px] text-slate-500 shrink-0">min H</span>' + spStepper('minHeight', 'all', '') + '</div>'
+            + '<div class="flex items-center gap-1"><span class="w-9 text-[10px] text-slate-500 shrink-0">max H</span>' + spStepper('maxHeight', 'all', '') + '</div>'
             + '</div>'
+            + '</div>';
+        const fOmbre = '<select data-stylesel="boxShadow" class="w-full bg-slate-950 border border-slate-600 rounded px-1.5 py-1 text-[11px] text-slate-100 focus:outline-none focus:ring-1 focus:ring-secondary">'
+            + '<option value="">Aucune</option>'
+            + '<option value="0 1px 3px rgba(0,0,0,.12)">Douce</option>'
+            + '<option value="0 4px 12px rgba(0,0,0,.15)">Moyenne</option>'
+            + '<option value="0 12px 32px rgba(0,0,0,.25)">Forte</option>'
+            + '</select>';
+        const _cssSel = (prop, opts) => '<select data-stylesel="' + prop + '" class="w-full bg-slate-950 border border-slate-600 rounded px-1.5 py-1 text-[11px] text-slate-100 focus:outline-none focus:ring-1 focus:ring-secondary">' + opts.map(o => '<option value="' + o[0] + '">' + o[1] + '</option>').join('') + '</select>';
+        const fDispo = '<div class="space-y-1.5">'
+            + '<div><span class="text-[11px] font-medium text-slate-300">Affichage</span>' + _cssSel('display', [['', 'Bloc'], ['flex', 'Flex'], ['inline-block', 'En ligne'], ['grid', 'Grille']]) + '</div>'
+            + '<div data-flexsub class="space-y-1.5 hidden">'
+            + '<div><span class="text-[11px] font-medium text-slate-300">Direction</span>' + _cssSel('flexDirection', [['row', 'Ligne'], ['column', 'Colonne']]) + '</div>'
+            + '<div><span class="text-[11px] font-medium text-slate-300">Justifier</span>' + _cssSel('justifyContent', [['flex-start', 'Début'], ['center', 'Centre'], ['flex-end', 'Fin'], ['space-between', 'Espacé']]) + '</div>'
+            + '<div><span class="text-[11px] font-medium text-slate-300">Aligner</span>' + _cssSel('alignItems', [['stretch', 'Étiré'], ['flex-start', 'Début'], ['center', 'Centre'], ['flex-end', 'Fin']]) + '</div>'
+            + '<div><span class="text-[11px] font-medium text-slate-300">Espace (gap)</span><div>' + spStepper('gap', 'all', '') + '<span class="ml-1 text-[10px] text-slate-500">px</span></div></div>'
+            + '</div></div>';
         const fCss = '<textarea id="css-editor" rows="4" spellcheck="false" placeholder="border: 2px solid #17E7D0;&#10;box-shadow: 0 8px 24px rgba(0,0,0,.35);&#10;background: linear-gradient(...);" '
             + 'class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-2 text-[11px] font-mono leading-relaxed text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-secondary resize-y"></textarea>'
             + '<span class="text-[10px] text-slate-500 leading-snug block mt-1">Style inline de l\'élément — édite librement (ombre, dégradé…). Appliqué en direct, synchro avec les contrôles ci-dessus.</span>';
@@ -1302,7 +1331,9 @@
             + row('texte', 'fa-font', 'Texte', fTexte, false)
             + row('fond', 'fa-fill-drip', 'Couleur de fond', fFond, false)
             + row('bordure', 'fa-border-top-left', 'Bordure & coins', fBordure, false)
+            + row('ombre', 'fa-clone', 'Ombre', fOmbre, false)
             + groupHeader('Mise en page')
+            + row('dispo', 'fa-table-cells', 'Disposition', fDispo, false)
             + row('taille', 'fa-ruler-combined', 'Dimensions', fTaille, false)
             + row('espacement', 'fa-up-down-left-right', 'Marge & Padding', fEspacement, false)
             + groupHeader('Avancé')
@@ -1391,6 +1422,12 @@
             spSetInput('width', 'all', spRead(sel, 'width', 'all'));
             spSetInput('height', 'all', spRead(sel, 'height', 'all'));
             ['width', 'height'].forEach(g => { const u = styleBox.querySelector('[data-dimunit="' + g + '"]'); if (u && document.activeElement !== u) u.value = dimUnit[g] || 'px'; });
+            ['minWidth', 'maxWidth', 'minHeight', 'maxHeight', 'gap'].forEach(g => spSetInput(g, 'all', spRead(sel, g, 'all')));
+            // Sélecteurs de style génériques (ombre, disposition, flex)
+            styleBox.querySelectorAll('[data-stylesel]').forEach(s2 => { if (document.activeElement !== s2) s2.value = sel.style[s2.dataset.stylesel] || ''; });
+            { const fx = styleBox.querySelector('[data-flexsub]'); if (fx) { const d = sel.style.display; fx.classList.toggle('hidden', !(d === 'flex' || d === 'inline-flex' || d === 'grid' || d === 'inline-grid')); } }
+            // Boutons d'alignement actifs
+            styleBox.querySelectorAll('[data-styleset]').forEach(btn => { const p = btn.dataset.styleset.split(':'); const on = sel.style[p[0]] === p[1]; btn.classList.toggle('border-secondary', on); btn.classList.toggle('text-secondary', on); btn.classList.toggle('text-slate-300', !on); });
             spSyncColorPickers();
             cssEditorSync();
             jsEditorSync();
@@ -1523,6 +1560,8 @@
             }
             const co = e.target.closest('[data-coloropen]');
             if (co && sel) { const g = co.dataset.coloropen; openColorPopover(co, (hex) => (g === 'border' ? spSetBorderColor : spSetBgColor)(hex)); return; }
+            const ss = e.target.closest('[data-styleset]');
+            if (ss && sel) { const p = ss.dataset.styleset.split(':'); sel.style[p[0]] = (sel.style[p[0]] === p[1] ? '' : p[1]); spSync(); return; }
         });
         styleBox.addEventListener('input', (e) => {
             // Zone CSS libre : le texte EST le style inline de l'élément
@@ -1547,6 +1586,12 @@
                 const cur = spRead(sel, g, 'all');
                 dimUnit[g] = e.target.value === '%' ? '%' : 'px';
                 spApply(g, 'all', cur);
+                spSync();
+                return;
+            }
+            // Sélecteurs de style génériques (ombre, disposition, flex)
+            if (e.target.matches('[data-stylesel]') && sel) {
+                sel.style[e.target.dataset.stylesel] = e.target.value || '';
                 spSync();
                 return;
             }
