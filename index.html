@@ -288,10 +288,12 @@
     <!-- Écran de garde : connexion au compte Claude -->
     <div id="gate" class="fixed inset-0 z-[100] bg-slate-900 flex items-center justify-center p-6">
         <div class="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-md p-8 text-center shadow-2xl">
-            <div
-                class="w-14 h-14 mx-auto rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-400 mb-5">
+            <div id="gate-iconwrap"
+                class="hidden w-14 h-14 mx-auto rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-400 mb-5">
                 <i id="gate-icon" class="fa-solid fa-spinner fa-spin text-2xl"></i>
             </div>
+            <img id="gate-gif" src="assets/loading.gif" alt="Chargement"
+                class="w-20 h-20 mx-auto object-contain rounded-2xl mb-5">
             <h2 id="gate-title" class="text-lg font-bold text-white mb-2">Vérification de la connexion…</h2>
             <p id="gate-msg" class="text-sm text-slate-400 mb-5">Contrôle de votre compte Claude.</p>
             <div id="gate-cmd"
@@ -302,6 +304,13 @@
                 Réessayer
             </button>
         </div>
+    </div>
+
+    <!-- Overlay de chargement (opérations async : Prismic…) -->
+    <div id="ekw-loading" class="hidden fixed inset-0 z-[200] flex-col items-center justify-center gap-4"
+        style="background:rgba(15,26,28,.82)">
+        <img src="assets/loading.gif" alt="Chargement" class="w-28 h-28 object-contain">
+        <p id="ekw-loading-msg" class="text-sm font-medium text-white"></p>
     </div>
 
     <!-- Header -->
@@ -3320,9 +3329,11 @@
             const o = btn ? btn.innerHTML : '';
             if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1.5"></i>Envoi…'; }
             toast('Envoi vers Prismic…');
+            showLoading('Envoi vers Prismic…');
             let r;
             try { r = await window.api.pushPrismic({ title: name, html: lastExport.html, css: lastExport.css, js: lastExport.js, author: authorName() }); }
             catch (e) { r = { error: e.message }; }
+            hideLoading();
             if (btn) { btn.disabled = false; btn.innerHTML = o; }
             if (!r || r.error || !r.ok) { toast('Échec envoi : ' + ((r && (r.error || r.raw)) || 'inconnu')); return; }
             toast('Envoyé vers Prismic ✓ — à publier dans le dashboard (ta release « EkwaSlice — ' + (authorName() || '?') + ' »)');
@@ -3421,17 +3432,34 @@
             const t = extractVerbatimForExport(el);
             const o = btn ? btn.innerHTML : '';
             if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1.5"></i>MàJ…'; }
+            showLoading('Mise à jour Prismic…');
             let r; try {
                 r = await window.api.updatePrismic({ documentId: el.getAttribute('data-remote-id'), uid: el.getAttribute('data-remote-uid') || '', field: t.field, html: t.html, css: t.css, js: t.js });
             } catch (e) { r = { error: e.message }; }
+            hideLoading();
             if (btn) { btn.disabled = false; btn.innerHTML = o; }
             if (r && r.error === 'NO_WRITE_TOKEN') { APP_SETTINGS.prismicWriteToken = ''; toast('Token d\'écriture manquant — reclique pour le saisir.'); return; }
             if (!r || r.error || !r.ok) { toast('Échec MàJ : ' + ((r && (r.error || r.raw)) || 'inconnu')); return; }
             toast('Maj envoyée ✓ — à revoir/publier dans l\'onglet « Migration Releases » de Prismic');
         }
 
+        // --- Overlay de chargement (gif) pour les opérations async ---
+        function showLoading(msg) {
+            const o = document.getElementById('ekw-loading'), m = document.getElementById('ekw-loading-msg');
+            if (m) m.textContent = msg || '';
+            if (o) { o.classList.remove('hidden'); o.classList.add('flex'); }
+        }
+        function hideLoading() {
+            const o = document.getElementById('ekw-loading');
+            if (o) { o.classList.add('hidden'); o.classList.remove('flex'); }
+        }
+
         // --- Écran de garde : connexion Claude ---
         function setGate({ icon, iconClass, title, msg, cmd, btn }) {
+            const loading = /fa-spinner/.test(icon || ''); // état "chargement" → gif ; sinon icône d'état
+            const iw = document.getElementById('gate-iconwrap'), gg = document.getElementById('gate-gif');
+            if (iw) iw.classList.toggle('hidden', loading);
+            if (gg) gg.classList.toggle('hidden', !loading);
             document.getElementById('gate-icon').className = 'fa-solid ' + icon + ' text-2xl ' + (iconClass || '');
             document.getElementById('gate-title').textContent = title;
             document.getElementById('gate-msg').textContent = msg;
