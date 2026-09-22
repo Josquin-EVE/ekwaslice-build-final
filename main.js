@@ -55,6 +55,8 @@ COULEURS (classes Tailwind disponibles) :
 TYPOGRAPHIE :
 - Titres : classe font-display (Carnero, serif), toujours font-bold.
 - Corps de texte : classe font-body (Gothic A1, sans-serif).
+- JAMAIS de texte tout en majuscules : n'utilise PAS la classe uppercase ni text-transform.
+  Écris les libellés en casse normale (première lettre capitale au besoin).
 
 BOUTONS (toujours en PILULE rounded-tag, avec transition + hover) :
 - CTA PRIMAIRE (action principale) : fond bg-cta (#74F1E3), texte text-night (#101c1e), font-semibold.
@@ -617,79 +619,34 @@ ipcMain.handle('push-prismic', async (event, payload) => {
   const js = (payload && payload.js) || '';
   if (!title) return { error: 'Titre manquant.' };
   if (!html && !css && !js) return { error: 'Composant vide.' };
-
-  const bin = resolveClaudeBin();
-  // Release PAR UTILISATEUR (isolation : publier sa release ne publie pas celle des autres,
-  // et pas de collision de label entre users). Fallback "EkwaSlice" si pas de nom.
-  const author = ((payload && payload.author) || '').trim();
-  const releaseLabel = author ? ('EkwaSlice — ' + author) : 'EkwaSlice';
-  // Cache du releaseId par auteur : évite le list_releases/create_release à chaque envoi.
-  const relKey = author || '__default__';
-  const settings = readSettings();
-  const relCache = settings.prismicReleases || {};
-  const cachedRel = relCache[relKey];
-
-  const steps = ['Objectif : créer UN document dans Prismic via le MCP Prismic (repository "ekwateur-edito").',
-    'Les outils MCP Prismic sont déférés : charge-les avec ToolSearch si nécessaire.',
-    'Étapes STRICTES :'];
-  if (cachedRel) {
-    // Chemin rapide : release connue → un seul appel create_document.
-    steps.push('1. Utilise DIRECTEMENT releaseId = ' + JSON.stringify(cachedRel) + ' (ne fais PAS list_releases).');
-    steps.push('   Repli SEULEMENT si create_document échoue car cette release est introuvable/invalide :');
-    steps.push('   alors list_releases, trouve/crée la release de label ' + JSON.stringify(releaseLabel) + ', et recommence.');
-  } else {
-    steps.push('1. list_releases sur "ekwateur-edito" ; trouve la release dont le label est EXACTEMENT ' + JSON.stringify(releaseLabel) + '.');
-    steps.push('   Si aucune, crée-la avec create_release (label ' + JSON.stringify(releaseLabel) + ').');
-  }
-  steps.push('2. create_document : repository "ekwateur-edito", customTypeId "custom_slice", locale "fr-fr",',
-    '   releaseId = cette release, title = ' + JSON.stringify(title) + ', content =',
-    '   { "html_only": {"__TYPE__":"FieldContent","type":"Text","value": <HTML>},',
-    '     "css": {"__TYPE__":"FieldContent","type":"Text","value": <CSS>},',
-    '     "js": {"__TYPE__":"FieldContent","type":"Text","value": <JS>} }',
-    '   où <HTML>/<CSS>/<JS> sont EXACTEMENT les blocs délimités ci-dessous (ne les modifie pas).',
-    '3. NE PUBLIE JAMAIS (pas de publish_release).',
-    'Termine par UNE SEULE ligne JSON et rien d\'autre : {"documentId":"...","releaseId":"...","ok":true}',
-    '',
-    '===HTML_ONLY_START===', html, '===HTML_ONLY_END===',
-    '===CSS_START===', css, '===CSS_END===',
-    '===JS_START===', js, '===JS_END===');
-  const prompt = steps.join('\n');
-
-  const args = ['-p', prompt,
-    '--allowedTools', 'ToolSearch',
-    'mcp__claude_ai_Prismic',
-    'mcp__claude_ai_Prismic__list_releases',
-    'mcp__claude_ai_Prismic__create_release',
-    'mcp__claude_ai_Prismic__create_document',
-    '--model', 'claude-haiku-4-5', '--output-format', 'json'];
-
-  return new Promise((resolve) => {
-    let child;
-    try { child = spawn(bin, args, { cwd: os.tmpdir() }); }
-    catch (e) { return resolve({ error: 'Impossible de lancer claude : ' + e.message }); }
-    let out = '', err = '';
-    const timer = setTimeout(() => { child.kill(); resolve({ error: 'Délai dépassé (180 s).' }); }, 180000);
-    child.stdout.on('data', d => { out += d.toString(); });
-    child.stderr.on('data', d => { err += d.toString(); });
-    child.on('error', (e) => { clearTimeout(timer); resolve({ error: 'CLI claude introuvable : ' + e.message }); });
-    child.on('close', (code) => {
-      clearTimeout(timer);
-      if (code !== 0) return resolve({ error: err.trim() || ('claude a quitté (code ' + code + ')') });
-      let result = '';
-      try { result = JSON.parse(out).result || ''; } catch (_) { return resolve({ error: 'Parsing réponse impossible.' }); }
-      let info = null;
-      const m = result.match(/\{[^{}]*"documentId"[^{}]*\}/);
-      if (m) { try { info = JSON.parse(m[0]); } catch (_) { } }
-      if (info && info.documentId) {
-        // Mémorise le releaseId pour accélérer les prochains envois de cet auteur.
-        if (info.releaseId && info.releaseId !== cachedRel) {
-          try { const s = readSettings(); s.prismicReleases = s.prismicReleases || {}; s.prismicReleases[relKey] = info.releaseId; writeSettings(s); } catch (_) { }
-        }
-        return resolve({ ok: true, documentId: info.documentId, releaseId: info.releaseId || null });
-      }
-      return resolve({ ok: false, error: 'Réponse inattendue de Claude', raw: result.slice(0, 300) });
+  const token = (readSettings().prismicWriteToken || '').trim();
+  if (!token) return { error: 'NO_WRITE_TOKEN' }; // le renderer demandera le token puis réessaiera
+  // Création DIRECTE via Migration API (zéro LLM → quasi-instantané). Le document
+  // atterrit comme BROUILLON dans la Migration Release (onglet « Migration Releases »),
+  // jamais publié. Forme validée (HTTP 201) : title + type + lang + data (valeurs plates).
+  const body = {
+    title: title,
+    type: 'custom_slice',
+    lang: 'fr-fr',
+    data: { html_only: html, css: css, js: js, html: '' }
+  };
+  try {
+    const res = await fetch('https://migration.prismic.io/documents/', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + token,
+        'repository': 'ekwateur-edito',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(body)
     });
-  });
+    const txt = await res.text();
+    if (res.status === 401 || res.status === 403) return { error: 'Token d\'écriture refusé (' + res.status + ') — vérifie-le dans les réglages.' };
+    if (!res.ok) return { error: 'Migration API: HTTP ' + res.status + ' — ' + txt.slice(0, 300) };
+    let id = '';
+    try { const j = JSON.parse(txt); id = j.id || (j.document && j.document.id) || ''; } catch (_) { }
+    return { ok: true, documentId: id, releaseId: null };
+  } catch (e) { return { error: 'Migration API: ' + e.message }; }
 });
 
 // ---------------------------------------------------------------------------

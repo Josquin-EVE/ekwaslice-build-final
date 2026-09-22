@@ -3314,6 +3314,8 @@
         async function quickPushPrismic(btn) {
             if (!window.api || !window.api.pushPrismic) { toast("Dispo seulement dans l'app"); return; }
             if (canvas.querySelectorAll(':scope > [data-comp]').length === 0) { toast('Canvas vide — rien à envoyer'); return; }
+            const tok = await ensurePrismicWriteToken(); // envoi direct via Migration API → token requis
+            if (!tok) { toast('Token d\'écriture requis pour l\'envoi.'); return; }
             exportPlain(); // renseigne lastExport
             return pushToPrismic(btn);
         }
@@ -3335,6 +3337,7 @@
             catch (e) { r = { error: e.message }; }
             hideLoading();
             if (btn) { btn.disabled = false; btn.innerHTML = o; }
+            if (r && r.error === 'NO_WRITE_TOKEN') { APP_SETTINGS.prismicWriteToken = ''; toast('Token d\'écriture manquant — reclique pour le saisir.'); return; }
             if (!r || r.error || !r.ok) { toast('Échec envoi : ' + ((r && (r.error || r.raw)) || 'inconnu')); return; }
             toast('Envoyé vers Prismic ✓');
             showExportDone(PRISMIC_BUILDER_URL);
