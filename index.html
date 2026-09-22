@@ -402,9 +402,9 @@
                     <div id="editor-crumbs"
                         class="flex items-center gap-0.5 text-[11px] overflow-x-auto whitespace-nowrap"></div>
                 </div>
-                <!-- Éditeur de texte, visuellement séparé (visible en édition de texte) -->
+                <!-- Éditeur de texte : bulle flottante ancrée au texte sélectionné (positionnée en JS) -->
                 <div id="editor-format"
-                    class="hidden mx-4 mt-3 p-2 rounded-xl bg-slate-900 border border-slate-700 flex-wrap items-center gap-1">
+                    class="hidden fixed z-[97] flex-wrap items-center gap-1 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl px-2 py-1.5">
                 </div>
                 <!-- Onglets d'états (UI ; hover/focus/active fonctionnels au Lot 4) -->
                 <div id="editor-states" class="px-4 pt-2.5 pb-1.5 flex items-center gap-1 border-b border-slate-700">
@@ -864,18 +864,18 @@
                 + '<i class="fa-solid ' + icon + '"></i></button>';
         }
         const EKW_COLORS = [
-            ['#17E7D0', 'Turquoise'], ['#FEDC5D', 'Or'], ['#FF931E', 'Orange'],
-            ['#F8FBFB', 'Blanc'], ['#009A59', 'Élec'], ['#2F80DE', 'Gaz']
+            ['#F8FBFB', 'Base'], ['#17E7D0', 'Turquoise'], ['#FFFFFF', 'Blanc'], ['#0F1A1C', 'Noir']
         ];
+        const EKW_HILITE = '#FFC969'; // surlignage (jaune app)
         const formatbar = document.getElementById('editor-format');
         formatbar.innerHTML =
-            '<span class="w-full text-[10px] font-medium text-slate-400 mb-1"><i class="fa-solid fa-font mr-1.5"></i>Éditeur de texte</span>'
-            + fmtBtn('bold', 'fa-bold', 'Gras') + fmtBtn('italic', 'fa-italic', 'Italique')
+            fmtBtn('bold', 'fa-bold', 'Gras') + fmtBtn('italic', 'fa-italic', 'Italique')
             + fmtBtn('underline', 'fa-underline', 'Souligné')
             + '<span class="w-px h-5 bg-slate-600 mx-0.5"></span>'
             + EKW_COLORS.map(([hex, name]) =>
                 '<button data-color="' + hex + '" title="' + name + '" class="w-5 h-5 rounded-full border border-slate-500 mx-0.5 hover:scale-110 transition" style="background:' + hex + '"></button>'
             ).join('')
+            + '<button data-hilite="' + EKW_HILITE + '" title="Surligner (jaune)" class="w-5 h-5 rounded mx-0.5 hover:scale-110 transition border border-slate-500 flex items-center justify-center" style="background:' + EKW_HILITE + '"><i class="fa-solid fa-highlighter text-[9px] text-ink-deep"></i></button>'
             + '<input type="color" data-fcolor-wheel title="Roue de couleur" class="w-6 h-6 p-0 rounded cursor-pointer bg-transparent border border-slate-500 mx-0.5 align-middle">'
             + '<input type="text" data-fcolor-hex placeholder="#RRGGBB" spellcheck="false" class="w-[70px] bg-slate-950 border border-slate-600 rounded px-1.5 py-1 text-[11px] font-mono text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-secondary">'
             + '<span class="w-px h-5 bg-slate-600 mx-0.5"></span>'
@@ -1019,6 +1019,12 @@
         formatbar.addEventListener('click', (e) => {
             const col = e.target.closest('[data-color]');
             if (col) { document.execCommand('foreColor', false, col.dataset.color); return; }
+            const hil = e.target.closest('[data-hilite]');
+            if (hil) {
+                document.execCommand('styleWithCSS', false, true);
+                if (!document.execCommand('hiliteColor', false, hil.dataset.hilite)) document.execCommand('backColor', false, hil.dataset.hilite);
+                return;
+            }
             const b = e.target.closest('[data-fmt]'); if (!b) return;
             const f = b.dataset.fmt;
             if (f === 'bold') document.execCommand('bold');
@@ -1875,6 +1881,30 @@
             } catch (_) { }
         }
 
+        // --- Bulle d'édition de texte : positionnée au-dessus de la sélection ---
+        function positionTextBubble() {
+            if (!editing) return;
+            formatbar.classList.remove('hidden'); formatbar.classList.add('flex');
+            const s = window.getSelection();
+            let r = null;
+            if (s && s.rangeCount) {
+                const rg = s.getRangeAt(0);
+                const rects = rg.getClientRects();
+                r = rects.length ? rects[0] : rg.getBoundingClientRect();
+            }
+            if (!r || (!r.width && !r.height)) r = sel ? sel.getBoundingClientRect() : null;
+            if (!r) return;
+            const bw = formatbar.offsetWidth || 300, bh = formatbar.offsetHeight || 42;
+            let top = r.top - bh - 8;
+            if (top < 8) top = r.bottom + 8; // pas de place au-dessus → sous la sélection
+            let left = r.left + r.width / 2 - bw / 2;
+            left = Math.min(window.innerWidth - bw - 8, Math.max(8, left));
+            formatbar.style.top = Math.max(8, top) + 'px';
+            formatbar.style.left = left + 'px';
+        }
+        document.addEventListener('selectionchange', () => { if (editing) requestAnimationFrame(positionTextBubble); });
+        window.addEventListener('resize', () => { if (editing) positionTextBubble(); });
+        { const _cs = document.getElementById('canvas-scroll'); if (_cs) _cs.addEventListener('scroll', () => { if (editing) positionTextBubble(); }, { passive: true }); }
         function startEditing() {
             if (!sel) return;
             editing = true;
@@ -1883,7 +1913,7 @@
             sel.focus();
             placeCaretEnd(sel);
             markEditBtn(true);
-            formatbar.classList.remove('hidden'); formatbar.classList.add('flex');
+            positionTextBubble(); // affiche + ancre la bulle au-dessus de la sélection
             positionMarquee(); // masqué pendant l'édition
         }
         function stopEditing() {
