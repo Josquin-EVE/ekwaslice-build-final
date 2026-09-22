@@ -1895,9 +1895,9 @@
             if (!r || (!r.width && !r.height)) r = sel ? sel.getBoundingClientRect() : null;
             if (!r) return;
             const bw = formatbar.offsetWidth || 300, bh = formatbar.offsetHeight || 42;
-            let top = r.top - bh - 8;
-            if (top < 8) top = r.bottom + 8; // pas de place au-dessus → sous la sélection
-            let left = r.left + r.width / 2 - bw / 2;
+            let top = r.top - bh - 14; // marge au-dessus du texte (ne colle pas)
+            if (top < 8) top = r.bottom + 12; // pas de place au-dessus → sous la sélection
+            let left = r.left; // aligne le début de la bulle au début du texte sélectionné
             left = Math.min(window.innerWidth - bw - 8, Math.max(8, left));
             formatbar.style.top = Math.max(8, top) + 'px';
             formatbar.style.left = left + 'px';
