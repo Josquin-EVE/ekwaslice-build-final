@@ -833,6 +833,7 @@
             el.querySelectorAll('[contenteditable]').forEach(n => n.removeAttribute('contenteditable'));
             el.removeAttribute('contenteditable');
             resolvePictos(el);
+            regenStateStyles(); // recrée les règles d'états si la slice porte des data-ekw-states
         }
 
         // Barre d'actions de l'élément — dockée dans le panneau gauche (position fixe)
@@ -1096,6 +1097,44 @@
         // Palette style « Figma » (comme la charte) : carrés arrondis + label dessous, par famille.
         const linkState = { margin: true, padding: true, border: true };
         const dimUnit = { width: 'px', height: 'px' }; // unité courante des dimensions (px / %)
+
+        // --- États hover/focus/active (Lot 4) : store data-ekw-states + <style> live (overlay/diff) ---
+        let _stateBaseline = null; // {css, map} du style normal capturé en entrant dans un état
+        let _suspendHistory = false; // suspend les snapshots pendant l'overlay d'un état
+        function _eidOf(el) { if (!el.getAttribute('data-eid')) el.setAttribute('data-eid', 'e' + Math.random().toString(36).slice(2, 8)); return el.getAttribute('data-eid'); }
+        function _getStates(el) { try { return JSON.parse(el.getAttribute('data-ekw-states') || '{}'); } catch (_) { return {}; } }
+        function _saveStates(el, st) {
+            const clean = {}; ['hover', 'focus', 'active'].forEach(k => { if (st[k] && Object.keys(st[k]).length) clean[k] = st[k]; });
+            if (Object.keys(clean).length) el.setAttribute('data-ekw-states', JSON.stringify(clean)); else el.removeAttribute('data-ekw-states');
+        }
+        function _styleMap(el) { const m = {}; for (let i = 0; i < el.style.length; i++) { const p = el.style[i]; m[p] = el.style.getPropertyValue(p); } return m; }
+        function regenStateStyles() {
+            let s = document.getElementById('ekw-live-states');
+            if (!s) { s = document.createElement('style'); s.id = 'ekw-live-states'; document.head.appendChild(s); }
+            let css = '';
+            canvas.querySelectorAll('[data-ekw-states]').forEach(node => {
+                const eid = node.getAttribute('data-eid'); if (!eid) return;
+                const st = _getStates(node);
+                ['hover', 'focus', 'active'].forEach(state => {
+                    const o = st[state]; if (!o || !Object.keys(o).length) return;
+                    const body = Object.keys(o).map(p => p + ':' + o[p] + ' !important').join(';');
+                    css += '#canvas [data-eid="' + eid + '"]:' + state + ',#canvas [data-eid="' + eid + '"].ekw-force-' + state + '{' + body + '}\n';
+                });
+            });
+            s.textContent = css;
+        }
+        function _commitStateEdits() {
+            if (!sel || editState === 'normal' || !_stateBaseline) return;
+            const cur = _styleMap(sel), base = _stateBaseline.map, diff = {};
+            Object.keys(cur).forEach(p => { if (cur[p] !== base[p]) diff[p] = cur[p]; });
+            const st = _getStates(sel);
+            if (Object.keys(diff).length) { _eidOf(sel); st[editState] = diff; } else { delete st[editState]; }
+            _saveStates(sel, st);
+            sel.style.cssText = _stateBaseline.css; // restaure le style normal
+            _stateBaseline = null;
+            _suspendHistory = false;
+            regenStateStyles();
+        }
 
         function spCap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
         function spProp(group, side) {
@@ -1794,7 +1833,10 @@
         // --- Onglets d'états (Lot 1 : UI ; l'édition réelle hover/focus/active arrive au Lot 4) ---
         let editState = 'normal';
         function setEditState(n) {
-            editState = n || 'normal';
+            n = n || 'normal';
+            if (sel && editState !== 'normal') _commitStateEdits(); // commit l'état courant avant de changer
+            if (sel) ['hover', 'focus', 'active'].forEach(s => sel.classList.remove('ekw-force-' + s));
+            editState = n;
             document.querySelectorAll('#editor-states [data-estate]').forEach(b => {
                 const on = b.dataset.estate === editState;
                 b.classList.toggle('bg-secondary', on);
@@ -1803,15 +1845,25 @@
                 b.classList.toggle('text-slate-400', !on);
                 b.classList.toggle('hover:bg-slate-700', !on);
             });
+            if (n !== 'normal' && sel) {
+                _stateBaseline = { css: sel.style.cssText, map: _styleMap(sel) };
+                const ov = _getStates(sel)[n] || {};
+                Object.keys(ov).forEach(p => sel.style.setProperty(p, ov[p])); // superpose l'état sur l'inline
+                sel.classList.add('ekw-force-' + n); // aperçu forcé
+            } else {
+                _stateBaseline = null;
+            }
+            _suspendHistory = (n !== 'normal'); // pas de snapshot pendant l'édition d'un état
             const hint = document.getElementById('editor-state-hint');
             if (hint) {
                 if (editState === 'normal') { hint.classList.add('hidden'); hint.textContent = ''; }
                 else {
                     const lbl = { hover: 'Survol', focus: 'Focus', active: 'Actif' }[editState] || editState;
-                    hint.textContent = 'Édition de l’état « ' + lbl + ' » — bientôt disponible.';
+                    hint.textContent = 'Vous éditez l’état « ' + lbl + ' » — aperçu forcé sur l’élément.';
                     hint.classList.remove('hidden');
                 }
             }
+            if (sel) spSync(); // reflète les valeurs de l'état dans les contrôles
         }
         { const es = document.getElementById('editor-states'); if (es) es.addEventListener('click', (e) => { const b = e.target.closest('[data-estate]'); if (b) setEditState(b.dataset.estate); }); }
         setEditState('normal');
@@ -1831,6 +1883,7 @@
             if (!el || el === canvas || !el.closest || !el.closest('[data-comp]') || el.closest('#empty-state')) { deselect(); return; }
             hideHover();
             if (editing) stopEditing();
+            if (sel && editState !== 'normal') setEditState('normal'); // commit l'état en cours sur l'ancien élément
             if (sel) sel.classList.remove('ekw-selected');
             sel = el;
             sel.classList.add('ekw-selected');
@@ -1848,6 +1901,7 @@
 
         function deselect() {
             if (editing) stopEditing();
+            if (sel && editState !== 'normal') setEditState('normal'); // commit l'état avant de désélectionner
             if (sel) sel.classList.remove('ekw-selected');
             sel = null;
             showLibrary();
@@ -3089,11 +3143,13 @@
         }
 
         function exportPlain() {
+            if (sel && editState !== 'normal') setEditState('normal'); // commit l'état en cours avant export
             const wrap = document.createElement('div');
             canvas.querySelectorAll(':scope > [data-comp]').forEach(el => wrap.appendChild(el.cloneNode(true)));
             // Nettoyage artefacts d'édition + pictos → URL Prismic
             wrap.querySelectorAll('button[onclick*="remove"], .drag-handle').forEach(e => e.remove());
             wrap.querySelectorAll('.ekw-selected, .ekw-editing').forEach(e => e.classList.remove('ekw-selected', 'ekw-editing'));
+            wrap.querySelectorAll('[class*="ekw-force-"]').forEach(e => { e.className = e.className.replace(/\bekw-force-\w+\b/g, '').replace(/\s+/g, ' ').trim(); if (!e.className) e.removeAttribute('class'); });
             wrap.querySelectorAll('[contenteditable]').forEach(e => e.removeAttribute('contenteditable'));
             wrap.querySelectorAll('img[data-picto-url]').forEach(img => img.setAttribute('src', img.getAttribute('data-picto-url')));
             wrap.querySelectorAll('*').forEach(e => ['data-picto', 'data-picto-url', 'data-picto-missing', 'data-comp', 'data-ekw-pending', 'draggable'].forEach(a => e.removeAttribute(a)));
@@ -3168,6 +3224,18 @@
             if (buckets.has('')) css += buckets.get('').join('\n') + '\n';
             [...buckets.keys()].filter(m => m).sort((a, b) => minW(a) - minW(b)).forEach(m => {
                 css += '@media ' + m + ' {\n' + buckets.get(m).map(l => '  ' + l).join('\n') + '\n}\n';
+            });
+
+            // États hover/focus/active → règles scopées (le data-eid est conservé pour le sélecteur)
+            wrap.querySelectorAll('[data-ekw-states]').forEach(node => {
+                let st = {}; try { st = JSON.parse(node.getAttribute('data-ekw-states') || '{}'); } catch (_) { }
+                const eid = node.getAttribute('data-eid');
+                if (eid) ['hover', 'focus', 'active'].forEach(state => {
+                    const o = st[state]; if (!o) return;
+                    const body = Object.keys(o).map(p => p + ':' + fixFonts(o[p])).join(';');
+                    if (body) css += '.' + uid + ' [data-eid="' + eid + '"]:' + state + ' { ' + body + ' }\n';
+                });
+                node.removeAttribute('data-ekw-states'); // data-ekw-states retiré du HTML (les règles sont en CSS)
             });
 
             const html = '<div class="' + uid + '">\n' + wrap.innerHTML.replace(/^/gm, '  ').trimEnd() + '\n</div>';
@@ -3583,9 +3651,11 @@
             c.querySelectorAll('.ekw-selected').forEach(e => e.classList.remove('ekw-selected'));
             c.querySelectorAll('.ekw-editing').forEach(e => e.classList.remove('ekw-editing'));
             c.querySelectorAll('[contenteditable]').forEach(e => e.removeAttribute('contenteditable'));
+            c.querySelectorAll('[class*="ekw-force-"]').forEach(e => { e.className = e.className.replace(/\bekw-force-\w+\b/g, '').replace(/\s+/g, ' ').trim(); });
             return c.innerHTML;
         }
         function pushHistory() {
+            if (_suspendHistory) return; // pas de snapshot pendant l'overlay d'un état
             const snap = snapClean();
             if (history[hIndex] === snap) return;
             history = history.slice(0, hIndex + 1);
@@ -3606,7 +3676,8 @@
             editing = false;
             formatbar.classList.add('hidden'); formatbar.classList.remove('flex');
             canvas.innerHTML = history[idx];
-            hIndex = idx; sel = null;
+            hIndex = idx; sel = null; editState = 'normal'; _stateBaseline = null; _suspendHistory = false;
+            regenStateStyles(); // recrée les règles d'états depuis les data-ekw-states restaurés
             showLibrary(); showActions(false); positionMarquee(); checkEmpty(); updateUndoButtons();
             setTimeout(() => histObs.observe(canvas, histConfig()), 0);
         }
