@@ -1028,46 +1028,23 @@
             else if (f === 'nbsp') document.execCommand('insertHTML', false, '&nbsp;');
             else if (f === 'link') { openLinkBubble(); }
         });
-        // --- Bibliothèque de couleurs (popover frosted façon picker emoji macOS) ---
-        // Cercles de couleur rangés dans l'ordre du spectre, recherche en haut.
-        function _hex2hsl(hex) {
-            let h = (hex || '').replace('#', ''); if (h.length === 3) h = h.split('').map(x => x + x).join('');
-            const r = parseInt(h.slice(0, 2), 16) / 255, g = parseInt(h.slice(2, 4), 16) / 255, b = parseInt(h.slice(4, 6), 16) / 255;
-            const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn; let hue = 0;
-            if (d) { if (mx === r) hue = ((g - b) / d) % 6; else if (mx === g) hue = (b - r) / d + 2; else hue = (r - g) / d + 4; hue *= 60; if (hue < 0) hue += 360; }
-            const l = (mx + mn) / 2; const s = d ? d / (1 - Math.abs(2 * l - 1)) : 0;
-            return { h: hue, s: s, l: l };
-        }
-        let _flatPal = null;
-        function flatPaletteSorted() {
-            if (_flatPal) return _flatPal;
-            const out = [];
-            FULL_PALETTE.forEach(fam => fam[1].forEach(c => { const k = _hex2hsl(c[0]); out.push({ hex: c[0], label: fam[0] + ' ' + c[1], h: k.h, s: k.s, l: k.l }); }));
-            out.sort((a, b) => {
-                const na = a.s < 0.12, nb = b.s < 0.12;      // neutres/gris (peu saturés) rangés à la fin
-                if (na !== nb) return na ? 1 : -1;
-                if (na && nb) return a.l - b.l;              // neutres par clarté
-                if (Math.abs(a.h - b.h) > 2) return a.h - b.h; // colorés par teinte (spectre)
-                return a.l - b.l;
-            });
-            _flatPal = out; return out;
-        }
-        function renderTextPaletteGrid(filter) {
-            const f = (filter || '').trim().toLowerCase();
-            const list = flatPaletteSorted().filter(o => !f || o.hex.toLowerCase().includes(f) || o.label.toLowerCase().includes(f));
-            if (!list.length) return '<div class="col-span-8 text-center text-[11px] text-slate-400 py-4">Aucune couleur</div>';
-            return list.map(o => '<button data-textcolor="' + o.hex + '" title="' + o.label + ' · ' + o.hex + '" class="w-7 h-7 rounded-full border border-black/10 hover:scale-110 hover:ring-2 hover:ring-black/25 transition" style="background:' + o.hex + '"></button>').join('');
+        // --- Bibliothèque de couleurs (popover frosted) : restyle de la biblio de base ---
+        // Cercles sans label, MÊME ordre que FULL_PALETTE, retour à la ligne par famille.
+        function renderTextPaletteGrid() {
+            return FULL_PALETTE.map(fam =>
+                '<div class="flex flex-wrap gap-1.5">'
+                + fam[1].map(c => '<button data-textcolor="' + c[0] + '" title="' + fam[0] + ' ' + c[1] + ' · ' + c[0] + '" class="w-7 h-7 rounded-full border border-black/10 hover:scale-110 hover:ring-2 hover:ring-black/25 transition" style="background:' + c[0] + '"></button>').join('')
+                + '</div>'
+            ).join('');
         }
         const textPalettePop = document.createElement('div');
         textPalettePop.id = 'ekw-textpalette';
         textPalettePop.className = 'fixed z-[98] hidden flex flex-col bg-white/80 backdrop-blur-xl border border-black/10 rounded-2xl shadow-2xl p-3 w-[300px] max-h-[360px]';
-        textPalettePop.innerHTML =
-            '<div class="shrink-0 mb-2"><input data-textpalsearch type="text" placeholder="Recherche" class="w-full bg-black/5 border border-black/10 rounded-lg px-3 py-1.5 text-[12px] text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-secondary"></div>'
-            + '<div data-textpalgrid class="grid grid-cols-8 gap-1.5 overflow-y-auto pr-1 flex-1"></div>';
+        textPalettePop.innerHTML = '<div data-textpalgrid class="space-y-1.5 overflow-y-auto pr-1 flex-1"></div>';
         document.body.appendChild(textPalettePop);
         const _textPalGrid = textPalettePop.querySelector('[data-textpalgrid]');
         function openTextPalette(btn) {
-            if (!textPalettePop.dataset.built) { _textPalGrid.innerHTML = renderTextPaletteGrid(''); textPalettePop.dataset.built = '1'; }
+            if (!textPalettePop.dataset.built) { _textPalGrid.innerHTML = renderTextPaletteGrid(); textPalettePop.dataset.built = '1'; }
             textPalettePop.classList.toggle('hidden');
             if (textPalettePop.classList.contains('hidden')) return;
             const r = btn.getBoundingClientRect();
@@ -1076,9 +1053,7 @@
             textPalettePop.style.left = left + 'px';
             textPalettePop.style.top = (r.bottom + 6) + 'px';
         }
-        // Laisse le focus au champ de recherche (INPUT) ; garde la sélection texte pour les autres cibles.
-        textPalettePop.addEventListener('mousedown', (e) => { if (e.target.tagName !== 'INPUT') e.preventDefault(); });
-        textPalettePop.addEventListener('input', (e) => { if (e.target.matches('[data-textpalsearch]')) _textPalGrid.innerHTML = renderTextPaletteGrid(e.target.value); });
+        textPalettePop.addEventListener('mousedown', (e) => { e.preventDefault(); }); // garde la sélection texte
         textPalettePop.addEventListener('click', (e) => {
             const t = e.target.closest('[data-textcolor]'); if (!t) return;
             applyTextColor(t.dataset.textcolor);
