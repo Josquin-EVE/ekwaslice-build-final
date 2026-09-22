@@ -179,9 +179,23 @@
         }
 
         /* Carnero partout dans l'app (chrome). */
-        body { font-family: 'Carnero', Georgia, serif; }
-        button, input, select, textarea { font-family: inherit; }
-        h1, h2, h3, .font-display { font-family: 'Carnero', Georgia, serif; }
+        body {
+            font-family: 'Carnero', Georgia, serif;
+        }
+
+        button,
+        input,
+        select,
+        textarea {
+            font-family: inherit;
+        }
+
+        h1,
+        h2,
+        h3,
+        .font-display {
+            font-family: 'Carnero', Georgia, serif;
+        }
 
         /* Élément sélectionné : le visuel est porté par le cadre marching-ants (#ekw-marquee),
            voir plus bas. Ici on garde juste le curseur. */
@@ -354,8 +368,7 @@
                     <button type="button" onclick="togglePictos()"
                         class="px-4 py-2.5 flex items-center gap-2 text-left hover:bg-slate-700/40 transition">
                         <i class="fa-solid fa-shapes text-slate-400 text-xs"></i>
-                        <span
-                            class="flex-1 font-semibold text-sm text-slate-300 tracking-wide">Pictogrammes</span>
+                        <span class="flex-1 font-semibold text-sm text-slate-300 tracking-wide">Pictogrammes</span>
                         <i data-picto-chev
                             class="fa-solid fa-chevron-down text-[10px] text-slate-500 transition-transform"></i>
                     </button>
@@ -395,10 +408,14 @@
                 </div>
                 <!-- Onglets d'états (UI ; hover/focus/active fonctionnels au Lot 4) -->
                 <div id="editor-states" class="px-4 pt-2.5 pb-1.5 flex items-center gap-1 border-b border-slate-700">
-                    <button data-estate="normal" type="button" class="est-btn px-2.5 py-1 rounded-md text-[11px] transition">Normal</button>
-                    <button data-estate="hover" type="button" class="est-btn px-2.5 py-1 rounded-md text-[11px] transition">Survol</button>
-                    <button data-estate="focus" type="button" class="est-btn px-2.5 py-1 rounded-md text-[11px] transition">Focus</button>
-                    <button data-estate="active" type="button" class="est-btn px-2.5 py-1 rounded-md text-[11px] transition">Actif</button>
+                    <button data-estate="normal" type="button"
+                        class="est-btn px-2.5 py-1 rounded-md text-[11px] transition">Normal</button>
+                    <button data-estate="hover" type="button"
+                        class="est-btn px-2.5 py-1 rounded-md text-[11px] transition">Survol</button>
+                    <button data-estate="focus" type="button"
+                        class="est-btn px-2.5 py-1 rounded-md text-[11px] transition">Focus</button>
+                    <button data-estate="active" type="button"
+                        class="est-btn px-2.5 py-1 rounded-md text-[11px] transition">Actif</button>
                 </div>
                 <div id="editor-state-hint" class="hidden px-4 pt-1 text-[10px] text-slate-500"></div>
                 <div id="editor-style" class="px-4 overflow-y-auto flex-1 min-h-0"></div>
@@ -1040,7 +1057,7 @@
         function paletteGroupsHTML(attr) {
             return FULL_PALETTE.map(fam =>
                 '<div class="mb-3">'
-                + '<div class="text-[11px] font-semibold mb-1.5" style="color:#fff">' + fam[0] + '</div>'
+                + '<div class="text-[11px] font-bold mb-1.5" style="color:#fff">' + fam[0] + '</div>'
                 + '<div class="grid grid-cols-5 gap-1.5">'
                 + fam[1].map(c =>
                     '<button data-' + attr + '="' + c[0] + '" title="' + fam[0] + ' ' + c[1] + ' · ' + c[0] + '" class="group flex flex-col items-center gap-0.5 rounded">'
@@ -1234,7 +1251,7 @@
                 + '<input type="text" data-chex="' + g + '" placeholder="#RRGGBB" spellcheck="false" class="flex-1 min-w-0 bg-slate-950 border border-slate-600 rounded px-2 py-1 text-[11px] font-mono text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-secondary">'
                 + opac
                 + '</div>'
-                + '<div class="rounded-lg p-2 text-white" style="background:#101c1e">'
+                + '<div class="rounded-lg p-2 text-white max-h-56 overflow-y-auto" style="background:#101c1e">'
                 + paletteGroupsHTML(attr)
                 + '</div>'
                 + '</div>';
@@ -1258,7 +1275,6 @@
             + '<div class="flex items-center gap-1">' + spStepper('width', 'all', '<i class="fa-solid fa-arrows-left-right" title="Largeur"></i>') + _dimUnitSel('width') + '</div>'
             + '<div class="flex items-center gap-1">' + spStepper('height', 'all', '<i class="fa-solid fa-arrows-up-down" title="Hauteur"></i>') + _dimUnitSel('height') + '</div>'
             + '</div>'
-            + '<span class="text-[10px] text-slate-500">0 = automatique</span>';
         const fCss = '<textarea id="css-editor" rows="4" spellcheck="false" placeholder="border: 2px solid #17E7D0;&#10;box-shadow: 0 8px 24px rgba(0,0,0,.35);&#10;background: linear-gradient(...);" '
             + 'class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-2 text-[11px] font-mono leading-relaxed text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-secondary resize-y"></textarea>'
             + '<span class="text-[10px] text-slate-500 leading-snug block mt-1">Style inline de l\'élément — édite librement (ombre, dégradé…). Appliqué en direct, synchro avec les contrôles ci-dessus.</span>';
@@ -1266,16 +1282,16 @@
         // Groupes + lignes compactes (multi-ouvrables). L'ouverture réelle est
         // restaurée par applyRowState() / applyContextualSections().
         styleBox.innerHTML =
-            row('jscomp', 'fa-i-cursor', 'Contenu', fJs, false)
-            + groupHeader('Apparence')
+            groupHeader('Apparence')
             + row('texte', 'fa-font', 'Texte', fTexte, false)
-            + row('fond', 'fa-fill-drip', 'Fond', fFond, false)
+            + row('fond', 'fa-fill-drip', 'Couleur de fond', fFond, false)
             + row('bordure', 'fa-border-top-left', 'Bordure & coins', fBordure, false)
             + groupHeader('Mise en page')
             + row('taille', 'fa-ruler-combined', 'Dimensions', fTaille, false)
-            + row('espacement', 'fa-up-down-left-right', 'Espacement', fEspacement, false)
+            + row('espacement', 'fa-up-down-left-right', 'Marge & Padding', fEspacement, false)
             + groupHeader('Avancé')
-            + row('css', 'fa-code', 'CSS avancé', fCss, false);
+            + row('css', 'fa-code', 'CSS avancé', fCss, false)
+            + row('jscomp', 'fa-i-cursor', 'Texte Javascript', fJs, false)
         function setSectionVisible(id, vis) { const s = styleBox.querySelector('[data-acc="' + id + '"]'); if (s) s.classList.toggle('hidden', !vis); }
         // Mode focus : ouvre UNE section (qui prend toute la hauteur), replie les autres.
         // Si la cible est masquée, bascule sur la 1re section visible.
