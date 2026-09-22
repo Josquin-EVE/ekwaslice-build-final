@@ -1053,11 +1053,11 @@
             textPalettePop.style.left = left + 'px';
             textPalettePop.style.top = (r.bottom + 6) + 'px';
         }
-        textPalettePop.addEventListener('mousedown', (e) => { e.preventDefault(); }); // garde la sélection texte
-        textPalettePop.addEventListener('click', (e) => {
-            const t = e.target.closest('[data-textcolor]'); if (!t) return;
-            document.execCommand('foreColor', false, t.dataset.textcolor); // sélection préservée par le preventDefault
-            textPalettePop.classList.add('hidden');
+        textPalettePop.addEventListener('mousedown', (e) => {
+            e.preventDefault();   // garde la sélection texte du canvas
+            e.stopPropagation();  // empêche le clic d'atteindre le canvas en dessous
+            const t = e.target.closest('[data-textcolor]');
+            if (t) { document.execCommand('foreColor', false, t.dataset.textcolor); textPalettePop.classList.add('hidden'); }
         });
         document.addEventListener('mousedown', (e) => {
             if (textPalettePop.classList.contains('hidden')) return;
