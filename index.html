@@ -307,10 +307,10 @@
     </div>
 
     <!-- Overlay de chargement (opérations async : Prismic…) -->
-    <div id="ekw-loading" class="hidden fixed inset-0 z-[200] flex-col items-center justify-center gap-4"
-        style="background:rgba(15,26,28,.82)">
-        <img src="assets/loading.gif" alt="Chargement" class="w-28 h-28 object-contain">
-        <p id="ekw-loading-msg" class="text-sm font-medium text-white"></p>
+    <div id="ekw-loading" class="hidden fixed inset-0 z-[200] flex-col items-center justify-center gap-3"
+        style="background:rgba(238,242,246,.6);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)">
+        <img src="assets/download.gif" alt="Chargement" class="w-32 h-32 object-contain">
+        <p id="ekw-loading-msg" class="font-display text-base font-bold text-[#132527]"></p>
     </div>
 
     <!-- Header -->
@@ -3329,7 +3329,7 @@
             const o = btn ? btn.innerHTML : '';
             if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1.5"></i>Envoi…'; }
             toast('Envoi vers Prismic…');
-            showLoading('Envoi vers Prismic…');
+            showLoading('Export en cours…');
             let r;
             try { r = await window.api.pushPrismic({ title: name, html: lastExport.html, css: lastExport.css, js: lastExport.js, author: authorName() }); }
             catch (e) { r = { error: e.message }; }
