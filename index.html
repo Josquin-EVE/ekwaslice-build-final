@@ -1052,6 +1052,7 @@
             ).join('');
         }
         const linkState = { margin: true, padding: true, border: true };
+        const dimUnit = { width: 'px', height: 'px' }; // unité courante des dimensions (px / %)
 
         function spCap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
         function spProp(group, side) {
@@ -1061,6 +1062,11 @@
             return group + (side === 'all' ? '' : spCap(side)); // margin / padding
         }
         function spRead(el, group, side) {
+            if (group === 'width' || group === 'height') {
+                const raw = (el.style[group] || '').trim();
+                if (raw) { const nn = parseFloat(raw); if (!isNaN(nn)) { dimUnit[group] = raw.endsWith('%') ? '%' : 'px'; return Math.round(nn); } }
+                const cc = parseFloat(getComputedStyle(el)[group]); return isNaN(cc) ? 0 : Math.round(cc);
+            }
             const p = spProp(group, side);
             const v = el.style[p];
             if (v && v.endsWith('px')) return Math.round(parseFloat(v)) || 0;
@@ -1071,7 +1077,7 @@
             val = Math.max(0, val | 0);
             if (group === 'font') { el.style.fontSize = val ? val + 'px' : ''; return; }
             if (group === 'radius') { el.style.borderRadius = val + 'px'; return; }
-            if (group === 'width' || group === 'height') { el.style[group] = val ? val + 'px' : ''; return; }
+            if (group === 'width' || group === 'height') { el.style[group] = val ? val + (dimUnit[group] || 'px') : ''; return; }
             if (group === 'border') {
                 const S = spCap(side);
                 el.style['border' + S + 'Width'] = val + 'px';
@@ -1247,10 +1253,12 @@
             + '</select></div>'
             + '<div><span class="text-[11px] font-medium text-slate-300">Taille de police</span>'
             + '<div>' + spStepper('font', 'all', '') + '<span class="ml-1 text-[10px] text-slate-500">px</span></div></div>';
-        const fTaille = '<div class="grid grid-cols-2 gap-1.5">'
-            + spStepper('width', 'all', '<i class="fa-solid fa-arrows-left-right" title="Largeur"></i>')
-            + spStepper('height', 'all', '<i class="fa-solid fa-arrows-up-down" title="Hauteur"></i>') + '</div>'
-            + '<span class="text-[10px] text-slate-500">px · 0 = automatique</span>';
+        const _dimUnitSel = (g) => '<select data-dimunit="' + g + '" title="Unité" class="h-6 bg-slate-900 border border-slate-700 rounded text-[10px] text-slate-100 px-1 focus:outline-none focus:ring-1 focus:ring-secondary"><option value="px">px</option><option value="%">%</option></select>';
+        const fTaille = '<div class="space-y-1.5">'
+            + '<div class="flex items-center gap-1">' + spStepper('width', 'all', '<i class="fa-solid fa-arrows-left-right" title="Largeur"></i>') + _dimUnitSel('width') + '</div>'
+            + '<div class="flex items-center gap-1">' + spStepper('height', 'all', '<i class="fa-solid fa-arrows-up-down" title="Hauteur"></i>') + _dimUnitSel('height') + '</div>'
+            + '</div>'
+            + '<span class="text-[10px] text-slate-500">0 = automatique</span>';
         const fCss = '<textarea id="css-editor" rows="4" spellcheck="false" placeholder="border: 2px solid #17E7D0;&#10;box-shadow: 0 8px 24px rgba(0,0,0,.35);&#10;background: linear-gradient(...);" '
             + 'class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-2 text-[11px] font-mono leading-relaxed text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-secondary resize-y"></textarea>'
             + '<span class="text-[10px] text-slate-500 leading-snug block mt-1">Style inline de l\'élément — édite librement (ombre, dégradé…). Appliqué en direct, synchro avec les contrôles ci-dessus.</span>';
@@ -1284,9 +1292,14 @@
         function toggleRow(id) {
             const sec = styleBox.querySelector('[data-acc="' + id + '"]'); if (!sec) return;
             const body = sec.querySelector('[data-acc-body]');
-            const open = body.classList.contains('hidden'); // état cible = ouvert si actuellement masqué
-            setRowOpen(id, open);
-            rowSaveOpen(id, open);
+            const willOpen = body.classList.contains('hidden'); // ouvre si actuellement masquée
+            // Single-open : ouvrir une ligne referme les autres.
+            styleBox.querySelectorAll('[data-acc]').forEach(s => {
+                const sid = s.getAttribute('data-acc');
+                const open = willOpen && sid === id;
+                setRowOpen(sid, open);
+                rowSaveOpen(sid, open);
+            });
         }
         function applyRowState() {
             const st = rowOpenState();
@@ -1345,6 +1358,7 @@
             }
             spSetInput('width', 'all', spRead(sel, 'width', 'all'));
             spSetInput('height', 'all', spRead(sel, 'height', 'all'));
+            ['width', 'height'].forEach(g => { const u = styleBox.querySelector('[data-dimunit="' + g + '"]'); if (u && document.activeElement !== u) u.value = dimUnit[g] || 'px'; });
             spSyncColorPickers();
             cssEditorSync();
             jsEditorSync();
@@ -1495,6 +1509,15 @@
             // Sélecteur de police (charte)
             if (e.target.matches('[data-fontfam]') && sel) {
                 sel.style.fontFamily = e.target.value || '';
+                return;
+            }
+            // Unité des dimensions (px / %) — réécrit la valeur courante avec la nouvelle unité
+            if (e.target.matches('[data-dimunit]') && sel) {
+                const g = e.target.dataset.dimunit;
+                const cur = spRead(sel, g, 'all');
+                dimUnit[g] = e.target.value === '%' ? '%' : 'px';
+                spApply(g, 'all', cur);
+                spSync();
                 return;
             }
             // Roue de couleur / hex (bordure & fond)
