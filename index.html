@@ -1056,7 +1056,7 @@
         textPalettePop.addEventListener('mousedown', (e) => { e.preventDefault(); }); // garde la sélection texte
         textPalettePop.addEventListener('click', (e) => {
             const t = e.target.closest('[data-textcolor]'); if (!t) return;
-            applyTextColor(t.dataset.textcolor);
+            document.execCommand('foreColor', false, t.dataset.textcolor); // sélection préservée par le preventDefault
             textPalettePop.classList.add('hidden');
         });
         document.addEventListener('mousedown', (e) => {
