@@ -1709,8 +1709,6 @@
         document.getElementById('editor-nav').addEventListener('click', (e) => {
             const crumb = e.target.closest('[data-crumb]');
             if (crumb) { const p = document.getElementById('editor-crumbs')._path; const el = p && p[+crumb.dataset.crumb]; if (el) selectElement(el); return; }
-            const nav = e.target.closest('[data-nav]');
-            if (nav) { const t = navTarget(nav.dataset.nav); if (t) selectElement(t); return; }
         });
         // Survol d'un crumb → surligne l'élément dans le canvas (réutilise l'overlay hover)
         document.getElementById('editor-nav').addEventListener('mouseover', (e) => {
