@@ -1090,6 +1090,15 @@
                 spWriteSide(sel, group, side, val);
             }
         }
+        // Active/désactive centre vs côtés selon le mode lié : lié → seul le centre éditable
+        // (applique aux 4 côtés) ; délié → 4 côtés éditables, centre grisé.
+        function spSetLinkedUI(group) {
+            const wrap = styleBox && styleBox.querySelector('[data-sp-group="' + group + '"]'); if (!wrap) return;
+            const linked = linkState[group];
+            const center = wrap.querySelector('[data-sp-center]');
+            if (center) center.disabled = !linked;
+            wrap.querySelectorAll('.sp-side').forEach(i => { i.disabled = linked; });
+        }
         function spSetBorderColor(c) {
             if (!sel) return;
             if (c === 'none') {
@@ -1161,8 +1170,13 @@
         // Espacement façon Figma : widget en CROIX (Haut/Droite/Bas/Gauche autour d'un
         // centre) + bouton chaîne pour lier les 4 côtés. Plomberie inchangée (data-sp-g/-s).
         function spSpacingGroup(group, title, center) {
-            const cell = (s, name) => '<input data-sp-in="1" data-sp-g="' + group + '" data-sp-s="' + s + '" type="number" min="0" title="' + name + '" class="w-full h-7 bg-slate-900 border border-slate-700 rounded text-center text-[11px] text-slate-100 focus:outline-none focus:ring-1 focus:ring-secondary">';
+            const cell = (s, name) => '<input data-sp-in="1" data-sp-g="' + group + '" data-sp-s="' + s + '" type="number" min="0" title="' + name + '" class="sp-side w-full h-7 bg-slate-900 border border-slate-700 rounded text-center text-[11px] text-slate-100 focus:outline-none focus:ring-1 focus:ring-secondary disabled:opacity-40 disabled:cursor-not-allowed">';
             const gap = '<span></span>';
+            // Centre éditable : actif en mode LIÉ (applique aux 4 côtés) ; désactivé en mode délié.
+            const centerCell = '<div class="relative">'
+                + '<input data-sp-in="1" data-sp-center data-sp-g="' + group + '" data-sp-s="all" type="number" min="0" title="' + title + ' — tous les côtés" class="sp-center w-full h-7 bg-slate-800 border border-slate-700 rounded text-center text-[11px] font-semibold text-slate-100 focus:outline-none focus:ring-1 focus:ring-secondary disabled:opacity-40 disabled:cursor-not-allowed">'
+                + '<span class="absolute left-1 top-0.5 text-[9px] font-semibold text-slate-500 pointer-events-none">' + center + '</span>'
+                + '</div>';
             return '<div class="space-y-1.5" data-sp-group="' + group + '">'
                 + '<div class="flex items-center justify-between">'
                 + '<span class="text-[11px] font-medium text-slate-300">' + title + '</span>'
@@ -1171,7 +1185,7 @@
                 + '<div class="grid grid-cols-3 gap-1 items-center max-w-[176px] mx-auto">'
                 + gap + cell('top', 'Haut') + gap
                 + cell('left', 'Gauche')
-                + '<span class="h-7 flex items-center justify-center text-[10px] font-semibold text-slate-500 bg-slate-800/60 rounded">' + center + '</span>'
+                + centerCell
                 + cell('right', 'Droite')
                 + gap + cell('bottom', 'Bas') + gap
                 + '</div>'
@@ -1316,6 +1330,8 @@
                     if (li) li.className = 'fa-solid ' + (linked ? 'fa-link' : 'fa-link-slash');
                 }
                 ['top', 'right', 'bottom', 'left'].forEach(s => spSetInput(g, s, spRead(sel, g, s)));
+                spSetInput(g, 'all', spRead(sel, g, 'top')); // centre = valeur représentative (côté haut)
+                spSetLinkedUI(g);
             });
             spSetInput('radius', 'all', spRead(sel, 'radius', 'all'));
             spSetInput('font', 'all', spRead(sel, 'font', 'all'));
