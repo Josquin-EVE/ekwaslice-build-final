@@ -864,9 +864,8 @@
                 + '<i class="fa-solid ' + icon + '"></i></button>';
         }
         const EKW_COLORS = [
-            ['#F8FBFB', 'Base'], ['#17E7D0', 'Turquoise'], ['#FFFFFF', 'Blanc'], ['#0F1A1C', 'Noir']
+            ['#F8FBFB', 'Base'], ['#17E7D0', 'Turquoise'], ['#FFFFFF', 'Blanc'], ['#0F1A1C', 'Noir'], ['#FFC969', 'Jaune']
         ];
-        const EKW_HILITE = '#FFC969'; // surlignage (jaune app)
         const formatbar = document.getElementById('editor-format');
         formatbar.innerHTML =
             fmtBtn('bold', 'fa-bold', 'Gras') + fmtBtn('italic', 'fa-italic', 'Italique')
@@ -875,7 +874,7 @@
             + EKW_COLORS.map(([hex, name]) =>
                 '<button data-color="' + hex + '" title="' + name + '" class="w-5 h-5 rounded-full border border-slate-500 mx-0.5 hover:scale-110 transition" style="background:' + hex + '"></button>'
             ).join('')
-            + '<button data-hilite="' + EKW_HILITE + '" title="Surligner (jaune)" class="w-5 h-5 rounded mx-0.5 hover:scale-110 transition border border-slate-500 flex items-center justify-center" style="background:' + EKW_HILITE + '"><i class="fa-solid fa-highlighter text-[9px] text-ink-deep"></i></button>'
+            + '<button data-textpalette title="Bibliothèque de couleurs" class="w-5 h-5 rounded-full mx-0.5 border border-slate-500 hover:scale-110 transition" style="background:conic-gradient(#17E7D0,#FFC969,#FF931E,#e5484d,#2F80DE,#009A59,#17E7D0)"></button>'
             + '<input type="color" data-fcolor-wheel title="Roue de couleur" class="w-6 h-6 p-0 rounded cursor-pointer bg-transparent border border-slate-500 mx-0.5 align-middle">'
             + '<input type="text" data-fcolor-hex placeholder="#RRGGBB" spellcheck="false" class="w-[70px] bg-slate-950 border border-slate-600 rounded px-1.5 py-1 text-[11px] font-mono text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-secondary">'
             + '<span class="w-px h-5 bg-slate-600 mx-0.5"></span>'
@@ -1019,12 +1018,8 @@
         formatbar.addEventListener('click', (e) => {
             const col = e.target.closest('[data-color]');
             if (col) { document.execCommand('foreColor', false, col.dataset.color); return; }
-            const hil = e.target.closest('[data-hilite]');
-            if (hil) {
-                document.execCommand('styleWithCSS', false, true);
-                if (!document.execCommand('hiliteColor', false, hil.dataset.hilite)) document.execCommand('backColor', false, hil.dataset.hilite);
-                return;
-            }
+            const tp = e.target.closest('[data-textpalette]');
+            if (tp) { openTextPalette(tp); return; }
             const b = e.target.closest('[data-fmt]'); if (!b) return;
             const f = b.dataset.fmt;
             if (f === 'bold') document.execCommand('bold');
@@ -1032,6 +1027,32 @@
             else if (f === 'underline') document.execCommand('underline');
             else if (f === 'nbsp') document.execCommand('insertHTML', false, '&nbsp;');
             else if (f === 'link') { openLinkBubble(); }
+        });
+        // --- Bibliothèque de couleurs (popover clair) pour la couleur du texte ---
+        const textPalettePop = document.createElement('div');
+        textPalettePop.id = 'ekw-textpalette';
+        textPalettePop.className = 'fixed z-[98] hidden bg-white border border-slate-300 rounded-xl shadow-2xl p-3 w-72 max-h-80 overflow-y-auto';
+        document.body.appendChild(textPalettePop);
+        function openTextPalette(btn) {
+            if (!textPalettePop.dataset.built) { textPalettePop.innerHTML = paletteGroupsHTML('textcolor', true); textPalettePop.dataset.built = '1'; }
+            textPalettePop.classList.toggle('hidden');
+            if (textPalettePop.classList.contains('hidden')) return;
+            const r = btn.getBoundingClientRect();
+            const pw = textPalettePop.offsetWidth || 288;
+            const left = Math.min(window.innerWidth - pw - 8, Math.max(8, r.left));
+            textPalettePop.style.left = left + 'px';
+            textPalettePop.style.top = (r.bottom + 6) + 'px';
+        }
+        textPalettePop.addEventListener('mousedown', (e) => { e.preventDefault(); }); // garde la sélection texte
+        textPalettePop.addEventListener('click', (e) => {
+            const t = e.target.closest('[data-textcolor]'); if (!t) return;
+            applyTextColor(t.dataset.textcolor);
+            textPalettePop.classList.add('hidden');
+        });
+        document.addEventListener('mousedown', (e) => {
+            if (textPalettePop.classList.contains('hidden')) return;
+            if (e.target.closest('#ekw-textpalette') || e.target.closest('[data-textpalette]')) return;
+            textPalettePop.classList.add('hidden');
         });
 
         // --- Contrôles de style (marge / padding / bordure / arrondi / police) ---
@@ -1060,15 +1081,19 @@
             ['Info', [['#82DCEF', '300'], ['#026D9B', '600'], ['#004A74', '900']]],
         ];
         // Palette style « Figma » (comme la charte) : carrés arrondis + label dessous, par famille.
-        function paletteGroupsHTML(attr) {
+        function paletteGroupsHTML(attr, light) {
+            const famCol = light ? '#0f172a' : '#fff';
+            const shadeCol = light ? 'rgba(15,23,42,.6)' : 'rgba(255,255,255,.75)';
+            const tileBorder = light ? 'border-black/10' : 'border-white/15';
+            const tileRing = light ? 'group-hover:ring-black/30' : 'group-hover:ring-white/60';
             return FULL_PALETTE.map(fam =>
                 '<div class="mb-3">'
-                + '<div class="text-[11px] font-bold mb-1.5" style="color:#fff">' + fam[0] + '</div>'
+                + '<div class="text-[11px] font-bold mb-1.5" style="color:' + famCol + '">' + fam[0] + '</div>'
                 + '<div class="grid grid-cols-5 gap-1.5">'
                 + fam[1].map(c =>
                     '<button data-' + attr + '="' + c[0] + '" title="' + fam[0] + ' ' + c[1] + ' · ' + c[0] + '" class="group flex flex-col items-center gap-0.5 rounded">'
-                    + '<span class="w-full aspect-square rounded-lg border border-white/15 group-hover:ring-2 group-hover:ring-white/60 transition" style="background:' + c[0] + '"></span>'
-                    + '<span class="text-[9px] leading-tight" style="color:rgba(255,255,255,.75)">' + c[1] + '</span>'
+                    + '<span class="w-full aspect-square rounded-lg border ' + tileBorder + ' group-hover:ring-2 ' + tileRing + ' transition" style="background:' + c[0] + '"></span>'
+                    + '<span class="text-[9px] leading-tight" style="color:' + shadeCol + '">' + c[1] + '</span>'
                     + '</button>'
                 ).join('')
                 + '</div></div>'
@@ -1924,6 +1949,7 @@
             }
             markEditBtn(false);
             formatbar.classList.add('hidden'); formatbar.classList.remove('flex');
+            { const tp = document.getElementById('ekw-textpalette'); if (tp) tp.classList.add('hidden'); }
             positionMarquee();
         }
         function markEditBtn(on) {
