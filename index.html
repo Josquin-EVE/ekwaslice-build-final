@@ -1019,7 +1019,7 @@
             const col = e.target.closest('[data-color]');
             if (col) { document.execCommand('foreColor', false, col.dataset.color); return; }
             const tp = e.target.closest('[data-textpalette]');
-            if (tp) { openTextPalette(tp); return; }
+            if (tp) { openColorPopover(tp, (hex) => document.execCommand('foreColor', false, hex)); return; }
             const b = e.target.closest('[data-fmt]'); if (!b) return;
             const f = b.dataset.fmt;
             if (f === 'bold') document.execCommand('bold');
@@ -1028,41 +1028,44 @@
             else if (f === 'nbsp') document.execCommand('insertHTML', false, '&nbsp;');
             else if (f === 'link') { openLinkBubble(); }
         });
-        // --- Bibliothèque de couleurs (popover frosted) : restyle de la biblio de base ---
-        // Cercles sans label, MÊME ordre que FULL_PALETTE, retour à la ligne par famille.
-        function renderTextPaletteGrid() {
+        // --- Popover de couleurs RÉUTILISABLE (frosted, cercles, ordre biblio de base) ---
+        // Sert au texte (foreColor) et aux champs couleur de l'inspecteur (fond/bordure).
+        function renderColorCircles() {
             return FULL_PALETTE.map(fam =>
                 '<div class="flex flex-wrap gap-1.5">'
-                + fam[1].map(c => '<button data-textcolor="' + c[0] + '" title="' + fam[0] + ' ' + c[1] + ' · ' + c[0] + '" class="w-7 h-7 rounded-full border border-black/10 hover:scale-110 hover:ring-2 hover:ring-black/25 transition" style="background:' + c[0] + '"></button>').join('')
+                + fam[1].map(c => '<button data-colorpick="' + c[0] + '" title="' + fam[0] + ' ' + c[1] + ' · ' + c[0] + '" class="w-7 h-7 rounded-full border border-black/10 hover:scale-110 hover:ring-2 hover:ring-black/25 transition" style="background:' + c[0] + '"></button>').join('')
                 + '</div>'
             ).join('');
         }
-        const textPalettePop = document.createElement('div');
-        textPalettePop.id = 'ekw-textpalette';
-        textPalettePop.className = 'fixed z-[98] hidden flex flex-col bg-white/80 backdrop-blur-xl border border-black/10 rounded-2xl shadow-2xl p-3 w-[300px] max-h-[360px]';
-        textPalettePop.innerHTML = '<div data-textpalgrid class="space-y-1.5 overflow-y-auto pr-1 flex-1"></div>';
-        document.body.appendChild(textPalettePop);
-        const _textPalGrid = textPalettePop.querySelector('[data-textpalgrid]');
-        function openTextPalette(btn) {
-            if (!textPalettePop.dataset.built) { _textPalGrid.innerHTML = renderTextPaletteGrid(); textPalettePop.dataset.built = '1'; }
-            textPalettePop.classList.toggle('hidden');
-            if (textPalettePop.classList.contains('hidden')) return;
-            const r = btn.getBoundingClientRect();
-            const pw = textPalettePop.offsetWidth || 300;
+        let _colorPickCb = null;
+        const colorPop = document.createElement('div');
+        colorPop.id = 'ekw-colorpop';
+        colorPop.className = 'fixed z-[98] hidden flex flex-col bg-white/80 backdrop-blur-xl border border-black/10 rounded-2xl shadow-2xl p-3 w-[300px] max-h-[360px]';
+        colorPop.innerHTML = '<div data-colorpickgrid class="space-y-1.5 overflow-y-auto pr-1 flex-1"></div>';
+        document.body.appendChild(colorPop);
+        const _colorPickGrid = colorPop.querySelector('[data-colorpickgrid]');
+        function closeColorPopover() { colorPop.classList.add('hidden'); _colorPickCb = null; colorPop._anchor = null; }
+        function openColorPopover(anchor, cb) {
+            if (!colorPop.dataset.built) { _colorPickGrid.innerHTML = renderColorCircles(); colorPop.dataset.built = '1'; }
+            if (!colorPop.classList.contains('hidden') && colorPop._anchor === anchor) { closeColorPopover(); return; } // re-clic = ferme
+            _colorPickCb = cb; colorPop._anchor = anchor;
+            colorPop.classList.remove('hidden');
+            const r = anchor.getBoundingClientRect();
+            const pw = colorPop.offsetWidth || 300;
             const left = Math.min(window.innerWidth - pw - 8, Math.max(8, r.left));
-            textPalettePop.style.left = left + 'px';
-            textPalettePop.style.top = (r.bottom + 6) + 'px';
+            colorPop.style.left = left + 'px';
+            colorPop.style.top = (r.bottom + 6) + 'px';
         }
-        textPalettePop.addEventListener('mousedown', (e) => {
-            e.preventDefault();   // garde la sélection texte du canvas
-            e.stopPropagation();  // empêche le clic d'atteindre le canvas en dessous
-            const t = e.target.closest('[data-textcolor]');
-            if (t) { document.execCommand('foreColor', false, t.dataset.textcolor); textPalettePop.classList.add('hidden'); }
+        colorPop.addEventListener('mousedown', (e) => {
+            e.preventDefault();   // garde la sélection texte éventuelle
+            e.stopPropagation();  // pas de traversée vers le canvas
+            const t = e.target.closest('[data-colorpick]');
+            if (t && _colorPickCb) { _colorPickCb(t.dataset.colorpick); closeColorPopover(); }
         });
         document.addEventListener('mousedown', (e) => {
-            if (textPalettePop.classList.contains('hidden')) return;
-            if (e.target.closest('#ekw-textpalette') || e.target.closest('[data-textpalette]')) return;
-            textPalettePop.classList.add('hidden');
+            if (colorPop.classList.contains('hidden')) return;
+            if (e.target.closest('#ekw-colorpop') || e.target.closest('[data-textpalette]') || e.target.closest('[data-coloropen]')) return;
+            closeColorPopover();
         });
 
         // --- Contrôles de style (marge / padding / bordure / arrondi / police) ---
@@ -1091,24 +1094,6 @@
             ['Info', [['#82DCEF', '300'], ['#026D9B', '600'], ['#004A74', '900']]],
         ];
         // Palette style « Figma » (comme la charte) : carrés arrondis + label dessous, par famille.
-        function paletteGroupsHTML(attr, light) {
-            const famCol = light ? '#0f172a' : '#fff';
-            const shadeCol = light ? 'rgba(15,23,42,.6)' : 'rgba(255,255,255,.75)';
-            const tileBorder = light ? 'border-black/10' : 'border-white/15';
-            const tileRing = light ? 'group-hover:ring-black/30' : 'group-hover:ring-white/60';
-            return FULL_PALETTE.map(fam =>
-                '<div class="mb-3">'
-                + '<div class="text-[11px] font-bold mb-1.5" style="color:' + famCol + '">' + fam[0] + '</div>'
-                + '<div class="grid grid-cols-5 gap-1.5">'
-                + fam[1].map(c =>
-                    '<button data-' + attr + '="' + c[0] + '" title="' + fam[0] + ' ' + c[1] + ' · ' + c[0] + '" class="group flex flex-col items-center gap-0.5 rounded">'
-                    + '<span class="w-full aspect-square rounded-lg border ' + tileBorder + ' group-hover:ring-2 ' + tileRing + ' transition" style="background:' + c[0] + '"></span>'
-                    + '<span class="text-[9px] leading-tight" style="color:' + shadeCol + '">' + c[1] + '</span>'
-                    + '</button>'
-                ).join('')
-                + '</div></div>'
-            ).join('');
-        }
         const linkState = { margin: true, padding: true, border: true };
         const dimUnit = { width: 'px', height: 'px' }; // unité courante des dimensions (px / %)
 
@@ -1198,18 +1183,10 @@
             const cs = getComputedStyle(sel);
             [['border', cs.borderTopColor], ['bg', cs.backgroundColor]].forEach(([g, col]) => {
                 const hex = rgb2hex(col);
-                const w = styleBox.querySelector('[data-cwheel="' + g + '"]');
+                const chip = styleBox.querySelector('[data-cchip="' + g + '"]');
                 const h = styleBox.querySelector('[data-chex="' + g + '"]');
-                if (w && document.activeElement !== w && hex) w.value = hex;
+                if (chip) chip.style.background = hex || 'transparent';
                 if (h && document.activeElement !== h) h.value = hex || '';
-                // Anneau sur la pastille de la palette qui correspond à la couleur courante.
-                const attr = g === 'border' ? 'bcolor' : 'bgcolor';
-                const cur = (hex || '').toLowerCase();
-                const RING = ['ring-2', 'ring-white', 'ring-offset-2', 'ring-offset-slate-800'];
-                styleBox.querySelectorAll('[data-' + attr + ']').forEach(btn => {
-                    const on = !!cur && (btn.getAttribute('data-' + attr) || '').toLowerCase() === cur;
-                    RING.forEach(c => btn.classList.toggle(c, on));
-                });
                 // Opacité du fond (canal alpha) → champ %.
                 if (g === 'bg') {
                     const op = styleBox.querySelector('[data-copacity]');
@@ -1286,15 +1263,13 @@
             const opac = (attr === 'bgcolor')
                 ? '<div class="flex items-center gap-1 shrink-0"><input type="number" min="0" max="100" data-copacity title="Opacité du fond (%)" class="w-12 h-7 bg-slate-950 border border-slate-600 rounded text-center text-[11px] text-slate-100 focus:outline-none focus:ring-1 focus:ring-secondary"><span class="text-[10px] text-slate-500">%</span></div>'
                 : '';
-            return '<div class="space-y-2">'
-                + '<div class="flex items-center gap-1.5">'
-                + '<input type="color" data-cwheel="' + g + '" title="Choisir une couleur" class="w-8 h-7 p-0 rounded cursor-pointer bg-transparent border border-slate-500 shrink-0">'
+            return '<div class="flex items-center gap-1.5">'
+                + '<button type="button" data-coloropen="' + g + '" title="Choisir une couleur" class="flex items-center gap-1.5 shrink-0 h-7 px-1.5 bg-slate-950 border border-slate-600 rounded hover:border-slate-500 transition">'
+                + '<span data-cchip="' + g + '" class="w-4 h-4 rounded border border-white/20" style="background:transparent"></span>'
+                + '<i class="fa-solid fa-chevron-down text-[9px] text-slate-500"></i>'
+                + '</button>'
                 + '<input type="text" data-chex="' + g + '" placeholder="#RRGGBB" spellcheck="false" class="flex-1 min-w-0 bg-slate-950 border border-slate-600 rounded px-2 py-1 text-[11px] font-mono text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-secondary">'
                 + opac
-                + '</div>'
-                + '<div class="rounded-lg p-2 text-white max-h-56 overflow-y-auto" style="background:#101c1e">'
-                + paletteGroupsHTML(attr)
-                + '</div>'
                 + '</div>';
         };
         // Fragments de contrôles (réutilisés dans les sections)
@@ -1546,10 +1521,8 @@
                 spApply(g, s, Math.max(0, spRead(sel, g, s) + d * SP_STEP));
                 spSync(); return;
             }
-            const bc = e.target.closest('[data-bcolor]');
-            if (bc && sel) { spSetBorderColor(bc.dataset.bcolor); return; }
-            const bg = e.target.closest('[data-bgcolor]');
-            if (bg && sel) { spSetBgColor(bg.dataset.bgcolor); return; }
+            const co = e.target.closest('[data-coloropen]');
+            if (co && sel) { const g = co.dataset.coloropen; openColorPopover(co, (hex) => (g === 'border' ? spSetBorderColor : spSetBgColor)(hex)); return; }
         });
         styleBox.addEventListener('input', (e) => {
             // Zone CSS libre : le texte EST le style inline de l'élément
@@ -1577,12 +1550,7 @@
                 spSync();
                 return;
             }
-            // Roue de couleur / hex (bordure & fond)
-            if (e.target.matches('[data-cwheel]') && sel) {
-                const g = e.target.dataset.cwheel;
-                (g === 'border' ? spSetBorderColor : spSetBgColor)(e.target.value);
-                return;
-            }
+            // Hex manuel (bordure & fond)
             if (e.target.matches('[data-chex]') && sel) {
                 const v = e.target.value.trim();
                 if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(v)) {
@@ -1959,7 +1927,7 @@
             }
             markEditBtn(false);
             formatbar.classList.add('hidden'); formatbar.classList.remove('flex');
-            { const tp = document.getElementById('ekw-textpalette'); if (tp) tp.classList.add('hidden'); }
+            closeColorPopover();
             positionMarquee();
         }
         function markEditBtn(on) {
