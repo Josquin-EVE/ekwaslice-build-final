@@ -3336,7 +3336,8 @@
             hideLoading();
             if (btn) { btn.disabled = false; btn.innerHTML = o; }
             if (!r || r.error || !r.ok) { toast('Échec envoi : ' + ((r && (r.error || r.raw)) || 'inconnu')); return; }
-            toast('Envoyé vers Prismic ✓ — à publier dans le dashboard (ta release « EkwaSlice — ' + (authorName() || '?') + ' »)');
+            toast('Envoyé vers Prismic ✓');
+            showExportDone(PRISMIC_BUILDER_URL);
         }
 
         // Affiche/cache le bouton "Mettre à jour Prismic" selon la présence d'une slice importée sur le canvas.
@@ -3452,6 +3453,32 @@
         function hideLoading() {
             const o = document.getElementById('ekw-loading');
             if (o) { o.classList.add('hidden'); o.classList.remove('flex'); }
+        }
+        // Modale de succès d'export (Envoi Prismic) + lien vers le builder Prismic
+        const PRISMIC_BUILDER_URL = 'https://ekwateur-edito.prismic.io/builder/upcoming?language=fr-fr';
+        function showExportDone(url) {
+            let m = document.getElementById('export-done');
+            if (!m) {
+                m = document.createElement('div');
+                m.id = 'export-done';
+                m.className = 'fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] hidden items-center justify-center p-6';
+                m.innerHTML = '<div class="bg-white border border-[#e5e7eb] rounded-2xl w-full max-w-sm p-6 text-center shadow-2xl">'
+                    + '<div class="w-12 h-12 mx-auto rounded-full bg-secondary/25 flex items-center justify-center text-[#132527] mb-3"><i class="fa-solid fa-check text-xl"></i></div>'
+                    + '<h3 class="font-display text-lg font-bold text-[#132527] mb-1">Export terminé</h3>'
+                    + '<p class="text-sm text-slate-500 mb-4">Ta slice est envoyée dans Prismic (brouillon).</p>'
+                    + '<div class="flex gap-2">'
+                    + '<button data-ed-close class="flex-1 px-3 py-2 rounded-lg border border-[#e5e7eb] text-sm text-[#132527] hover:bg-[#eef2f6] transition">Fermer</button>'
+                    + '<button data-ed-open class="flex-1 px-3 py-2 rounded-lg bg-secondary text-ink-deep text-sm font-semibold hover:brightness-110 transition">Voir sur Prismic</button>'
+                    + '</div></div>';
+                document.body.appendChild(m);
+                const hide = () => { m.classList.add('hidden'); m.classList.remove('flex'); };
+                m.addEventListener('click', (e) => {
+                    if (e.target === m || e.target.closest('[data-ed-close]')) { hide(); return; }
+                    if (e.target.closest('[data-ed-open]')) { if (window.api && window.api.openExternal) window.api.openExternal(m.dataset.url || PRISMIC_BUILDER_URL); hide(); }
+                });
+            }
+            m.dataset.url = url || PRISMIC_BUILDER_URL;
+            m.classList.remove('hidden'); m.classList.add('flex');
         }
 
         // --- Écran de garde : connexion Claude ---
