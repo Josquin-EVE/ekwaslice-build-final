@@ -309,7 +309,7 @@
     <!-- Overlay de chargement (opérations async : Prismic…) -->
     <div id="ekw-loading" class="hidden fixed inset-0 z-[200] flex-col items-center justify-center gap-3"
         style="background:rgba(238,242,246,.6);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)">
-        <img src="assets/download.gif" alt="Chargement" class="w-32 h-32 object-contain">
+        <img data-src="assets/download.gif" alt="Chargement" class="w-32 h-32 object-contain">
         <p id="ekw-loading-msg" class="font-display text-base font-bold text-[#132527]"></p>
     </div>
 
@@ -3448,11 +3448,19 @@
         function showLoading(msg) {
             const o = document.getElementById('ekw-loading'), m = document.getElementById('ekw-loading-msg');
             if (m) m.textContent = msg || '';
-            if (o) { o.classList.remove('hidden'); o.classList.add('flex'); }
+            if (o) {
+                const img = o.querySelector('img[data-src]'); // lazy : charge le gif seulement à l'ouverture
+                if (img && !img.getAttribute('src')) img.src = img.dataset.src;
+                o.classList.remove('hidden'); o.classList.add('flex');
+            }
         }
         function hideLoading() {
             const o = document.getElementById('ekw-loading');
-            if (o) { o.classList.add('hidden'); o.classList.remove('flex'); }
+            if (o) {
+                o.classList.add('hidden'); o.classList.remove('flex');
+                const img = o.querySelector('img[data-src]'); // libère le décodage au repos
+                if (img) img.removeAttribute('src');
+            }
         }
         // Modale de succès d'export (Envoi Prismic) + lien vers le builder Prismic
         const PRISMIC_BUILDER_URL = 'https://ekwateur-edito.prismic.io/builder/upcoming?language=fr-fr';
@@ -3524,6 +3532,7 @@
             }
             // Connecté : ferme la garde, affiche le compte dans le badge
             document.getElementById('gate').style.display = 'none';
+            { const gg = document.getElementById('gate-gif'); if (gg) gg.removeAttribute('src'); } // libère le gif du lancement
             if (s.email) {
                 const b = document.getElementById('usage-badge');
                 if (b) b.title = `Connecté : ${s.email} · ${s.org} (${s.subscription}). ` + b.title;
