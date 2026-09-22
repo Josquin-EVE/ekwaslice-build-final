@@ -1123,6 +1123,20 @@
             });
             s.textContent = css;
         }
+        // CSS des états pour l'aperçu (iframe) : racine = body, donc pas de préfixe #canvas
+        function stateCssForPreview() {
+            let css = '';
+            canvas.querySelectorAll('[data-ekw-states]').forEach(node => {
+                const eid = node.getAttribute('data-eid'); if (!eid) return;
+                const st = _getStates(node);
+                ['hover', 'focus', 'active'].forEach(state => {
+                    const o = st[state]; if (!o || !Object.keys(o).length) return;
+                    const body = Object.keys(o).map(p => p + ':' + o[p] + ' !important').join(';');
+                    css += '[data-eid="' + eid + '"]:' + state + '{' + body + '}\n';
+                });
+            });
+            return css;
+        }
         function _commitStateEdits() {
             if (!sel || editState === 'normal' || !_stateBaseline) return;
             const cur = _styleMap(sel), base = _stateBaseline.map, diff = {};
@@ -3527,6 +3541,7 @@
                 + "@font-face{font-family:'Gothic A1';src:url('" + fontBase + "gothic-a1-600.otf') format('opentype');font-weight:600;}"
                 + "@font-face{font-family:'Gothic A1';src:url('" + fontBase + "gothic-a1-700.otf') format('opentype');font-weight:700;}"
                 + 'body{margin:0;padding:16px;}'
+                + stateCssForPreview() // règles hover/focus/active de l'aperçu
                 + '</style></head>'
                 + '<body class="font-body text-cloud" style="background-color:' + SITE_BG + '">' + inner + '</body></html>';
         }
