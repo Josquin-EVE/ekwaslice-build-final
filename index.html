@@ -3790,6 +3790,11 @@
         <div class="bg-slate-800 rounded-2xl p-6 w-full max-w-lg space-y-4">
             <h2 class="text-white font-bold text-lg">Importer depuis Prismic</h2>
             <p class="text-slate-400 text-sm">Colle l'URL du document</p>
+            <button type="button"
+                onclick="window.api&&window.api.openExternal('https://ekwateur-edito.prismic.io/builder/working?customTypes=custom_slice')"
+                class="inline-flex items-center gap-1.5 text-[12px] text-secondary hover:underline">
+                <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>Parcourir les custom slices dans Prismic
+            </button>
             <input id="prismic-import-input" type="text" placeholder="URL Prismic"
                 class="w-full bg-slate-950 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-secondary">
             <div id="prismic-token-wrap">
