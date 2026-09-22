@@ -178,6 +178,11 @@
             font-display: swap;
         }
 
+        /* Carnero partout dans l'app (chrome). */
+        body { font-family: 'Carnero', Georgia, serif; }
+        button, input, select, textarea { font-family: inherit; }
+        h1, h2, h3, .font-display { font-family: 'Carnero', Georgia, serif; }
+
         /* Élément sélectionné : le visuel est porté par le cadre marching-ants (#ekw-marquee),
            voir plus bas. Ici on garde juste le curseur. */
         .ekw-selected {
@@ -350,14 +355,14 @@
                         class="px-4 py-2.5 flex items-center gap-2 text-left hover:bg-slate-700/40 transition">
                         <i class="fa-solid fa-shapes text-slate-400 text-xs"></i>
                         <span
-                            class="flex-1 font-semibold text-sm text-slate-300 uppercase tracking-wider">Pictogrammes</span>
+                            class="flex-1 font-semibold text-sm text-slate-300 tracking-wide">Pictogrammes</span>
                         <i data-picto-chev
                             class="fa-solid fa-chevron-down text-[10px] text-slate-500 transition-transform"></i>
                     </button>
                     <div id="picto-body" class="px-4 pb-4 flex flex-col overflow-hidden" style="max-height:42vh">
                         <input id="picto-search" type="text" placeholder="Rechercher un picto…"
                             oninput="renderPictoGrid(this.value)"
-                            class="w-full mb-2 bg-slate-900 border border-slate-600/50 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-primary">
+                            class="w-full mb-2 bg-slate-900 border border-slate-600/50 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-secondary">
                         <div data-picto-grid class="grid grid-cols-4 gap-1.5 overflow-y-auto flex-1 min-h-0 pr-1"></div>
                         <p class="text-[10px] text-slate-600 mt-1.5 leading-snug">Clic = insérer dans l'élément
                             sélectionné (sinon nouveau bloc).</p>
@@ -377,30 +382,26 @@
                     </button>
                 </div>
                 <!-- Navigation dans l'arborescence (breadcrumb + flèches) -->
-                <div id="editor-nav" class="px-4 pt-2.5 pb-2.5 border-b border-slate-700 space-y-1.5">
+                <div id="editor-nav" class="px-4 pt-3 pb-2.5 border-b border-slate-700 space-y-2">
+                    <!-- Contexte de l'élément sélectionné : icône type + nom + méta -->
+                    <div id="editor-elctx" class="flex items-center gap-2 min-w-0"></div>
+                    <!-- Fil d'ariane cliquable (remplace les flèches de navigation) -->
                     <div id="editor-crumbs"
                         class="flex items-center gap-0.5 text-[11px] overflow-x-auto whitespace-nowrap"></div>
-                    <div class="flex items-center gap-1">
-                        <button data-nav="prev" title="Frère précédent"
-                            class="w-7 h-7 rounded-md bg-slate-700/50 text-slate-300 hover:bg-slate-700 hover:text-cloud transition text-xs disabled:opacity-30"><i
-                                class="fa-solid fa-chevron-left"></i></button>
-                        <button data-nav="parent" title="Parent"
-                            class="w-7 h-7 rounded-md bg-slate-700/50 text-slate-300 hover:bg-slate-700 hover:text-cloud transition text-xs disabled:opacity-30"><i
-                                class="fa-solid fa-chevron-up"></i></button>
-                        <button data-nav="child" title="Premier enfant"
-                            class="w-7 h-7 rounded-md bg-slate-700/50 text-slate-300 hover:bg-slate-700 hover:text-cloud transition text-xs disabled:opacity-30"><i
-                                class="fa-solid fa-chevron-down"></i></button>
-                        <button data-nav="next" title="Frère suivant"
-                            class="w-7 h-7 rounded-md bg-slate-700/50 text-slate-300 hover:bg-slate-700 hover:text-cloud transition text-xs disabled:opacity-30"><i
-                                class="fa-solid fa-chevron-right"></i></button>
-                        <span class="text-[10px] text-slate-500 ml-1">arborescence</span>
-                    </div>
                 </div>
                 <!-- Éditeur de texte, visuellement séparé (visible en édition de texte) -->
                 <div id="editor-format"
                     class="hidden mx-4 mt-3 p-2 rounded-xl bg-slate-900 border border-slate-700 flex-wrap items-center gap-1">
                 </div>
-                <div id="editor-style" class="p-4 space-y-3 overflow-y-auto flex-1"></div>
+                <!-- Onglets d'états (UI ; hover/focus/active fonctionnels au Lot 4) -->
+                <div id="editor-states" class="px-4 pt-2.5 pb-1.5 flex items-center gap-1 border-b border-slate-700">
+                    <button data-estate="normal" type="button" class="est-btn px-2.5 py-1 rounded-md text-[11px] transition">Normal</button>
+                    <button data-estate="hover" type="button" class="est-btn px-2.5 py-1 rounded-md text-[11px] transition">Survol</button>
+                    <button data-estate="focus" type="button" class="est-btn px-2.5 py-1 rounded-md text-[11px] transition">Focus</button>
+                    <button data-estate="active" type="button" class="est-btn px-2.5 py-1 rounded-md text-[11px] transition">Actif</button>
+                </div>
+                <div id="editor-state-hint" class="hidden px-4 pt-1 text-[10px] text-slate-500"></div>
+                <div id="editor-style" class="px-4 flex flex-col overflow-hidden flex-1 min-h-0"></div>
                 <!-- Pictos accessibles pendant la sélection (remplacer / insérer) — repliable -->
                 <div class="border-t border-slate-700 shrink-0">
                     <button type="button" onclick="toggleEditorPictos()"
@@ -412,7 +413,7 @@
                     </button>
                     <div id="editor-picto-body" class="hidden px-3 pb-3">
                         <input type="text" placeholder="Rechercher…" oninput="renderPictoGrid(this.value)"
-                            class="w-full mb-2 bg-slate-900 border border-slate-600/50 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-primary">
+                            class="w-full mb-2 bg-slate-900 border border-slate-600/50 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-secondary">
                         <div data-picto-grid class="grid grid-cols-5 gap-1.5 max-h-40 overflow-y-auto pr-1"></div>
                         <p class="text-[10px] text-slate-600 mt-1 leading-snug">Clic = remplace le picto sélectionné,
                             sinon
@@ -659,7 +660,7 @@
             class="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden shadow-2xl">
             <div class="p-4 border-b border-slate-700 flex justify-between items-center shrink-0">
                 <h3 class="font-semibold text-white text-base"><i
-                        class="fa-solid fa-file-import mr-2 text-primary"></i>Importer du code (HTML / CSS / JS)</h3>
+                        class="fa-solid fa-file-import mr-2 text-secondary"></i>Importer du code (HTML / CSS / JS)</h3>
                 <button onclick="closeImport()" class="text-slate-400 hover:text-white transition text-lg"><i
                         class="fa-solid fa-xmark"></i></button>
             </div>
@@ -674,18 +675,18 @@
                 <div>
                     <label class="text-[11px] font-medium text-slate-300 block mb-1">HTML</label>
                     <textarea id="imp-html" rows="7" spellcheck="false" placeholder="<div>…</div>"
-                        class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-[11px] font-mono text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-primary resize-y"></textarea>
+                        class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-[11px] font-mono text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-secondary resize-y"></textarea>
                 </div>
                 <div>
                     <label class="text-[11px] font-medium text-slate-300 block mb-1">CSS</label>
                     <textarea id="imp-css" rows="6" spellcheck="false" placeholder=".ma-classe{ color:#fff }"
-                        class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-[11px] font-mono text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-primary resize-y"></textarea>
+                        class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-[11px] font-mono text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-secondary resize-y"></textarea>
                 </div>
                 <div>
                     <label class="text-[11px] font-medium text-slate-300 block mb-1">JS <span
                             class="text-slate-500">(optionnel)</span></label>
                     <textarea id="imp-js" rows="5" spellcheck="false" placeholder="// script de la slice"
-                        class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-[11px] font-mono text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-primary resize-y"></textarea>
+                        class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-[11px] font-mono text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-secondary resize-y"></textarea>
                 </div>
                 <p class="text-[10px] text-slate-500">Astuce : tu peux aussi coller un HTML qui contient déjà
                     &lt;style&gt; et &lt;script&gt; — ils seront répartis automatiquement.</p>
@@ -715,7 +716,7 @@
                 <label class="text-xs font-medium text-slate-300">Nom du composant</label>
                 <input id="save-name-input" type="text" placeholder="Ex : Hero offre gaz" spellcheck="false"
                     onkeydown="if(event.key==='Enter'){event.preventDefault();confirmSave();} if(event.key==='Escape'){closeSaveModal();}"
-                    class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-primary">
+                    class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-secondary">
                 <label id="save-overwrite-row"
                     class="hidden items-center gap-2 text-xs text-slate-300 pt-1 cursor-pointer">
                     <input id="save-overwrite" type="checkbox" class="accent-secondary">
@@ -749,7 +750,7 @@
                     tu publies</label>
                 <input id="author-name-input" type="text" placeholder="Ex : Josquin" spellcheck="false"
                     onkeydown="if(event.key==='Enter'){event.preventDefault();confirmAuthor();} if(event.key==='Escape'){closeAuthorModal();}"
-                    class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-primary">
+                    class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-secondary">
             </div>
             <div class="p-4 border-t border-slate-700 bg-slate-900/50 flex justify-end gap-3 shrink-0">
                 <button onclick="closeAuthorModal()"
@@ -859,7 +860,7 @@
                 '<button data-color="' + hex + '" title="' + name + '" class="w-5 h-5 rounded-full border border-slate-500 mx-0.5 hover:scale-110 transition" style="background:' + hex + '"></button>'
             ).join('')
             + '<input type="color" data-fcolor-wheel title="Roue de couleur" class="w-6 h-6 p-0 rounded cursor-pointer bg-transparent border border-slate-500 mx-0.5 align-middle">'
-            + '<input type="text" data-fcolor-hex placeholder="#RRGGBB" spellcheck="false" class="w-[70px] bg-slate-950 border border-slate-600 rounded px-1.5 py-1 text-[11px] font-mono text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-primary">'
+            + '<input type="text" data-fcolor-hex placeholder="#RRGGBB" spellcheck="false" class="w-[70px] bg-slate-950 border border-slate-600 rounded px-1.5 py-1 text-[11px] font-mono text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-secondary">'
             + '<span class="w-px h-5 bg-slate-600 mx-0.5"></span>'
             + fmtBtn('link', 'fa-link', 'Lien hypertexte') + fmtBtn('nbsp', 'fa-link-slash', 'Espace insécable (mot lié)');
 
@@ -887,7 +888,7 @@
         linkBubble.className = 'fixed z-[96] hidden flex-col gap-2 bg-ink-deep border border-slate-600 rounded-lg shadow-2xl p-2 w-64';
         linkBubble.innerHTML =
             '<input id="ekw-link-input" type="text" placeholder="https://ekwateur.fr/…" '
-            + 'class="bg-slate-900 border border-slate-700 rounded-md px-2 py-1.5 text-xs text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary">'
+            + 'class="bg-slate-900 border border-slate-700 rounded-md px-2 py-1.5 text-xs text-slate-100 focus:outline-none focus:ring-1 focus:ring-secondary">'
             + '<div class="flex items-center justify-between">'
             + '<button data-link="remove" class="text-xs text-red-400 hover:text-red-300 px-1 py-1">Retirer le lien</button>'
             + '<div class="flex gap-1">'
@@ -970,7 +971,7 @@
             restoreRange();
             if (act === 'apply' && url) {
                 if (savedRange && !savedRange.collapsed) document.execCommand('createLink', false, url);
-                else document.execCommand('insertHTML', false, '<a href="' + url + '" class="underline text-primary">' + url + '</a>');
+                else document.execCommand('insertHTML', false, '<a href="' + url + '" class="underline text-secondary">' + url + '</a>');
             } else if (act === 'remove') {
                 document.execCommand('unlink'); // retire le <a>, GARDE le texte
             }
@@ -1019,6 +1020,37 @@
             ['#17E7D0', 'Turquoise'], ['#FEDC5D', 'Or'], ['#FF931E', 'Orange'],
             ['#2C5359', 'Ardoise'], ['#F8FBFB', 'Blanc'], ['#009A59', 'Élec'], ['#2F80DE', 'Gaz']
         ];
+        // Palette COMPLÈTE de la charte (variables --primitivecolors-*), rangée par famille
+        // puis par nuance (claire → foncée). Source : ressources/charte-graphique.html.
+        const FULL_PALETTE = [
+            ['Turquoise (primaire)', [['#73F1E3', '300'], ['#17E7D0', '500'], ['#12B5A3', '600'], ['#0A665B', '700'], ['#074E47', '800'], ['#053832', '900']]],
+            ['Or (secondaire)', [['#FEDC5D', 'accent'], ['#FFC969', '300'], ['#E6A22A', '500'], ['#996500', '600'], ['#7A5000', '900']]],
+            ['Neutres', [['#F8FBFB', '100'], ['#EEF5F6', '200'], ['#DEEBED', '300'], ['#C0DDE2', '400'], ['#A0B8BC', '450'], ['#2C5359', '500'], ['#1D383C', '600'], ['#132D30', '700'], ['#132527', '800'], ['#0F1A1C', '900']]],
+            ['Gris', [['#E6E6E6', '100'], ['#D9D9D9', '200'], ['#BFBFBF', '300'], ['#7F7F7F', '600'], ['#353535', '900']]],
+            ['Gaz (bleu)', [['#79C4FA', '300'], ['#52B6FE', '400'], ['#2F80DE', '500'], ['#1462BF', '600'], ['#002A74', '900']]],
+            ['Élec française (vert)', [['#68DEB3', '300'], ['#4AD6A4', '400'], ['#009A59', '500'], ['#007544', '600'], ['#064F35', '900']]],
+            ['Élec mobilité (violet)', [['#E0C4FF', '300'], ['#C49AF1', '400'], ['#9A55E1', '500'], ['#8243C4', '600'], ['#601FA3', '900']]],
+            ['Autoconso (jaune)', [['#FFEB87', '300'], ['#FFE55D', '400'], ['#A98E01', '500'], ['#846F00', '600'], ['#685100', '900']]],
+            ['Succès', [['#7BE87F', '300'], ['#167516', '600'], ['#165116', '900']]],
+            ['Alerte', [['#FBAA6E', '300'], ['#B15500', '600'], ['#502700', '900']]],
+            ['Erreur', [['#FFA3A3', '300'], ['#C63434', '600'], ['#610500', '900']]],
+            ['Info', [['#82DCEF', '300'], ['#026D9B', '600'], ['#004A74', '900']]],
+        ];
+        // Palette style « Figma » (comme la charte) : carrés arrondis + label dessous, par famille.
+        function paletteGroupsHTML(attr) {
+            return FULL_PALETTE.map(fam =>
+                '<div class="mb-3">'
+                + '<div class="text-[11px] font-semibold mb-1.5" style="color:#fff">' + fam[0] + '</div>'
+                + '<div class="grid grid-cols-5 gap-1.5">'
+                + fam[1].map(c =>
+                    '<button data-' + attr + '="' + c[0] + '" title="' + fam[0] + ' ' + c[1] + ' · ' + c[0] + '" class="group flex flex-col items-center gap-0.5 rounded">'
+                    + '<span class="w-full aspect-square rounded-lg border border-white/15 group-hover:ring-2 group-hover:ring-white/60 transition" style="background:' + c[0] + '"></span>'
+                    + '<span class="text-[9px] leading-tight" style="color:rgba(255,255,255,.75)">' + c[1] + '</span>'
+                    + '</button>'
+                ).join('')
+                + '</div></div>'
+            ).join('');
+        }
         const linkState = { margin: true, padding: true, border: true };
 
         function spCap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
@@ -1109,7 +1141,8 @@
                 if (g === 'bg') {
                     const op = styleBox.querySelector('[data-copacity]');
                     if (op && document.activeElement !== op) {
-                        const m = (col || '').match(/rgba?\([^)]*,\s*([\d.]+)\s*\)/);
+                        // Alpha SEULEMENT si 4 composantes (rgba). rgb(...) → opaque = 100%.
+                        const m = (col || '').match(/rgba\(\s*[\d.]+\s*,\s*[\d.]+\s*,\s*[\d.]+\s*,\s*([\d.]+)\s*\)/i);
                         const a = m ? parseFloat(m[1]) : 1;
                         op.value = Math.round((isNaN(a) ? 1 : a) * 100);
                     }
@@ -1121,19 +1154,19 @@
             return '<div class="flex items-center gap-1">'
                 + (label ? '<span class="w-4 text-[10px] text-slate-500 text-center">' + label + '</span>' : '')
                 + '<button data-sp-step="-1" data-sp-g="' + group + '" data-sp-s="' + side + '" class="w-6 h-6 rounded bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm leading-none">−</button>'
-                + '<input data-sp-in="1" data-sp-g="' + group + '" data-sp-s="' + side + '" type="number" min="0" class="w-11 h-6 bg-slate-900 border border-slate-700 rounded text-center text-xs text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary">'
+                + '<input data-sp-in="1" data-sp-g="' + group + '" data-sp-s="' + side + '" type="number" min="0" class="w-11 h-6 bg-slate-900 border border-slate-700 rounded text-center text-xs text-slate-100 focus:outline-none focus:ring-1 focus:ring-secondary">'
                 + '<button data-sp-step="1" data-sp-g="' + group + '" data-sp-s="' + side + '" class="w-6 h-6 rounded bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm leading-none">+</button>'
                 + '</div>';
         }
         // Espacement façon Figma : widget en CROIX (Haut/Droite/Bas/Gauche autour d'un
         // centre) + bouton chaîne pour lier les 4 côtés. Plomberie inchangée (data-sp-g/-s).
         function spSpacingGroup(group, title, center) {
-            const cell = (s, name) => '<input data-sp-in="1" data-sp-g="' + group + '" data-sp-s="' + s + '" type="number" min="0" title="' + name + '" class="w-full h-7 bg-slate-900 border border-slate-700 rounded text-center text-[11px] text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary">';
+            const cell = (s, name) => '<input data-sp-in="1" data-sp-g="' + group + '" data-sp-s="' + s + '" type="number" min="0" title="' + name + '" class="w-full h-7 bg-slate-900 border border-slate-700 rounded text-center text-[11px] text-slate-100 focus:outline-none focus:ring-1 focus:ring-secondary">';
             const gap = '<span></span>';
             return '<div class="space-y-1.5" data-sp-group="' + group + '">'
                 + '<div class="flex items-center justify-between">'
                 + '<span class="text-[11px] font-medium text-slate-300">' + title + '</span>'
-                + '<button data-sp-link="' + group + '" title="Lier / délier les 4 côtés" class="w-6 h-6 rounded text-primary hover:bg-slate-700 text-xs"><i class="fa-solid fa-link"></i></button>'
+                + '<button data-sp-link="' + group + '" title="Lier / délier les 4 côtés" class="w-6 h-6 rounded text-secondary hover:bg-slate-700 text-xs"><i class="fa-solid fa-link"></i></button>'
                 + '</div>'
                 + '<div class="grid grid-cols-3 gap-1 items-center max-w-[176px] mx-auto">'
                 + gap + cell('top', 'Haut') + gap
@@ -1152,32 +1185,32 @@
         function accState() { try { return JSON.parse(localStorage.getItem(ACC_LS)) || {}; } catch (_) { return {}; } }
         function accSave(s) { try { localStorage.setItem(ACC_LS, JSON.stringify(s)); } catch (_) { } }
         function accSection(id, icon, title, body, open) {
-            return '<div class="acc border-b border-slate-700/70" data-acc="' + id + '">'
-                + '<button type="button" data-acc-head="' + id + '" class="w-full flex items-center gap-2 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-400 hover:text-slate-200">'
+            return '<div class="acc border-b border-slate-700/70 flex flex-col min-h-0' + (open ? ' flex-1' : '') + '" data-acc="' + id + '">'
+                + '<button type="button" data-acc-head="' + id + '" class="w-full flex items-center gap-2 py-2 text-left text-[12px] font-semibold text-slate-300 hover:text-slate-100 shrink-0">'
                 + '<i class="fa-solid ' + icon + ' text-slate-500 w-4 text-center text-[11px]"></i>'
                 + '<span class="flex-1">' + title + '</span>'
                 + '<i class="fa-solid fa-chevron-down text-[10px] text-slate-500 transition-transform ' + (open ? '' : '-rotate-90') + '" data-acc-chev></i>'
                 + '</button>'
-                + '<div data-acc-body class="pb-3 space-y-2.5 ' + (open ? '' : 'hidden') + '">' + body + '</div>'
+                + '<div data-acc-body class="pb-3 space-y-2.5 min-h-0 ' + (open ? 'flex-1 overflow-y-auto' : 'hidden') + '">' + body + '</div>'
                 + '</div>';
         }
         const _div = '<div class="h-px bg-slate-700/70"></div>';
         // Couleur façon Figma : ligne 1 = chip (sélecteur) + #hex + opacité (fond only) ;
-        // ligne 2 = palette de marque Ekwateur (chemin rapide charte, conservé).
+        // dessous = TOUTE la palette de la charte, groupée, directement visible (pas de
+        // « voir plus ») — la section étant en mode focus, elle scrolle et profite de la hauteur.
         const _colorRow = (attr, noneLabel) => {
             const g = attr === 'bcolor' ? 'border' : 'bg';
             const opac = (attr === 'bgcolor')
-                ? '<div class="flex items-center gap-1 shrink-0"><input type="number" min="0" max="100" data-copacity title="Opacité du fond (%)" class="w-12 h-7 bg-slate-950 border border-slate-600 rounded text-center text-[11px] text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"><span class="text-[10px] text-slate-500">%</span></div>'
+                ? '<div class="flex items-center gap-1 shrink-0"><input type="number" min="0" max="100" data-copacity title="Opacité du fond (%)" class="w-12 h-7 bg-slate-950 border border-slate-600 rounded text-center text-[11px] text-slate-100 focus:outline-none focus:ring-1 focus:ring-secondary"><span class="text-[10px] text-slate-500">%</span></div>'
                 : '';
-            return '<div class="space-y-1.5">'
+            return '<div class="space-y-2">'
                 + '<div class="flex items-center gap-1.5">'
                 + '<input type="color" data-cwheel="' + g + '" title="Choisir une couleur" class="w-8 h-7 p-0 rounded cursor-pointer bg-transparent border border-slate-500 shrink-0">'
-                + '<input type="text" data-chex="' + g + '" placeholder="#RRGGBB" spellcheck="false" class="flex-1 min-w-0 bg-slate-950 border border-slate-600 rounded px-2 py-1 text-[11px] font-mono text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-primary">'
+                + '<input type="text" data-chex="' + g + '" placeholder="#RRGGBB" spellcheck="false" class="flex-1 min-w-0 bg-slate-950 border border-slate-600 rounded px-2 py-1 text-[11px] font-mono text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-secondary">'
                 + opac
                 + '</div>'
-                + '<div class="flex items-center gap-1 flex-wrap">'
-                + styleColors.map(([hex, name]) => '<button data-' + attr + '="' + hex + '" title="' + name + '" class="w-5 h-5 rounded-full border border-slate-500 hover:scale-110 transition" style="background:' + hex + '"></button>').join('')
-                + '<button data-' + attr + '="none" title="' + noneLabel + '" class="w-5 h-5 rounded-full border border-slate-500 text-slate-300 text-[10px] flex items-center justify-center hover:bg-slate-700">∅</button>'
+                + '<div class="rounded-lg p-2 text-white" style="background:#101c1e">'
+                + paletteGroupsHTML(attr)
                 + '</div>'
                 + '</div>';
         };
@@ -1189,10 +1222,9 @@
             + '<div>' + spStepper('radius', 'all', '<i class="fa-solid fa-border-top-left" title="Rayon"></i>') + '<span class="ml-1 text-[10px] text-slate-500">px</span></div></div>';
         const fFond = _colorRow('bgcolor', 'Sans fond');
         const fTexte = '<div class="mb-2"><span class="text-[11px] font-medium text-slate-300">Police</span>'
-            + '<select data-fontfam class="w-full mt-1 bg-slate-950 border border-slate-600 rounded px-1.5 py-1 text-[11px] text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary">'
+            + '<select data-fontfam class="w-full mt-1 bg-slate-950 border border-slate-600 rounded px-1.5 py-1 text-[11px] text-slate-100 focus:outline-none focus:ring-1 focus:ring-secondary">'
             + '<option value="">Par défaut (hérité)</option>'
-            + '<option value="&#39;Carnero&#39;, Georgia, serif">Titre — Carnero</option>'
-            + '<option value="&#39;Gothic A1&#39;, system-ui, sans-serif">Corps — Gothic A1</option>'
+            + '<option value="&#39;Carnero&#39;, Georgia, serif">Carnero</option>'
             + '</select></div>'
             + '<div><span class="text-[11px] font-medium text-slate-300">Taille de police</span>'
             + '<div>' + spStepper('font', 'all', '') + '<span class="ml-1 text-[10px] text-slate-500">px</span></div></div>';
@@ -1201,26 +1233,41 @@
             + spStepper('height', 'all', '<i class="fa-solid fa-arrows-up-down" title="Hauteur"></i>') + '</div>'
             + '<span class="text-[10px] text-slate-500">px · 0 = automatique</span>';
         const fCss = '<textarea id="css-editor" rows="4" spellcheck="false" placeholder="border: 2px solid #17E7D0;&#10;box-shadow: 0 8px 24px rgba(0,0,0,.35);&#10;background: linear-gradient(...);" '
-            + 'class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-2 text-[11px] font-mono leading-relaxed text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-primary resize-y"></textarea>'
+            + 'class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-2 text-[11px] font-mono leading-relaxed text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-secondary resize-y"></textarea>'
             + '<span class="text-[10px] text-slate-500 leading-snug block mt-1">Style inline de l\'élément — édite librement (ombre, dégradé…). Appliqué en direct, synchro avec les contrôles ci-dessus.</span>';
         const fJs = '<div id="js-texts" class="space-y-2"></div>';
         const _acc = accState();
-        const _o = (id, def) => (id in _acc) ? !!_acc[id] : def;
+        const _openId0 = _acc.open || 'texte';   // mode focus : UNE seule section ouverte
+        const _o = (id) => id === _openId0;
         // Ordre = du plus utilisé au plus avancé : Contenu → Style → Disposition → Avancé.
         styleBox.innerHTML =
-            accSection('jscomp', 'fa-i-cursor', 'Texte affiché', fJs, _o('jscomp', false))
-            + accSection('texte', 'fa-font', 'Texte', fTexte, _o('texte', false))
-            + accSection('fond', 'fa-fill-drip', 'Fond', fFond, _o('fond', false))
-            + accSection('bordure', 'fa-border-top-left', 'Bordure & coins', fBordure, _o('bordure', true))
-            + accSection('espacement', 'fa-up-down-left-right', 'Espacement', fEspacement, _o('espacement', true))
-            + accSection('taille', 'fa-ruler-combined', 'Dimensions', fTaille, _o('taille', false))
-            + accSection('css', 'fa-code', 'CSS avancé', fCss, _o('css', false));
-        // Show/hide + ouverture contextuelle d'une section (sans écraser un choix explicite mémorisé)
+            accSection('jscomp', 'fa-i-cursor', 'Texte affiché', fJs, _o('jscomp'))
+            + accSection('texte', 'fa-font', 'Texte', fTexte, _o('texte'))
+            + accSection('fond', 'fa-fill-drip', 'Fond', fFond, _o('fond'))
+            + accSection('bordure', 'fa-border-top-left', 'Bordure & coins', fBordure, _o('bordure'))
+            + accSection('espacement', 'fa-up-down-left-right', 'Espacement', fEspacement, _o('espacement'))
+            + accSection('taille', 'fa-ruler-combined', 'Dimensions', fTaille, _o('taille'))
+            + accSection('css', 'fa-code', 'CSS avancé', fCss, _o('css'));
         function setSectionVisible(id, vis) { const s = styleBox.querySelector('[data-acc="' + id + '"]'); if (s) s.classList.toggle('hidden', !vis); }
-        function setSectionOpen(id, open) {
-            const s = styleBox.querySelector('[data-acc="' + id + '"]'); if (!s) return;
-            s.querySelector('[data-acc-body]').classList.toggle('hidden', !open);
-            s.querySelector('[data-acc-chev]').classList.toggle('-rotate-90', !open);
+        // Mode focus : ouvre UNE section (qui prend toute la hauteur), replie les autres.
+        // Si la cible est masquée, bascule sur la 1re section visible.
+        function openOnly(id) {
+            const secs = [...styleBox.querySelectorAll('[data-acc]')];
+            let target = styleBox.querySelector('[data-acc="' + id + '"]');
+            if (!target || target.classList.contains('hidden')) {
+                target = secs.find(s => !s.classList.contains('hidden'));
+                id = target ? target.getAttribute('data-acc') : id;
+            }
+            secs.forEach(s => {
+                const open = s.getAttribute('data-acc') === id;
+                s.classList.toggle('flex-1', open);
+                const body = s.querySelector('[data-acc-body]');
+                body.classList.toggle('hidden', !open);
+                body.classList.toggle('flex-1', open);
+                body.classList.toggle('overflow-y-auto', open);
+                s.querySelector('[data-acc-chev]').classList.toggle('-rotate-90', !open);
+            });
+            const st = accState(); st.open = id; accSave(st);
         }
         function applyContextualSections() {
             if (!sel) return;
@@ -1231,11 +1278,9 @@
             const imgish = ['img', 'svg', 'i'].includes(tag) || (sel.hasAttribute && sel.hasAttribute('data-picto'));
             const isContainer = sel.children.length > 0 && !showTexte;
             setSectionVisible('texte', showTexte); // taille police hors-sujet si pas de texte
-            const st = accState();
-            const autoOpen = (id) => { if (!(id in st)) setSectionOpen(id, true); }; // respecte un choix manuel
-            if (showTexte) autoOpen('texte');
-            if (imgish) autoOpen('taille');
-            if (isContainer) { autoOpen('bordure'); autoOpen('fond'); }
+            // Ouvre la section la plus pertinente pour l'élément (mode focus).
+            const pref = showTexte ? 'texte' : (imgish ? 'taille' : (isContainer ? 'fond' : (accState().open || 'fond')));
+            openOnly(pref);
         }
 
         function spSetInput(g, s, v) {
@@ -1248,7 +1293,7 @@
                 const linked = linkState[g];
                 const lb = styleBox.querySelector('[data-sp-link="' + g + '"]');
                 if (lb) {
-                    lb.classList.toggle('text-primary', linked);
+                    lb.classList.toggle('text-secondary', linked);
                     lb.classList.toggle('text-slate-400', !linked);
                     lb.title = linked ? '4 côtés liés — cliquer pour délier' : '4 côtés indépendants — cliquer pour lier';
                     const li = lb.querySelector('i');
@@ -1366,7 +1411,7 @@
             if (!groups.length) { box.innerHTML = ''; return; }
             box.innerHTML = groups.map((g, i) =>
                 '<div><input data-jstext="' + i + '" value="' + escAttr(g.value) + '" '
-                + 'class="w-full bg-slate-950 border border-slate-600 rounded px-2 py-1.5 text-[11px] text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary">'
+                + 'class="w-full bg-slate-950 border border-slate-600 rounded px-2 py-1.5 text-[11px] text-slate-100 focus:outline-none focus:ring-1 focus:ring-secondary">'
                 + (g.spans.length > 1 ? '<span class="text-[9px] text-slate-500 block mt-0.5">× ' + g.spans.length + ' occurrences</span>' : '')
                 + '</div>'
             ).join('');
@@ -1381,15 +1426,7 @@
         styleBox.addEventListener('mousedown', (e) => { if (e.target.closest('button')) e.preventDefault(); });
         styleBox.addEventListener('click', (e) => {
             const head = e.target.closest('[data-acc-head]');
-            if (head) {
-                const sec = head.closest('[data-acc]');
-                const body = sec.querySelector('[data-acc-body]');
-                const willOpen = body.classList.contains('hidden');
-                body.classList.toggle('hidden', !willOpen);
-                sec.querySelector('[data-acc-chev]').classList.toggle('-rotate-90', !willOpen);
-                const st = accState(); st[head.dataset.accHead] = willOpen; accSave(st);
-                return;
-            }
+            if (head) { openOnly(head.dataset.accHead); return; }
             const link = e.target.closest('[data-sp-link]');
             if (link && sel) {
                 const g = link.dataset.spLink;
@@ -1581,8 +1618,43 @@
             if (dir === 'next') { let s = sel.nextElementSibling; while (skip(s)) s = s.nextElementSibling; return s || null; }
             return null;
         }
+        // Icône FontAwesome selon le type d'élément (header contexte)
+        function typeIcon(el) {
+            const t = el.tagName.toLowerCase();
+            if (el.hasAttribute && el.hasAttribute('data-comp')) return 'fa-cube';
+            if (['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(t)) return 'fa-heading';
+            if (t === 'a') return 'fa-link';
+            if (t === 'button') return 'fa-hand-pointer';
+            if (['img', 'figure', 'picture'].includes(t) || (el.hasAttribute && el.hasAttribute('data-picto'))) return 'fa-image';
+            if (['svg', 'i'].includes(t)) return 'fa-icons';
+            if (['ul', 'ol'].includes(t)) return 'fa-list';
+            if (['input', 'select', 'textarea'].includes(t)) return 'fa-i-cursor';
+            if (['p', 'span', 'strong', 'em', 'small', 'label', 'li'].includes(t)) return 'fa-font';
+            return 'fa-square';
+        }
+        // Rôle structurel affiché en méta (Conteneur / Texte / Média / Widget)
+        function elRole(el) {
+            const t = el.tagName.toLowerCase();
+            const hasText = el.children.length === 0 && !!(el.textContent || '').trim();
+            if (el.hasAttribute && el.hasAttribute('data-comp')) return 'Widget';
+            if (['img', 'svg', 'i'].includes(t) || (el.hasAttribute && el.hasAttribute('data-picto'))) return 'Média';
+            if (el.children.length > 0 && !hasText) return 'Conteneur';
+            return 'Texte';
+        }
+        function renderElementContext() {
+            const box = document.getElementById('editor-elctx'); if (!box) return;
+            if (!sel) { box.innerHTML = ''; return; }
+            const tag = sel.tagName.toLowerCase();
+            box.innerHTML =
+                '<span class="w-7 h-7 shrink-0 rounded-lg bg-slate-700/50 text-slate-400 flex items-center justify-center"><i class="fa-solid ' + typeIcon(sel) + ' text-[12px]"></i></span>'
+                + '<span class="min-w-0">'
+                + '<span class="block text-[13px] font-semibold text-slate-200 truncate">' + escHtml(friendlyName(sel)) + '</span>'
+                + '<span class="block text-[10px] text-slate-500 truncate">' + elRole(sel) + ' · &lt;' + tag + '&gt;</span>'
+                + '</span>';
+        }
         function renderNav() {
             const cr = document.getElementById('editor-crumbs'); if (!cr) return;
+            renderElementContext();
             if (!sel) { cr.innerHTML = ''; cr._path = null; return; }
             const root = sliceRootOf(sel);
             const path = []; let n = sel;
@@ -1590,11 +1662,34 @@
             cr.innerHTML = path.map((el, i) => {
                 const cur = el === sel;
                 return (i ? '<span class="text-slate-600 px-0.5">›</span>' : '')
-                    + '<button data-crumb="' + i + '" title="' + el.tagName.toLowerCase() + '" class="px-1.5 py-0.5 rounded whitespace-nowrap ' + (cur ? 'bg-primary text-ink-deep font-semibold' : 'text-slate-300 hover:bg-slate-700') + '">' + escHtml(friendlyName(el)) + '</button>';
+                    + '<button data-crumb="' + i + '" title="' + el.tagName.toLowerCase() + '" class="px-1.5 py-0.5 rounded whitespace-nowrap ' + (cur ? 'bg-secondary text-ink-deep font-semibold' : 'text-slate-300 hover:bg-slate-700') + '">' + escHtml(friendlyName(el)) + '</button>';
             }).join('');
             cr._path = path;
-            ['prev', 'parent', 'child', 'next'].forEach(d => { const b = document.querySelector('#editor-nav [data-nav="' + d + '"]'); if (b) b.disabled = !navTarget(d); });
         }
+        // --- Onglets d'états (Lot 1 : UI ; l'édition réelle hover/focus/active arrive au Lot 4) ---
+        let editState = 'normal';
+        function setEditState(n) {
+            editState = n || 'normal';
+            document.querySelectorAll('#editor-states [data-estate]').forEach(b => {
+                const on = b.dataset.estate === editState;
+                b.classList.toggle('bg-secondary', on);
+                b.classList.toggle('text-ink-deep', on);
+                b.classList.toggle('font-semibold', on);
+                b.classList.toggle('text-slate-400', !on);
+                b.classList.toggle('hover:bg-slate-700', !on);
+            });
+            const hint = document.getElementById('editor-state-hint');
+            if (hint) {
+                if (editState === 'normal') { hint.classList.add('hidden'); hint.textContent = ''; }
+                else {
+                    const lbl = { hover: 'Survol', focus: 'Focus', active: 'Actif' }[editState] || editState;
+                    hint.textContent = 'Édition de l’état « ' + lbl + ' » — bientôt disponible.';
+                    hint.classList.remove('hidden');
+                }
+            }
+        }
+        { const es = document.getElementById('editor-states'); if (es) es.addEventListener('click', (e) => { const b = e.target.closest('[data-estate]'); if (b) setEditState(b.dataset.estate); }); }
+        setEditState('normal');
         document.getElementById('editor-nav').addEventListener('click', (e) => {
             const crumb = e.target.closest('[data-crumb]');
             if (crumb) { const p = document.getElementById('editor-crumbs')._path; const el = p && p[+crumb.dataset.crumb]; if (el) selectElement(el); return; }
@@ -1624,6 +1719,7 @@
             positionMarquee();
             requestAnimationFrame(positionMarquee); // recale après reflow (panneau/zoom)
             renderNav();
+            setEditState('normal'); // repart sur l'état Normal à chaque nouvelle sélection
             applyContextualSections(); // ouvre/masque les sections selon le type d'élément
         }
 
@@ -1734,7 +1830,7 @@
         function markEditBtn(on) {
             const b = toolbar.querySelector('button[data-act="edit"]');
             if (!b) return;
-            b.classList.toggle('bg-primary', on);
+            b.classList.toggle('bg-secondary', on);
             b.classList.toggle('text-ink-deep', on);
         }
 
@@ -1793,7 +1889,7 @@
 
         function toast(msg) {
             let t = document.getElementById('ekw-toast');
-            if (!t) { t = document.createElement('div'); t.id = 'ekw-toast'; t.className = 'fixed bottom-4 left-1/2 -translate-x-1/2 z-[120] px-4 py-2 rounded-lg bg-ink-deep border border-primary text-cloud text-xs shadow-2xl transition-opacity'; document.body.appendChild(t); }
+            if (!t) { t = document.createElement('div'); t.id = 'ekw-toast'; t.className = 'fixed bottom-4 left-1/2 -translate-x-1/2 z-[120] px-4 py-2 rounded-lg bg-ink-deep border border-secondary text-cloud text-xs shadow-2xl transition-opacity'; document.body.appendChild(t); }
             t.textContent = msg; t.style.opacity = '1';
             clearTimeout(t._h); t._h = setTimeout(() => { t.style.opacity = '0'; }, 1600);
         }
@@ -1943,7 +2039,7 @@
         }
         // helper vignette : cadre carte + aperçu scale + résolution pictos
         function libCardShell(card, html, name) {
-            card.className = 'relative group w-full rounded-lg border border-slate-700 bg-slate-900 overflow-hidden cursor-pointer hover:border-primary transition';
+            card.className = 'relative group w-full rounded-lg border border-slate-700 bg-slate-900 overflow-hidden cursor-pointer hover:border-secondary transition';
             card.innerHTML =
                 '<div class="h-24 w-full overflow-hidden bg-night pointer-events-none">'
                 + '<div class="origin-top-left" style="transform:scale(0.27);width:370%;">' + (html || '') + '</div></div>'
@@ -3394,10 +3490,10 @@
             <h2 class="text-white font-bold text-lg">Importer depuis Prismic</h2>
             <p class="text-slate-400 text-sm">Colle l'URL du document</p>
             <input id="prismic-import-input" type="text" placeholder="URL Prismic"
-                class="w-full bg-slate-950 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-primary">
+                class="w-full bg-slate-950 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-secondary">
             <div id="prismic-token-wrap">
                 <input id="prismic-token-input" type="password" autocomplete="off" spellcheck="false"
-                    class="w-full bg-slate-950 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary">
+                    class="w-full bg-slate-950 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-1 focus:ring-secondary">
                 <span class="text-[11px] text-slate-500 leading-snug block mt-1">Import instantané via l'API Prismic.
                     Génère un <b>Permanent access token</b> : Prismic → Settings → API &amp; Security. Sans token,
                     import lent (via Claude). Le token reste sur ta machine (jamais partagé).</span>
@@ -3406,7 +3502,7 @@
                 <i class="fa-solid fa-circle-check text-emerald-500"></i>
                 <span>Token de lecture enregistré</span>
                 <button type="button" onclick="editPrismicToken()"
-                    class="text-primary hover:underline">Modifier</button>
+                    class="text-secondary hover:underline">Modifier</button>
             </div>
             <div class="flex justify-end gap-2">
                 <button onclick="closePrismicImport()"
@@ -3428,15 +3524,15 @@
                 <div id="ps-read-wrap" class="flex gap-2">
                     <input id="ps-read-input" type="password" autocomplete="off" spellcheck="false"
                         placeholder="colle le token de lecture…"
-                        class="flex-1 min-w-0 bg-slate-950 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-primary">
+                        class="flex-1 min-w-0 bg-slate-950 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-secondary">
                     <button onclick="savePsToken('read')"
-                        class="px-3 py-2 text-sm bg-primary hover:brightness-110 rounded-lg text-white font-semibold shrink-0">Enregistrer</button>
+                        class="px-3 py-2 text-sm bg-secondary hover:brightness-110 rounded-lg text-ink-deep font-semibold shrink-0">Enregistrer</button>
                 </div>
                 <div id="ps-read-saved" class="hidden items-center gap-2 text-[12px] text-slate-400">
                     <i class="fa-solid fa-circle-check text-emerald-500"></i>
                     <span class="flex-1">Token de lecture enregistré</span>
                     <button type="button" onclick="editPsToken('read')"
-                        class="text-primary hover:underline">Modifier</button>
+                        class="text-secondary hover:underline">Modifier</button>
                     <button type="button" onclick="clearPsToken('read')"
                         class="text-red-400 hover:underline">Effacer</button>
                 </div>
@@ -3448,15 +3544,15 @@
                 <div id="ps-write-wrap" class="flex gap-2">
                     <input id="ps-write-input" type="password" autocomplete="off" spellcheck="false"
                         placeholder="colle le token d'écriture…"
-                        class="flex-1 min-w-0 bg-slate-950 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-primary">
+                        class="flex-1 min-w-0 bg-slate-950 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-secondary">
                     <button onclick="savePsToken('write')"
-                        class="px-3 py-2 text-sm bg-primary hover:brightness-110 rounded-lg text-white font-semibold shrink-0">Enregistrer</button>
+                        class="px-3 py-2 text-sm bg-secondary hover:brightness-110 rounded-lg text-ink-deep font-semibold shrink-0">Enregistrer</button>
                 </div>
                 <div id="ps-write-saved" class="hidden items-center gap-2 text-[12px] text-slate-400">
                     <i class="fa-solid fa-circle-check text-emerald-500"></i>
                     <span class="flex-1">Token d'écriture enregistré</span>
                     <button type="button" onclick="editPsToken('write')"
-                        class="text-primary hover:underline">Modifier</button>
+                        class="text-secondary hover:underline">Modifier</button>
                     <button type="button" onclick="clearPsToken('write')"
                         class="text-red-400 hover:underline">Effacer</button>
                 </div>
