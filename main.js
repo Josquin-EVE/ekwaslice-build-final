@@ -761,6 +761,45 @@ ipcMain.handle('update-prismic', async (event, payload) => {
 });
 
 // ---------------------------------------------------------------------------
+// LISTE BIBLIOTHÈQUE PRISMIC — énumère les custom_slice PUBLIÉES via l'API Content
+// (rapide, sans LLM). Renvoie [{id, name, date, size}] ; name dérivé du 1er texte
+// visible du html_only (pas de titre stocké côté Prismic). Lecture seule.
+// ---------------------------------------------------------------------------
+ipcMain.handle('list-prismic-slices', async () => {
+  const token = (readSettings().prismicToken || '').trim();
+  if (!token) return { error: 'NO_READ_TOKEN' };
+  try {
+    const base = 'https://ekwateur-edito.cdn.prismic.io/api/v2';
+    const apiRes = await fetch(base + '?access_token=' + encodeURIComponent(token));
+    if (apiRes.status === 401 || apiRes.status === 403) return { error: 'Token Prismic refusé (' + apiRes.status + ') — vérifie-le dans les réglages.' };
+    if (!apiRes.ok) return { error: 'API Prismic: HTTP ' + apiRes.status };
+    const apiJson = await apiRes.json();
+    const master = (apiJson.refs || []).find(r => r.isMasterRef) || (apiJson.refs || [])[0];
+    if (!master) return { error: 'Réponse API Prismic inattendue (pas de ref).' };
+    const q = '[[at(document.type,"custom_slice")]]';
+    const out = [];
+    let page = 1, totalPages = 1;
+    do {
+      const url = base + '/documents/search?ref=' + encodeURIComponent(master.ref) + '&q=' + encodeURIComponent(q) + '&pageSize=100&page=' + page + '&access_token=' + encodeURIComponent(token);
+      const res = await fetch(url);
+      if (!res.ok) return { error: 'API Content Prismic: HTTP ' + res.status };
+      const j = await res.json();
+      totalPages = j.total_pages || 1;
+      (j.results || []).forEach(d => {
+        const data = d.data || {};
+        const src = (typeof data.html_only === 'string' && data.html_only) ? data.html_only : (typeof data.html === 'string' ? data.html : '');
+        let name = src.replace(/<[^>]+>/g, ' ').replace(/&[a-z#0-9]+;/gi, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
+        if (!name) name = '(sans texte)';
+        out.push({ id: d.id, name, date: d.last_publication_date || d.first_publication_date || '', size: (data.html_only || data.html || '').length });
+      });
+      page++;
+    } while (page <= totalPages);
+    out.sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+    return { ok: true, slices: out };
+  } catch (e) { return { error: 'API Content Prismic: ' + e.message }; }
+});
+
+// ---------------------------------------------------------------------------
 // MISE À JOUR — vérif légère (sans signature) : compare la version locale à la
 // dernière GitHub Release. Ne télécharge/installe RIEN ; le renderer affiche une
 // bannière avec un lien de téléchargement (install manuelle).

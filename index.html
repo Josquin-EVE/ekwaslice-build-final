@@ -1113,7 +1113,7 @@
         function _eidOf(el) { if (!el.getAttribute('data-eid')) el.setAttribute('data-eid', 'e' + Math.random().toString(36).slice(2, 8)); return el.getAttribute('data-eid'); }
         function _getStates(el) { try { return JSON.parse(el.getAttribute('data-ekw-states') || '{}'); } catch (_) { return {}; } }
         function _saveStates(el, st) {
-            const clean = {}; ['hover', 'focus', 'active'].forEach(k => { if (st[k] && Object.keys(st[k]).length) clean[k] = st[k]; });
+            const clean = {};['hover', 'focus', 'active'].forEach(k => { if (st[k] && Object.keys(st[k]).length) clean[k] = st[k]; });
             if (Object.keys(clean).length) el.setAttribute('data-ekw-states', JSON.stringify(clean)); else el.removeAttribute('data-ekw-states');
         }
         function _styleMap(el) { const m = {}; for (let i = 0; i < el.style.length; i++) { const p = el.style[i]; m[p] = el.style.getPropertyValue(p); } return m; }
@@ -2939,6 +2939,11 @@
             if (tk) tk.value = '';                       // jamais réafficher le token
             if (wrap) wrap.classList.toggle('hidden', saved);   // champ masqué une fois renseigné
             if (savedRow) { savedRow.classList.toggle('hidden', !saved); savedRow.classList.toggle('flex', saved); }
+            // Réinitialise la liste ; auto-charge la bibliothèque si un token de lecture est déjà en place.
+            _prismicLib = [];
+            const list = document.getElementById('prismic-lib-list'); if (list) list.innerHTML = '';
+            const search = document.getElementById('prismic-lib-search'); if (search) { search.value = ''; search.classList.add('hidden'); }
+            if (saved) loadPrismicLibrary();
             document.getElementById('prismic-import-input').focus();
         }
         function editPrismicToken() {
@@ -2985,6 +2990,49 @@
             injectVerbatimSlice(r.trio, { documentId: r.documentId, baseVersionId: r.baseVersionId, title: r.title, field, uid: r.uid });
             document.getElementById('prismic-import-input').value = '';
             toast('Slice importée depuis Prismic (verbatim) ✓');
+        }
+        // --- Bibliothèque Prismic : liste des custom_slice publiées, clic = import direct ---
+        let _prismicLib = [];
+        async function loadPrismicLibrary(btn) {
+            if (!window.api || !window.api.listPrismicSlices) { toast("Dispo seulement dans l'app"); return; }
+            const tk = (document.getElementById('prismic-token-input').value || '').trim();
+            if (tk && tk !== (APP_SETTINGS && APP_SETTINGS.prismicToken)) {
+                APP_SETTINGS.prismicToken = tk;
+                if (window.api && window.api.settingsSet) { try { await window.api.settingsSet({ prismicToken: tk }); } catch (_) { } }
+            }
+            if (btn) { btn.disabled = true; btn.textContent = 'Chargement…'; }
+            let r; try { r = await window.api.listPrismicSlices(); } catch (e) { r = { error: e.message }; }
+            if (btn) { btn.disabled = false; btn.textContent = 'Recharger'; }
+            if (!r || r.error || !r.ok) { toast('Biblio Prismic : ' + (r && r.error === 'NO_READ_TOKEN' ? 'token de lecture requis' : ((r && r.error) || 'échec'))); return; }
+            _prismicLib = r.slices || [];
+            document.getElementById('prismic-lib-search').classList.remove('hidden');
+            renderPrismicLib();
+        }
+        function renderPrismicLib() {
+            const list = document.getElementById('prismic-lib-list'); if (!list) return;
+            const q = (document.getElementById('prismic-lib-search').value || '').toLowerCase();
+            const items = _prismicLib.filter(s => !q || (s.name || '').toLowerCase().includes(q) || s.id.toLowerCase().includes(q));
+            if (!items.length) { list.innerHTML = '<div class="text-[12px] text-slate-500 py-3 text-center">Aucune slice</div>'; return; }
+            list.innerHTML = items.map(s => {
+                const d = s.date ? new Date(s.date).toLocaleDateString('fr-FR') : '';
+                return '<button type="button" data-slice-id="' + s.id + '" class="w-full text-left px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 hover:border-secondary transition flex items-center justify-between gap-2">'
+                    + '<span class="min-w-0"><span class="block text-[12px] text-slate-100 truncate">' + escHtml(s.name || s.id) + '</span><span class="block text-[10px] text-slate-500">' + d + '</span></span>'
+                    + '<i class="fa-solid fa-arrow-right-to-bracket text-[11px] text-slate-500"></i></button>';
+            }).join('');
+        }
+        { const ll = document.getElementById('prismic-lib-list'); if (ll) ll.addEventListener('click', (e) => { const b = e.target.closest('[data-slice-id]'); if (b) importSliceById(b.dataset.sliceId, b); }); }
+        async function importSliceById(id, btn) {
+            if (!window.api || !window.api.pullPrismic) return;
+            if (btn) btn.disabled = true;
+            showLoading('Import en cours…');
+            let r; try { r = await window.api.pullPrismic(id); } catch (e) { r = { error: e.message }; }
+            hideLoading();
+            if (btn) btn.disabled = false;
+            if (!r || r.error || !r.ok) { toast('Échec import : ' + ((r && (r.error || r.raw)) || 'inconnu')); return; }
+            closePrismicImport();
+            const field = (r.trio && r.trio.html_only && r.trio.html_only.trim()) ? 'html_only' : 'html';
+            injectVerbatimSlice(r.trio, { documentId: r.documentId, baseVersionId: r.baseVersionId, title: r.title, field, uid: r.uid });
+            toast('Slice importée depuis Prismic ✓');
         }
 
         // Applique les règles CSS "inline-ables" en style inline sur les éléments de `root`,
@@ -3788,13 +3836,13 @@
     <div id="prismicImportModal"
         class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-6">
         <div class="bg-slate-800 rounded-2xl p-6 w-full max-w-lg space-y-4">
-            <h2 class="text-white font-bold text-lg">Importer depuis Prismic</h2>
+            <h2 class="text-white font-bold text-lg">Importer depuis Prismic
+                <button type="button"
+                    onclick="window.api&&window.api.openExternal('https://ekwateur-edito.prismic.io/builder/working?customTypes=custom_slice')"
+                    <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
+                </button>
+            </h2>
             <p class="text-slate-400 text-sm">Colle l'URL du document</p>
-            <button type="button"
-                onclick="window.api&&window.api.openExternal('https://ekwateur-edito.prismic.io/builder/working?customTypes=custom_slice')"
-                class="inline-flex items-center gap-1.5 text-[12px] text-secondary hover:underline">
-                <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>Parcourir les custom slices dans Prismic
-            </button>
             <input id="prismic-import-input" type="text" placeholder="URL Prismic"
                 class="w-full bg-slate-950 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-secondary">
             <div id="prismic-token-wrap">
@@ -3809,6 +3857,16 @@
                 <span>Token de lecture enregistré</span>
                 <button type="button" onclick="editPrismicToken()"
                     class="text-secondary hover:underline">Modifier</button>
+            </div>
+            <div class="border-t border-slate-700 pt-3">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-slate-400 text-xs">Ou choisis une slice publiée :</span>
+                    <button type="button" onclick="loadPrismicLibrary(this)"
+                        class="text-[11px] text-secondary hover:underline">Charger la bibliothèque</button>
+                </div>
+                <input id="prismic-lib-search" oninput="renderPrismicLib()" placeholder="Filtrer…"
+                    class="hidden w-full mb-2 bg-slate-950 border border-slate-600 rounded-lg px-3 py-1.5 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-secondary">
+                <div id="prismic-lib-list" class="max-h-56 overflow-y-auto space-y-1 pr-1"></div>
             </div>
             <div class="flex justify-end gap-2">
                 <button onclick="closePrismicImport()"
