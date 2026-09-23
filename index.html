@@ -3387,8 +3387,12 @@
         async function pushToPrismic(btn) {
             if (!window.api || !window.api.pushPrismic) { toast("Dispo seulement dans l'app"); return; }
             if (!lastExport || (!lastExport.html && !lastExport.css && !lastExport.js)) { toast('Rien à envoyer'); return; }
+            // Si la slice vient d'un import Prismic, pré-remplir avec son nom de base
+            // (data-remote-title, prefixe retire) ; sinon repli sur le 1er titre du canvas.
+            const imp = canvas.querySelector('[data-comp][data-remote-title]');
+            const base = imp ? (imp.getAttribute('data-remote-title') || '').replace(/^\[Custom Slice\]\s*/i, '').trim() : '';
             const h = canvas.querySelector('[data-comp] h1, [data-comp] h2, [data-comp] h3, [data-comp] [class*="text-2xl"]');
-            const suggested = (h && h.textContent.trim().slice(0, 50)) || 'Composant';
+            const suggested = base || (h && h.textContent.trim().slice(0, 50)) || 'Composant';
             const name = await askName({ title: 'Envoyer vers Prismic', label: 'Nom de la slice (convention : préfixe [Custom Slice])', placeholder: '[Custom Slice] …', pre: '[Custom Slice] ' + suggested });
             if (!name) return;
             const o = btn ? btn.innerHTML : '';

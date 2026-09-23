@@ -687,7 +687,12 @@ ipcMain.handle('pull-prismic', async (event, docId) => {
       if (!d) return { error: 'Document introuvable (id ' + id + ') ou non publié.' };
       const data = d.data || {};
       const str = v => (typeof v === 'string' ? v : '');
-      return { ok: true, trio: { html_only: str(data.html_only), css: str(data.css), js: str(data.js), html: str(data.html) }, documentId: d.id, uid: d.uid || '', baseVersionId: '', title: str(data.title) || d.uid || d.id };
+      // Nom = champ document_title (StructuredText) si rempli, sinon texte derive du HTML, sinon id.
+      const dt = (Array.isArray(data.document_title) && data.document_title[0] && typeof data.document_title[0].text === 'string')
+        ? data.document_title[0].text.trim() : '';
+      const derived = str(data.html_only || data.html).replace(/<[^>]+>/g, ' ').replace(/&[a-z#0-9]+;/gi, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
+      const title = dt || derived || d.uid || d.id;
+      return { ok: true, trio: { html_only: str(data.html_only), css: str(data.css), js: str(data.js), html: str(data.html) }, documentId: d.id, uid: d.uid || '', baseVersionId: '', title };
     } catch (e) { return { error: 'API Content Prismic: ' + e.message }; }
   }
 
