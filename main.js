@@ -624,11 +624,17 @@ ipcMain.handle('push-prismic', async (event, payload) => {
   // Création DIRECTE via Migration API (zéro LLM → quasi-instantané). Le document
   // atterrit comme BROUILLON dans la Migration Release (onglet « Migration Releases »),
   // jamais publié. Forme validée (HTTP 201) : title + type + lang + data (valeurs plates).
+  // document_title = champ StructuredText (heading6) du modèle custom_slice, lisible
+  // par l'API Content → permet à la bibliothèque d'afficher le VRAI nom (le nom
+  // Page Builder n'est récupérable par aucune API). On y recopie le nom saisi.
   const body = {
     title: title,
     type: 'custom_slice',
     lang: 'fr-fr',
-    data: { html_only: html, css: css, js: js, html: '' }
+    data: {
+      document_title: [{ type: 'heading6', text: title, spans: [] }],
+      html_only: html, css: css, js: js, html: ''
+    }
   };
   try {
     const res = await fetch('https://migration.prismic.io/documents/', {
@@ -741,6 +747,23 @@ ipcMain.handle('update-prismic', async (event, payload) => {
   const data = (field === 'html')
     ? { html: html, html_only: '', css: '', js: '' }
     : { html_only: html, css: css, js: js, html: '' };
+  // Le PUT Migration remplace tout `data` → il effacerait document_title (le nom).
+  // On relit le titre courant (API Content, token lecture) et on le réinjecte.
+  try {
+    const rtok = (readSettings().prismicToken || '').trim();
+    if (rtok) {
+      const base = 'https://ekwateur-edito.cdn.prismic.io/api/v2';
+      const apiJson = await (await fetch(base + '?access_token=' + encodeURIComponent(rtok))).json();
+      const master = (apiJson.refs || []).find(r => r.isMasterRef) || (apiJson.refs || [])[0];
+      if (master) {
+        const q = '[[at(document.id,"' + documentId + '")]]';
+        const url = base + '/documents/search?ref=' + encodeURIComponent(master.ref) + '&q=' + encodeURIComponent(q) + '&access_token=' + encodeURIComponent(rtok);
+        const cur = ((await (await fetch(url)).json()).results || [])[0];
+        const dt = cur && cur.data && cur.data.document_title;
+        if (Array.isArray(dt) && dt.length) data.document_title = dt;
+      }
+    }
+  } catch (_) { /* préservation best-effort : en cas d'échec on ne bloque pas la MAJ */ }
   const body = { data };
   if (uid) body.uid = uid;
   try {
@@ -787,8 +810,15 @@ ipcMain.handle('list-prismic-slices', async () => {
       totalPages = j.total_pages || 1;
       (j.results || []).forEach(d => {
         const data = d.data || {};
-        const src = (typeof data.html_only === 'string' && data.html_only) ? data.html_only : (typeof data.html === 'string' ? data.html : '');
-        let name = src.replace(/<[^>]+>/g, ' ').replace(/&[a-z#0-9]+;/gi, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
+        // Vrai nom si le champ document_title (StructuredText) est rempli, sinon
+        // repli sur le texte dérivé du HTML (anciennes slices sans titre).
+        const titleText = (Array.isArray(data.document_title) && data.document_title[0] && typeof data.document_title[0].text === 'string')
+          ? data.document_title[0].text.trim() : '';
+        let name = titleText.replace(/^\[Custom Slice\]\s*/i, '').trim();
+        if (!name) {
+          const src = (typeof data.html_only === 'string' && data.html_only) ? data.html_only : (typeof data.html === 'string' ? data.html : '');
+          name = src.replace(/<[^>]+>/g, ' ').replace(/&[a-z#0-9]+;/gi, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
+        }
         if (!name) name = '(sans texte)';
         out.push({ id: d.id, name, date: d.last_publication_date || d.first_publication_date || '', size: (data.html_only || data.html || '').length });
       });

@@ -2941,8 +2941,11 @@
             if (savedRow) { savedRow.classList.toggle('hidden', !saved); savedRow.classList.toggle('flex', saved); }
             // Réinitialise la liste ; auto-charge la bibliothèque si un token de lecture est déjà en place.
             _prismicLib = [];
+            _selectedSliceId = '';
             const list = document.getElementById('prismic-lib-list'); if (list) list.innerHTML = '';
             const search = document.getElementById('prismic-lib-search'); if (search) { search.value = ''; search.classList.add('hidden'); }
+            document.getElementById('prismic-import-input').value = '';
+            updateImportBtnState();
             if (saved) loadPrismicLibrary();
             document.getElementById('prismic-import-input').focus();
         }
@@ -2972,27 +2975,38 @@
         }
         async function doPrismicImport(btn) {
             if (!window.api || !window.api.pullPrismic) { toast("Dispo seulement dans l'app"); return; }
+            // Source = URL/id collé en priorité, sinon la slice sélectionnée dans la biblio.
             const raw = (document.getElementById('prismic-import-input').value || '').trim();
-            if (!raw) { toast('Colle une URL ou un id.'); return; }
+            const id = raw || _selectedSliceId;
+            if (!id) { toast('Colle une URL ou choisis une slice.'); return; }
             // Token de lecture (stocké en local) : sauvé avant le pull → chemin rapide API
             const tk = (document.getElementById('prismic-token-input').value || '').trim();
             if (tk && tk !== (APP_SETTINGS && APP_SETTINGS.prismicToken)) {
                 APP_SETTINGS.prismicToken = tk;
                 if (window.api && window.api.settingsSet) { try { await window.api.settingsSet({ prismicToken: tk }); } catch (_) { } }
             }
-            const o = btn ? btn.innerHTML : '';
-            if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1.5"></i>Import…'; }
-            let r; try { r = await window.api.pullPrismic(raw); } catch (e) { r = { error: e.message }; }
-            if (btn) { btn.disabled = false; btn.innerHTML = o; }
-            if (!r || r.error || !r.ok) { toast('Échec import : ' + ((r && (r.error || r.raw)) || 'inconnu')); return; }
+            if (btn) btn.disabled = true;
+            showLoading('Import en cours…');
+            let r; try { r = await window.api.pullPrismic(id); } catch (e) { r = { error: e.message }; }
+            hideLoading();
+            if (!r || r.error || !r.ok) { if (btn) btn.disabled = false; toast('Échec import : ' + ((r && (r.error || r.raw)) || 'inconnu')); return; }
             closePrismicImport();
             const field = (r.trio && r.trio.html_only && r.trio.html_only.trim()) ? 'html_only' : 'html';
             injectVerbatimSlice(r.trio, { documentId: r.documentId, baseVersionId: r.baseVersionId, title: r.title, field, uid: r.uid });
             document.getElementById('prismic-import-input').value = '';
             toast('Slice importée depuis Prismic (verbatim) ✓');
         }
+        // Active/désactive le bouton Importer : grisé sauf si une URL est collée OU une slice sélectionnée.
+        function updateImportBtnState() {
+            const inp = document.getElementById('prismic-import-input');
+            const url = inp ? (inp.value || '').trim() : '';
+            if (url && _selectedSliceId) { _selectedSliceId = ''; renderPrismicLib(); } // URL et slice mutuellement exclusifs
+            const btn = document.getElementById('prismic-import-go');
+            if (btn) btn.disabled = !(url || _selectedSliceId);
+        }
         // --- Bibliothèque Prismic : liste des custom_slice publiées, clic = import direct ---
         let _prismicLib = [];
+        let _selectedSliceId = '';
         async function loadPrismicLibrary(btn) {
             if (!window.api || !window.api.listPrismicSlices) { toast("Dispo seulement dans l'app"); return; }
             const tk = (document.getElementById('prismic-token-input').value || '').trim();
@@ -3015,25 +3029,26 @@
             if (!items.length) { list.innerHTML = '<div class="text-[12px] text-slate-500 py-3 text-center">Aucune slice</div>'; return; }
             list.innerHTML = items.map(s => {
                 const d = s.date ? new Date(s.date).toLocaleDateString('fr-FR') : '';
-                return '<button type="button" data-slice-id="' + s.id + '" class="w-full text-left px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 hover:border-secondary transition flex items-center justify-between gap-2">'
-                    + '<span class="min-w-0"><span class="block text-[12px] text-slate-100 truncate">' + escHtml(s.name || s.id) + '</span><span class="block text-[10px] text-slate-500">' + d + '</span></span>'
-                    + '<i class="fa-solid fa-arrow-right-to-bracket text-[11px] text-slate-500"></i></button>';
+                const sel = s.id === _selectedSliceId;
+                const border = sel ? 'border-secondary ring-1 ring-secondary bg-secondary/20' : 'border-slate-700 bg-slate-950 hover:border-secondary';
+                const nameCls = sel ? 'text-[12px] text-white font-bold truncate' : 'text-[12px] text-slate-100 truncate';
+                const mark = sel ? '<i class="fa-solid fa-circle-check text-[15px] text-secondary shrink-0"></i>' : '';
+                return '<button type="button" data-slice-id="' + s.id + '" aria-pressed="' + sel + '" class="w-full text-left px-3 py-2 rounded-lg border ' + border + ' transition flex items-center gap-2.5">'
+                    + '<span class="min-w-0 flex-1"><span class="block ' + nameCls + '">' + escHtml(s.name || s.id) + '</span><span class="block text-[10px] text-slate-500">' + d + '</span></span>'
+                    + mark + '</button>';
             }).join('');
         }
-        { const ll = document.getElementById('prismic-lib-list'); if (ll) ll.addEventListener('click', (e) => { const b = e.target.closest('[data-slice-id]'); if (b) importSliceById(b.dataset.sliceId, b); }); }
-        async function importSliceById(id, btn) {
-            if (!window.api || !window.api.pullPrismic) return;
-            if (btn) btn.disabled = true;
-            showLoading('Import en cours…');
-            let r; try { r = await window.api.pullPrismic(id); } catch (e) { r = { error: e.message }; }
-            hideLoading();
-            if (btn) btn.disabled = false;
-            if (!r || r.error || !r.ok) { toast('Échec import : ' + ((r && (r.error || r.raw)) || 'inconnu')); return; }
-            closePrismicImport();
-            const field = (r.trio && r.trio.html_only && r.trio.html_only.trim()) ? 'html_only' : 'html';
-            injectVerbatimSlice(r.trio, { documentId: r.documentId, baseVersionId: r.baseVersionId, title: r.title, field, uid: r.uid });
-            toast('Slice importée depuis Prismic ✓');
-        }
+        // Clic sur une slice = sélection (toggle), PAS d'import direct. L'import se fait
+        // via le bouton « Importer ». Sélectionner une slice vide le champ URL.
+        // Délégation sur `document` : la modale est déclarée APRÈS ce script, donc
+        // #prismic-lib-list n'existe pas encore ici (un addEventListener direct serait perdu).
+        document.addEventListener('click', (e) => {
+            const b = e.target.closest('#prismic-lib-list [data-slice-id]'); if (!b) return;
+            _selectedSliceId = (_selectedSliceId === b.dataset.sliceId) ? '' : b.dataset.sliceId;
+            if (_selectedSliceId) { const inp = document.getElementById('prismic-import-input'); if (inp) inp.value = ''; }
+            renderPrismicLib();
+            updateImportBtnState();
+        });
 
         // Applique les règles CSS "inline-ables" en style inline sur les éléments de `root`,
         // et renvoie le CSS résiduel (@media, :hover, ::x, keyframes…) SCOPÉ sous .scopeClass et
@@ -3388,7 +3403,7 @@
             if (r && r.error === 'NO_WRITE_TOKEN') { APP_SETTINGS.prismicWriteToken = ''; toast('Token d\'écriture manquant — reclique pour le saisir.'); return; }
             if (!r || r.error || !r.ok) { toast('Échec envoi : ' + ((r && (r.error || r.raw)) || 'inconnu')); return; }
             toast('Envoyé vers Prismic ✓');
-            showExportDone(PRISMIC_BUILDER_URL);
+            showExportDone(prismicDocUrl(r.documentId));
         }
 
         // Affiche/cache le bouton "Mettre à jour Prismic" selon la présence d'une slice importée sur le canvas.
@@ -3492,7 +3507,7 @@
             if (btn) { btn.disabled = false; btn.innerHTML = o; }
             if (r && r.error === 'NO_WRITE_TOKEN') { APP_SETTINGS.prismicWriteToken = ''; toast('Token d\'écriture manquant — reclique pour le saisir.'); return; }
             if (!r || r.error || !r.ok) { toast('Échec MàJ : ' + ((r && (r.error || r.raw)) || 'inconnu')); return; }
-            toast('Maj envoyée ✓ — à revoir/publier dans l\'onglet « Migration Releases » de Prismic');
+            showPrismicDone({ title: 'Mise à jour effectuée', subtitle: 'La slice est mise à jour dans Prismic (brouillon, à revoir/publier).', url: prismicDocUrl(el.getAttribute('data-remote-id')) });
         }
 
         // --- Overlay de chargement (gif) pour les opérations async ---
@@ -3513,9 +3528,14 @@
                 if (img) img.removeAttribute('src');
             }
         }
-        // Modale de succès d'export (Envoi Prismic) + lien vers le builder Prismic
+        // Modale de succès Prismic (Envoi OU MAJ) + lien vers le builder Prismic
         const PRISMIC_BUILDER_URL = 'https://ekwateur-edito.prismic.io/builder/migration';
-        function showExportDone(url) {
+        // URL d'édition directe d'un document (onglet Migration Release visible dessus).
+        function prismicDocUrl(id) {
+            return id ? 'https://ekwateur-edito.prismic.io/builder/pages/' + encodeURIComponent(id) + '?s=published' : PRISMIC_BUILDER_URL;
+        }
+        function showPrismicDone(opts) {
+            opts = opts || {};
             let m = document.getElementById('export-done');
             if (!m) {
                 m = document.createElement('div');
@@ -3523,8 +3543,8 @@
                 m.className = 'fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] hidden items-center justify-center p-6';
                 m.innerHTML = '<div class="bg-white border border-[#e5e7eb] rounded-2xl w-full max-w-sm p-6 text-center shadow-2xl">'
                     + '<div class="w-12 h-12 mx-auto rounded-full bg-secondary/25 flex items-center justify-center text-[#132527] mb-3"><i class="fa-solid fa-check text-xl"></i></div>'
-                    + '<h3 class="font-display text-lg font-bold text-[#132527] mb-1">Export terminé</h3>'
-                    + '<p class="text-sm text-slate-500 mb-4">Ta slice est envoyée dans Prismic (brouillon).</p>'
+                    + '<h3 id="prismic-done-title" class="font-display text-lg font-bold text-[#132527] mb-1"></h3>'
+                    + '<p id="prismic-done-sub" class="text-sm text-slate-500 mb-4"></p>'
                     + '<div class="flex gap-2">'
                     + '<button data-ed-close class="flex-1 px-3 py-2 rounded-lg border border-[#e5e7eb] text-sm text-[#132527] hover:bg-[#eef2f6] transition">Fermer</button>'
                     + '<button data-ed-open class="flex-1 px-3 py-2 rounded-lg bg-secondary text-ink-deep text-sm font-semibold hover:brightness-110 transition">Voir sur Prismic</button>'
@@ -3536,8 +3556,13 @@
                     if (e.target.closest('[data-ed-open]')) { if (window.api && window.api.openExternal) window.api.openExternal(m.dataset.url || PRISMIC_BUILDER_URL); hide(); }
                 });
             }
-            m.dataset.url = url || PRISMIC_BUILDER_URL;
+            m.querySelector('#prismic-done-title').textContent = opts.title || 'Terminé';
+            m.querySelector('#prismic-done-sub').textContent = opts.subtitle || '';
+            m.dataset.url = opts.url || PRISMIC_BUILDER_URL;
             m.classList.remove('hidden'); m.classList.add('flex');
+        }
+        function showExportDone(url) {
+            showPrismicDone({ title: 'Export terminé', subtitle: 'Ta slice est envoyée dans Prismic (brouillon).', url });
         }
 
         // --- Écran de garde : connexion Claude ---
@@ -3843,7 +3868,7 @@
                 </button>
             </h2>
             <p class="text-slate-400 text-sm">Colle l'URL du document</p>
-            <input id="prismic-import-input" type="text" placeholder="URL Prismic"
+            <input id="prismic-import-input" type="text" placeholder="URL Prismic" oninput="updateImportBtnState()"
                 class="w-full bg-slate-950 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-secondary">
             <div id="prismic-token-wrap">
                 <input id="prismic-token-input" type="password" autocomplete="off" spellcheck="false"
@@ -3871,8 +3896,8 @@
             <div class="flex justify-end gap-2">
                 <button onclick="closePrismicImport()"
                     class="px-4 py-2 text-sm text-slate-300 hover:text-white">Annuler</button>
-                <button id="prismic-import-go" onclick="doPrismicImport(this)"
-                    class="px-4 py-2 text-sm bg-[#d97757] hover:brightness-110 rounded-lg text-white font-semibold">Importer</button>
+                <button id="prismic-import-go" onclick="doPrismicImport(this)" disabled
+                    class="px-4 py-2 text-sm bg-[#d97757] hover:brightness-110 rounded-lg text-white font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:brightness-100">Importer</button>
             </div>
         </div>
     </div>
