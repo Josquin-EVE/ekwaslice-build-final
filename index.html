@@ -517,9 +517,7 @@
                                 class="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center text-slate-600 mb-4 border border-slate-700">
                                 <i class="fa-solid fa-plus text-xl"></i>
                             </div>
-                            <h3 class="text-base font-semibold text-slate-400">Votre composant est vide</h3>
-                            <p class="text-xs text-slate-500 max-w-xs mt-1">Décris ton composant à Claude (panneau de
-                                droite) pour le générer, puis édite-le ici.</p>
+                            <h3 class="text-base font-semibold text-slate-400">Le canva est vide</h3>
                         </div>
                     </div>
                 </div><!-- /#canvas-fit -->
@@ -535,7 +533,7 @@
         </main>
 
         <!-- Right Sidebar: Global Design Tokens / Guidelines -->
-        <aside class="w-96 bg-slate-800 border-l border-slate-700 flex flex-col shrink-0">
+        <aside id="chat-panel" class="w-96 bg-slate-800 border-l border-slate-700 flex flex-col shrink-0">
             <div class="p-4 border-b border-slate-700 flex items-center justify-between">
                 <h2 class="font-semibold text-sm text-slate-200 flex items-center gap-2">
                     <img src="https://thesvg.org/icons/claude-code/color.svg" style="width: 20px; height: 20px;"
@@ -556,17 +554,20 @@
 
             <!-- Saisie -->
             <div class="p-3 border-t border-slate-700 shrink-0">
-                <!-- Puce d'élément ciblé -->
+                <!-- Puce : cible de modif (sélection) OU mode "nouvel élément" -->
                 <div id="chat-context"
                     class="hidden items-center gap-2 mb-2 bg-[#d97757]/10 border border-[#d97757]/40 rounded-xl px-2.5 py-1.5 text-xs text-black">
 
-                    <img src="https://thesvg.org/icons/claude-code/color.svg" alt="Claude" class="w-4 h-4 shrink-0">
+                    <i id="chat-context-icon" class="fa-solid fa-pen shrink-0 text-[#d97757]"></i>
 
                     <span id="chat-context-label" class="text-black truncate flex-1">élément ciblé</span>
 
-                    <button onclick="clearTarget()" title="Retirer la cible"
+                    <i class="fa-solid fa-circle-info shrink-0 text-black/40 hover:text-black/70 cursor-help"
+                        title="Par défaut, Claude MODIFIE le bloc sélectionné (il le remplace en place, sans doublon). Sélectionne un autre bloc pour le viser. Le bouton à droite bascule en « nouvel élément » : Claude ajoute alors un bloc au lieu de modifier."></i>
+
+                    <button id="chat-context-action" onclick="toggleChatTargetMode()"
                         class="text-black hover:text-[#d97757] shrink-0">
-                        <i class="fa-solid fa-xmark"></i>
+                        <i class="fa-solid fa-plus"></i>
                     </button>
                 </div>
 
@@ -598,6 +599,10 @@
                         <i class="fa-solid fa-arrow-up"></i>
                     </button>
                 </div>
+                <p class="text-[10px] text-slate-400 mt-1.5 px-1 leading-snug">
+                    <i class="fa-solid fa-lightbulb text-[#d97757]/70 mr-1"></i>Sélectionne un bloc → Claude le
+                    <b>modifie en place</b>. Rien de sélectionné → il <b>ajoute</b> un nouvel élément.
+                </p>
             </div>
         </aside>
     </div>
@@ -1920,6 +1925,8 @@
             renderNav();
             setEditState('normal'); // repart sur l'état Normal à chaque nouvelle sélection
             applyContextualSections(); // ouvre/masque les sections selon le type d'élément
+            forceNewEl = false; // nouvelle sélection = intention de la modifier
+            refreshChatContext();
         }
 
         function deselect() {
@@ -1931,6 +1938,7 @@
             showActions(false);
             positionMarquee();
             renderNav();
+            refreshChatContext();
         }
 
         canvas.addEventListener('click', (e) => {
@@ -1951,8 +1959,9 @@
             startEditing();
         });
         document.addEventListener('mousedown', (e) => {
-            // Clics dans l'éditeur docké ou la bulle de lien : ne pas désélectionner
-            if (e.target.closest('#editor-panel') || e.target.closest('#editor-actions') || e.target.closest('#ekw-link')) return;
+            // Clics dans l'éditeur docké, la bulle de lien ou le panneau de chat : ne pas
+            // désélectionner (la sélection = cible de modif pour Claude → doit survivre au clic chat).
+            if (e.target.closest('#editor-panel') || e.target.closest('#editor-actions') || e.target.closest('#ekw-link') || e.target.closest('#chat-panel')) return;
             if (editing) {
                 if (sel && sel.contains(e.target)) return; // clic dans l'élément édité = OK
                 stopEditing();                              // clic ailleurs = fin d'édition
@@ -2567,19 +2576,51 @@
             const txt = raw.slice(0, 32);
             return '<' + tag + '>' + (raw ? ' · « ' + txt + (raw.length > 32 ? '…' : '') + ' »' : '');
         }
+        let forceNewEl = false; // force le mode « nouvel élément » même si une sélection existe
+        // Cible EFFECTIVE du prochain message : cible explicite (bouton « cibler ») >
+        // sélection courante (sauf si on a forcé « nouvel élément ») > rien (= ajout d'un bloc).
+        function effectiveTarget() {
+            if (targetEl && canvas.contains(targetEl)) return targetEl;
+            if (!forceNewEl && sel && canvas.contains(sel)) return sel;
+            return null;
+        }
+        // Bascule modif-en-place <-> nouvel élément (bouton de la puce de contexte).
+        function toggleChatTargetMode() {
+            if (effectiveTarget()) { forceNewEl = true; targetEl = null; } else { forceNewEl = false; }
+            refreshChatContext();
+        }
+        // Reflète l'état (modif de X / nouvel élément) dans la puce au-dessus du champ.
+        function refreshChatContext() {
+            const box = document.getElementById('chat-context'); if (!box) return;
+            const label = document.getElementById('chat-context-label');
+            const icon = document.getElementById('chat-context-icon');
+            const act = document.getElementById('chat-context-action');
+            const esc = s => s.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            const t = effectiveTarget();
+            if (t) {
+                label.innerHTML = '<b>Modifie</b> ' + esc(elLabel(t));
+                if (icon) icon.className = 'fa-solid fa-pen shrink-0 text-[#d97757]';
+                if (act) { act.innerHTML = '<i class="fa-solid fa-plus"></i>'; act.title = 'Créer un nouvel élément à la place (ne pas modifier la sélection)'; }
+                box.classList.remove('hidden'); box.classList.add('flex');
+            } else if (forceNewEl && sel) {
+                label.innerHTML = '<b>Nouvel élément</b> — ajouté au canvas';
+                if (icon) icon.className = 'fa-solid fa-plus shrink-0 text-[#d97757]';
+                if (act) { act.innerHTML = '<i class="fa-solid fa-rotate-left"></i>'; act.title = 'Revenir à modifier la sélection'; }
+                box.classList.remove('hidden'); box.classList.add('flex');
+            } else {
+                box.classList.add('hidden'); box.classList.remove('flex');
+            }
+        }
         function setTarget(el) {
             if (!el) return;
-            targetEl = el;
-            const box = document.getElementById('chat-context');
-            document.getElementById('chat-context-label').textContent = elLabel(el);
-            box.classList.remove('hidden'); box.classList.add('flex');
+            targetEl = el; forceNewEl = false;
+            refreshChatContext();
             const input = document.getElementById('chat-input');
             if (input) { input.placeholder = 'Ex : agrandis-le et mets-le en turquoise…'; input.focus(); }
         }
         function clearTarget() {
-            targetEl = null;
-            const box = document.getElementById('chat-context');
-            box.classList.add('hidden'); box.classList.remove('flex');
+            targetEl = null; forceNewEl = false;
+            refreshChatContext();
             const input = document.getElementById('chat-input');
             if (input) input.placeholder = 'Message à Claude…';
         }
@@ -2596,11 +2637,21 @@
             const newEl = tmp.firstElementChild;
             if (!newEl) return null;
             const wasTop = oldEl.hasAttribute('data-comp');
+            // Préserve l'identité de la slice (lien Prismic + eid d'états) : le fragment
+            // renvoyé par Claude ne les porte pas → sans ça, « MAJ Prismic » perd la cible
+            // et le prefill Envoi saute après une édition par chat.
+            const KEEP = ['data-remote-id', 'data-remote-title', 'data-remote-field', 'data-base-version', 'data-eid'];
+            const keep = wasTop ? KEEP.map(a => [a, oldEl.getAttribute(a)]).filter(([, v]) => v != null) : [];
+            const wasPrismicTarget = (oldEl === prismicTarget);
             oldEl.replaceWith(newEl);
             if (wasTop) {
+                keep.forEach(([a, v]) => newEl.setAttribute(a, v)); // ré-applique l'identité
+                if (wasPrismicTarget) prismicTarget = newEl;       // la MAJ suit la nouvelle racine
                 mountSlice(newEl); // re-marque le slice de premier niveau (résout aussi les pictos)
             } else {
-                // élément imbriqué : nettoie les artefacts d'édition éventuels + résout les pictos
+                // élément imbriqué : nettoie les artefacts d'édition + retire tout <script>
+                // (un fragment imbriqué ne doit pas injecter un 2e script dans la slice).
+                newEl.querySelectorAll('script').forEach(s => s.remove());
                 newEl.querySelectorAll('[contenteditable]').forEach(n => n.removeAttribute('contenteditable'));
                 newEl.removeAttribute('contenteditable');
                 resolvePictos(newEl);
@@ -2852,8 +2903,9 @@
             const imgUrls = chatImages.map(im => im.url);
             const baseMsg = msg || 'Image(s) de référence jointe(s) — utilise-les comme base/inspiration pour le composant, à la charte Ekwateur.';
             // Cible du message : capture la référence live et bâtit le contexte pour Claude
-            let tgt = targetEl;
-            if (tgt && !document.body.contains(tgt)) { tgt = null; clearTarget(); }
+            // Cible effective : explicite > sélection (modif en place par défaut) > rien (ajout).
+            let tgt = effectiveTarget();
+            if (tgt && !document.body.contains(tgt)) { tgt = null; }
             let sendMsg = baseMsg;
             if (tgt) {
                 const refHtml = cleanHTML(tgt.outerHTML);
