@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>EkwaSlice</title>
     <script src="assets/vendor/tailwindcss.js"></script>
+    <script src="assets/vendor/lottie.min.js"></script>
     <script src="lib/prismic-slice.js"></script>
     <script>
         // Tokens de la charte graphique Ekwateur (Design System)
@@ -450,7 +451,7 @@
         </aside>
 
         <!-- Center: Interactive Preview Canvas -->
-        <main class="flex-1 bg-slate-950 p-6 flex flex-col overflow-hidden">
+        <main class="relative flex-1 bg-slate-950 p-6 flex flex-col overflow-hidden">
             <div class="flex items-center gap-3 mb-3 shrink-0">
                 <!-- Toggle mode Édition / Aperçu -->
                 <div class="flex items-center gap-1 bg-slate-800 border border-slate-700 rounded-xl p-1 h-10">
@@ -530,6 +531,13 @@
                     class="bg-ink-mid rounded-xl shadow-2xl border border-slate-700 h-full transition-all duration-300"
                     style="width:100%" title="Aperçu responsive"></iframe>
             </div>
+
+            <!-- Surimpression pendant la génération : fond blanc semi-opaque + anim Claude (Lottie) -->
+            <div id="gen-overlay"
+                class="hidden absolute inset-0 z-[90] flex-col items-center justify-center gap-3 bg-white/70 backdrop-blur-[1px]">
+                <div id="gen-lottie" class="w-40 h-40"></div>
+                <p class="font-display text-sm font-bold text-[#132527]">Claude travaille…</p>
+            </div>
         </main>
 
         <!-- Right Sidebar: Global Design Tokens / Guidelines -->
@@ -546,7 +554,7 @@
             </div>
 
             <!-- Fil de conversation -->
-            <div id="chat-log" class="flex-1 overflow-y-auto p-4 space-y-4 text-sm">
+            <div id="chat-log" class="flex-1 overflow-y-auto p-4 space-y-4 text-[15px] leading-relaxed">
                 <div id="chat-welcome" class="text-slate-500 text-xs leading-relaxed">
 
                 </div>
@@ -592,7 +600,7 @@
 
                     <textarea id="chat-input" rows="1" placeholder="Message à Claude…"
                         onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault(); sendChat();}"
-                        class="flex-1 bg-transparent resize-none max-h-40 px-2 py-1.5 text-sm text-slate-900 placeholder-slate-500 focus:outline-none"></textarea>
+                        class="flex-1 bg-transparent resize-none max-h-40 px-2 py-1.5 text-[15px] text-slate-900 placeholder-slate-500 focus:outline-none"></textarea>
 
                     <button id="chat-send" onclick="sendChat()"
                         class="shrink-0 w-9 h-9 flex items-center justify-center bg-white text-gray-800 rounded-xl hover:bg-[#d97757] hover:text-white transition">
@@ -1555,14 +1563,6 @@
             return true;
         }
         function escForQuote(v, q) { return String(v).replace(/\\/g, '\\\\').replace(new RegExp(q, 'g'), '\\' + q).replace(/\r?\n/g, '\\n'); }
-        function rebuildJsTexts(src, groups) {
-            const edits = [];
-            groups.forEach(g => { if (g.newValue !== g.value) g.spans.forEach(sp => edits.push({ start: sp.start, end: sp.end, text: g.quote + escForQuote(g.newValue, g.quote) + g.quote })); });
-            edits.sort((a, b) => a.start - b.start);
-            let out = '', last = 0;
-            edits.forEach(e => { out += src.slice(last, e.start) + e.text; last = e.end; });
-            return out + src.slice(last);
-        }
         // ===== Panneaux dynamiques (Textes + Paramètres de prix) — un SEUL snapshot =====
         // Tout est reconstruit depuis un snapshot unique du <script> à chaque édition →
         // offsets toujours valides, les deux panneaux restent cohérents entre eux.
@@ -1740,15 +1740,6 @@
             return s;
         }
         // Élément qu'un clic simple sélectionnerait vu l'état courant (profondeur progressive).
-        function clickTargetFor(clicked, deep) {
-            if (!clicked || !clicked.closest || !clicked.closest('[data-comp]') || (clicked.closest && clicked.closest('#empty-state'))) return null;
-            if (deep) return clicked; // ⌥/Alt-clic = élément exact sous le curseur
-            const root = sliceRootOf(clicked);
-            const path = []; let n = clicked;
-            while (n) { path.unshift(n); if (n === root) break; const p = n.parentElement; if (!p || p === canvas) break; n = p; }
-            if (sel) { const i = path.indexOf(sel); if (i >= 0) return sel === clicked ? sel : path[i + 1]; }
-            return root; // rien de la sélection sur le chemin → widget entier
-        }
         function showHover(el) {
             if (!el || el === sel || editing) { hideHover(); return; }
             const r = el.getBoundingClientRect(); const p = 2;
@@ -2577,11 +2568,21 @@
             return '<' + tag + '>' + (raw ? ' · « ' + txt + (raw.length > 32 ? '…' : '') + ' »' : '');
         }
         let forceNewEl = false; // force le mode « nouvel élément » même si une sélection existe
+        // Slice par défaut quand rien n'est sélectionné : la slice Prismic ciblée (survit au
+        // deselect) ou, à défaut, l'unique slice du canvas. Null si vide ou si plusieurs slices.
+        function loneOrPrismicSlice() {
+            if (prismicTarget && canvas.contains(prismicTarget)) return prismicTarget;
+            const roots = canvas.querySelectorAll(':scope > [data-comp]');
+            if (roots.length === 1) return roots[0];
+            return null;
+        }
         // Cible EFFECTIVE du prochain message : cible explicite (bouton « cibler ») >
-        // sélection courante (sauf si on a forcé « nouvel élément ») > rien (= ajout d'un bloc).
+        // sélection courante > slice présente par défaut (on MODIFIE en place, pas de doublon) >
+        // rien (= ajout d'un bloc). « Nouvel élément » (forceNewEl) force l'ajout.
         function effectiveTarget() {
             if (targetEl && canvas.contains(targetEl)) return targetEl;
             if (!forceNewEl && sel && canvas.contains(sel)) return sel;
+            if (!forceNewEl) { const s = loneOrPrismicSlice(); if (s) return s; }
             return null;
         }
         // Bascule modif-en-place <-> nouvel élément (bouton de la puce de contexte).
@@ -2703,19 +2704,65 @@
 
         // Rendu d'une réponse : texte + blocs ```code```.
         // replaceTarget (optionnel) = élément ciblé → le 1er bloc HTML le REMPLACE en place.
+        // Filet de sécurité : retire les étiquettes de méta-raisonnement qui fuitent parfois
+        // des skills ~/.claude (ex « Bounded path. », « Design court. », « Classification… »).
+        // Toujours en tête de réponse → on nettoie jusqu'à 2 lignes.
+        function stripLeadMeta(text) {
+            const re = /^\s*\**\s*(Bounded|Unbounded|Scoped|Scoping|Classification|Design\s+(court|bref|rapide)|Starting(\s+with)?|Path|Approach|Plan)\b[^\n]*(\n|$)/i;
+            let t = String(text);
+            for (let i = 0; i < 2; i++) { const n = t.replace(re, ''); if (n === t) break; t = n; }
+            return t;
+        }
+        // Mini-rendu markdown SÛR (on échappe le HTML d'abord, puis on applique le balisage).
+        // Gère : **gras**, *italique*, `code`, puces « - »/« * », listes numérotées, paragraphes.
+        function mdEscape(s) {
+            return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+        function mdInline(s) {
+            return mdEscape(s)
+                .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+                .replace(/`([^`]+)`/g, '<code class="bg-slate-800 text-emerald-300 rounded px-1 py-0.5 text-[0.9em]">$1</code>')
+                .replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
+        }
+        function renderMd(text) {
+            const lines = String(text).replace(/\r/g, '').split('\n');
+            let html = '', list = null; // list = 'ul' | 'ol' | null
+            const closeList = () => { if (list) { html += '</' + list + '>'; list = null; } };
+            for (let raw of lines) {
+                const line = raw.replace(/\s+$/, '');
+                const bullet = line.match(/^\s*[-*]\s+(.*)$/);
+                const num = line.match(/^\s*\d+\.\s+(.*)$/);
+                const head = line.match(/^#{1,6}\s+(.*)$/);
+                if (bullet) {
+                    if (list !== 'ul') { closeList(); html += '<ul class="list-disc pl-5 space-y-0.5 my-1">'; list = 'ul'; }
+                    html += '<li>' + mdInline(bullet[1]) + '</li>';
+                } else if (num) {
+                    if (list !== 'ol') { closeList(); html += '<ol class="list-decimal pl-5 space-y-0.5 my-1">'; list = 'ol'; }
+                    html += '<li>' + mdInline(num[1]) + '</li>';
+                } else if (head) {
+                    closeList(); html += '<div class="font-bold mt-1">' + mdInline(head[1]) + '</div>';
+                } else if (!line.trim()) {
+                    closeList(); html += '<div class="h-1.5"></div>';
+                } else {
+                    closeList(); html += '<div>' + mdInline(line) + '</div>';
+                }
+            }
+            closeList();
+            return html;
+        }
         function renderAssistant(text, replaceTarget) {
             const frag = document.createElement('div');
             frag.className = 'space-y-2';
             let replaceUsed = false;
             let autoInjected = false;
-            const parts = String(text).split('```');
+            const parts = stripLeadMeta(text).split('```');
             parts.forEach((part, i) => {
                 if (i % 2 === 0) {
                     const t = part.trim();
                     if (!t) return;
                     const p = document.createElement('div');
-                    p.className = 'whitespace-pre-wrap leading-relaxed';
-                    p.textContent = t;
+                    p.className = 'leading-relaxed';
+                    p.innerHTML = renderMd(t);
                     frag.appendChild(p);
                 } else {
                     const code = part.replace(/^[a-zA-Z0-9]*\n/, '').replace(/\s+$/, '');
@@ -2800,6 +2847,31 @@
             const send = document.getElementById('chat-send');
             send.disabled = b;
             send.innerHTML = b ? '<i class="fa-solid fa-spinner fa-spin"></i>' : '<i class="fa-solid fa-arrow-up"></i>';
+            showGenOverlay(b); // surimpression anim Claude sur le canvas pendant la génération
+        }
+
+        // --- Overlay de génération : fond blanc semi-opaque + anim Claude (Lottie) ---
+        let _genAnim = null;
+        function showGenOverlay(on) {
+            const ov = document.getElementById('gen-overlay');
+            if (!ov) return;
+            ov.classList.toggle('hidden', !on);
+            ov.classList.toggle('flex', on);
+            if (on) {
+                // init paresseux : lottie peut ne pas être prêt au 1er appel
+                if (!_genAnim && window.lottie) {
+                    try {
+                        _genAnim = window.lottie.loadAnimation({
+                            container: document.getElementById('gen-lottie'),
+                            renderer: 'svg', loop: true, autoplay: true,
+                            path: 'assets/claude-lottie.json'
+                        });
+                    } catch (_) { }
+                }
+                if (_genAnim) { try { _genAnim.goToAndPlay(0, true); } catch (_) { } }
+            } else if (_genAnim) {
+                try { _genAnim.stop(); } catch (_) { }
+            }
         }
 
         // --- Images jointes au chat (presse-papier ou import) ---
@@ -2876,18 +2948,29 @@
         // Vue épurée : on montre la réflexion (prose), on remplace le code en cours
         // de génération par un repère discret (le code final ira dans la carte d'action).
         let streamState = null;
-        function cleanStreamView(buf) {
+        // On n'affiche que la prose. Le code en cours de génération n'est PAS montré :
+        // le spinner persistant + le libellé d'état suffisent à dire « Claude travaille ».
+        function cleanStreamProse(buf) {
             const parts = String(buf).split('```');
             let out = '';
-            parts.forEach((p, i) => { out += (i % 2 === 0) ? p : '\n⟨ génération du composant… ⟩\n'; });
+            parts.forEach((p, i) => { if (i % 2 === 0) out += p; });
             return out.replace(/\n{3,}/g, '\n\n').trim();
         }
         if (window.api && window.api.onChatDelta) {
             window.api.onChatDelta((t) => {
-                if (!streamState || !streamState.el) return;
+                if (!streamState || !streamState.prose) return;
                 streamState.buf += t;
-                const view = cleanStreamView(streamState.buf);
-                if (view) streamState.el.textContent = view;
+                // Bloc de code ouvert mais pas encore refermé → nombre impair de ```.
+                const ticks = (streamState.buf.match(/```/g) || []).length;
+                const inCode = ticks % 2 === 1;
+                const prose = stripLeadMeta(cleanStreamProse(streamState.buf));
+                streamState.prose.innerHTML = prose ? renderMd(prose) : '';
+                streamState.prose.classList.toggle('hidden', !prose); // pas de vide → spinner centré
+                if (streamState.label) {
+                    streamState.label.textContent = inCode
+                        ? 'Claude génère le composant…'
+                        : (prose ? 'Claude écrit…' : 'Claude réfléchit…');
+                }
                 const log = chatLogEl(); if (log) log.scrollTop = log.scrollHeight;
             });
         }
@@ -2949,11 +3032,18 @@
             // NB : la cible reste "collante" — on peut reprompter la même origine
             // jusqu'à Appliquer/Rejeter/✕, sans casser le code précédent.
             setChatBusy(true);
-            const thinkingRow = addBubble('assistant', '');
-            const streamEl = thinkingRow.querySelector('div');
-            streamEl.innerHTML = '<span class="text-slate-500"><i class="fa-solid fa-spinner fa-spin mr-1.5"></i>Claude réfléchit…</span>';
-            streamEl.style.whiteSpace = 'pre-wrap';
-            streamState = { el: streamEl, buf: '' }; // le texte s'affiche au fil de l'eau
+            // Bulle de travail : ligne d'état avec spinner PERSISTANT (visible tant que Claude
+            // bosse) + zone de prose dessous. Le spinner ne disparaît qu'à la réponse finale.
+            const thinkWrap = document.createElement('div');
+            thinkWrap.className = 'space-y-1.5';
+            const statusRow = document.createElement('div');
+            statusRow.className = 'flex items-center gap-2 text-xs text-[#d97757] font-bold';
+            statusRow.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-[#d97757]"></i><span class="chat-status-label">Claude réfléchit…</span>';
+            const proseEl = document.createElement('div');
+            proseEl.className = 'leading-relaxed text-slate-100 hidden';
+            thinkWrap.append(statusRow, proseEl);
+            const thinkingRow = addBubble('assistant', thinkWrap);
+            streamState = { label: statusRow.querySelector('.chat-status-label'), prose: proseEl, buf: '' };
             try {
                 const res = await window.api.sendChat({ message: sendMsg, sessionId: chatSessionId, images: imgsPayload, model: chatFast ? 'claude-haiku-4-5' : 'claude-sonnet-5' });
                 thinkingRow.remove();
@@ -3184,12 +3274,6 @@
             }
         });
 
-
-        function clearCanvas() {
-            canvas.querySelectorAll(':scope > [data-comp]').forEach(el => el.remove());
-            checkEmpty();
-            refreshPrismicUpdateBtn();
-        }
 
         function cleanHTML(html, forExport) {
             let div = document.createElement('div');
@@ -3849,11 +3933,6 @@
             const i = document.querySelector('#theme-toggle i');
             if (i) i.className = (t === 'light') ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
         }
-        function toggleAppTheme() {
-            const cur = document.documentElement.getAttribute('data-app-theme') === 'light' ? 'light' : 'dark';
-            applyAppTheme(cur === 'light' ? 'dark' : 'light');
-        }
-
         // --- Historique (Undo / Redo) : snapshots de l'innerHTML du canvas ---
         let history = [], hIndex = -1, histTimer = null;
         const HIST_MAX = 60;
