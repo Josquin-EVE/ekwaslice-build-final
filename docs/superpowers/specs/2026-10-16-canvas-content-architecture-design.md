@@ -98,6 +98,10 @@ Slice = {
 `root` est l'unité atomique : il contient le markup + le `<style>` scellé + le
 `<script type="text/ekw-js">` + les attributs d'états (`data-ekw-states`, `data-eid`).
 
+**Usage réel : une seule slice dans le canvas.** Le store supporte N slices (robustesse,
+réordonnancement), mais en pratique on édite/exporte UNE slice. Les flux Prismic (export / push /
+MAJ) sont **par slice** : 1 slice = 1 document `custom_slice` (voir 6.4).
+
 ### 6.2 SliceStore — seule autorité sur `#canvas`
 
 API (toute mutation structurelle passe par là) :
@@ -121,8 +125,14 @@ Helpers internes **uniques** (remplacent les doublons) :
 - `cleanArtifacts(node)` — **une seule** fonction de nettoyage (poignées, `.ekw-selected`,
   `.ekw-editing`, `contenteditable`, `data-ekw-pending`, boutons legacy). Remplace les 4
   implémentations divergentes.
-- `serializeSlice(slice) → string` — **un seul** chemin de sérialisation en HTML auteur
-  canonique, consommé par export, save bibliothèque, snapshot undo, et extraction Prismic.
+- `serializeSlice(slice) → string` — point d'entrée unique de sérialisation, mais qui
+  **branche sur `slice.origin`** :
+  - `imported` (Prismic verbatim) → extraction **verbatim** (le trio d'origine, AUCUN
+    scope/compile/renommage), renvoyé dans le même champ Prismic (`meta.prismicField`). Préserve
+    le round-trip Prismic (anti-objectif : ne pas mangler le HTML importé).
+  - `generated` / `code` / `library` → HTML auteur canonique (classes Tailwind + hooks),
+    destiné au pipeline de compile/scope de l'export (6.4).
+  Consommé par export, save bibliothèque, snapshot undo, extraction Prismic.
 
 ### 6.3 Édition intra-slice ↔ sérialisation
 
@@ -138,20 +148,48 @@ Règles :
   suppression d'un nœud interne (édition).
 - La sérialisation ne se fait qu'**à la demande** (export/save/snapshot/MAJ), via
   `serializeSlice`. Pas de re-render permanent.
+- **Édition qui modifie le contenu d'une slice** (texte, style, états, picto, remplacement d'un
+  nœud imbriqué par le chat) : elle agit sur le DOM vivant **dans** `slice.root`, puis appelle
+  `store.touch(id)` → le store émet `change` (déclenche snapshot historique + MAJ UI). C'est la
+  frontière propre `editing.js`/`chat.js` ↔ store : les ops **structurelles** passent par
+  `add/remove/move/replaceContent` ; les éditions **de contenu** passent par le DOM + `touch(id)`.
+  Le ciblage chat **racine** → `store.replaceContent(id, html)` ; le ciblage chat **imbriqué** →
+  remplacement du nœud dans la racine (editing) + `store.touch(id)`.
+- `createSliceRoot` **re-génère des `data-eid` neufs** au `duplicate()` et à l'import (les styles
+  d'états sont scopés par `data-eid` dans un `<style>` global → sans re-mint, deux slices
+  partageraient leurs états). `replaceContent` **préserve** les `data-eid` existants quand
+  possible, et l'undo-restore les garde stables (clé = `id` de slice).
 
-### 6.4 Export (fonction pure sur `store.list()`)
+### 6.4 Export — **par slice** (1 slice = 1 document Prismic)
 
-- Itère `store.list()`, sérialise chaque slice, applique le scope **par uid** :
-  chaque règle CSS devient `.eks-uid <selecteur>`, reset `all:initial` sur le wrapper.
-- **Pas de renommage de classe** : les noms d'origine sont conservés → les sélecteurs JS par
-  classe survivent. L'isolation inter-slices est assurée par l'uid (deux slices = deux uid →
-  `.uidA .title` ≠ `.uidB .title`).
-- **`@keyframes` et `font-face` namespacés par slice** (`spin` → `spin-<uid>`, et réécriture des
-  `animation`/`animation-name` correspondants) — seul vecteur de collision vraiment global.
-- JS concaténé des `<script>` de la slice, enveloppé en IIFE, **verbatim** (plus de réécriture
-  de classe → plus de casse). Toujours stocké dans `lastExport`.
-- Le même pipeline sert copy / push Prismic / update Prismic (extraction verbatim pour les
-  slices importées conservée).
+L'export produit **un trio `{html, css, js}` par slice** (pas un bundle du canvas entier).
+En usage normal il n'y a qu'une slice → un seul trio. Si plusieurs slices existent, chacune
+s'exporte indépendamment (son propre uid, son propre doc).
+
+- Slice `imported` → `serializeSlice` renvoie le **verbatim** (champ Prismic d'origine), sans
+  aucune transformation. Round-trip Prismic préservé.
+- Slice `generated`/`code`/`library` → pipeline de compile/scope :
+  - scope **par uid** : chaque règle CSS devient `.eks-uid <selecteur>`, reset `all:initial`
+    sur le wrapper.
+  - **renommage de classe conservé** (`.title` → `.eks-uid-N`) : assure l'isolation **inter-slices
+    ET vis-à-vis du CSS générique de la page Ekwateur** (une règle `.title{}` du site ne peut pas
+    déteindre sur la slice). 
+  - **le même renommage est appliqué au `<script>`** : la table d'alias classe→alias est passée
+    sur le JS (remplacement des tokens de classe dans les sélecteurs/chaînes) → les sélecteurs JS
+    par classe **survivent** (fin du bug carrousel). Complété par la règle CHARTE existante
+    (cibler de préférence par `data-*`). Cas limite documenté : un nom de classe construit
+    dynamiquement en JS (concat) ne peut pas être réécrit de façon fiable → la CHARTE impose
+    `data-*` pour ce cas ; le plan prévoit un garde-fou/avertissement.
+  - **`@keyframes` et `font-face` namespacés par slice** (`spin` → `spin-<uid>`, + réécriture des
+    `animation`/`animation-name`) — collision globale non couverte par le scope de classe.
+  - JS enveloppé en IIFE. Stocké dans `lastExport`.
+- **Dépendance runtime** : la source CSS reste la feuille Tailwind **générée au runtime**
+  (`document.styleSheets`) + lectures `getComputedStyle` pour les styles/états. L'export n'est
+  donc PAS une fonction pure de `store.list()` seul : il lit le runtime Tailwind (l'`index2.html`
+  charge Tailwind, qui doit avoir scanné le canvas avant export). **Testables en Node** : les
+  seules transformations de chaînes (préfixe uid, renommage classe HTML+CSS+JS cohérent,
+  namespacing keyframes) sur des fixtures ; l'intégration (collecte runtime) se teste dans l'app.
+- Le même pipeline sert copy / push Prismic / update Prismic (par slice).
 
 ### 6.5 Undo / redo = snapshots du store
 
@@ -193,12 +231,13 @@ Règles :
   tests). Suggestion : `store` + `slice` + `createSliceRoot`/`cleanArtifacts`/`serializeSlice`
   d'abord (cœur testable isolément), puis export, puis history, puis features (editing, chat,
   prismic, library), puis UI/bootstrap, puis parité + switch.
-- TDD où c'est possible : le cœur (`store`, `serializeSlice`, export scope/keyframes, history
-  diff) est testable en Node (`node --test`) avec un DOM léger ou des fixtures HTML — le plan
-  précisera la stratégie de test (jsdom éventuel, ou tests de transformation de chaînes pour
-  l'export/scope).
+- TDD où c'est possible : les **transformations de chaînes** de l'export (préfixe uid, renommage
+  classe cohérent HTML+CSS+**JS**, namespacing `@keyframes`) et le **diff d'historique** sont
+  testables en Node (`node --test`) sur fixtures. La **collecte CSS runtime** (Tailwind via
+  `document.styleSheets`) n'est pas pure → testée en intégration dans l'app, pas en Node.
 - Détails d'implémentation du scope : extraction des `@keyframes`/`font-face` et réécriture des
-  références `animation(-name)` ; vérifier qu'aucune règle n'échappe au préfixe uid.
+  références `animation(-name)` ; **application de la table d'alias classe→alias au `<script>`**
+  (réécriture des tokens de classe dans le JS) ; vérifier qu'aucune règle n'échappe au préfixe uid.
 - Mécanique précise de `restore` par diff d'id (clé de réconciliation, préservation `sel`).
 - Contrat de marge/espacement entre slices (aujourd'hui `.mb-6` ajouté incohéremment par
   `injectGenerated` seulement) → à uniformiser (marge portée par le conteneur, pas la racine).
@@ -214,9 +253,10 @@ Chaque point doit marcher dans le nouveau cœur avant la bascule :
 4. CHAT : `effectiveTarget` (explicite > sélection > slice présente > ajout), aperçu candidat +
    Accepter/Rejeter via `store.replaceContent`, préservation identité Prismic.
 5. IMPORT : Prismic verbatim + code collé (flatten CSS).
-6. EXPORT : scope uid, **pas de renommage**, keyframes namespacées, JS par classe fonctionnel ;
-   copy HTML/CSS/JS.
-7. PRISMIC : push (création draft), pull (import), update (MAJ, identité conservée), bouton MAJ.
+6. EXPORT (par slice) : scope uid, **renommage classe conservé + appliqué au JS** (JS par classe
+   fonctionnel), keyframes namespacées, verbatim pour les slices importées ; copy HTML/CSS/JS.
+7. PRISMIC : push (création draft, 1 slice = 1 doc), pull (import), update (MAJ par slice,
+   identité conservée), bouton MAJ.
 8. BIBLIOTHÈQUE : save (clean), load, insert, delete.
 9. UNDO/REDO : snapshots store, restore par diff, pas de refs mortes.
 10. RESET « Nouveau » : reset chat seul, canvas intact.
