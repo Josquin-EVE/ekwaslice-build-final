@@ -194,6 +194,24 @@ test('rewriteJsClasses : token de classe coupe par ${} dans un template n est pa
   assert.equal(rewriteJsClasses('h = `<i class="dot do ${x}">`', alias), 'h = `<i class="eks-u-1 eks-u-9 ${x}">`');
 });
 
+test('rewriteJsClasses : fragment suivi de ${} ou de + : dernier token jamais reecrit (classes dynamiques)', () => {
+  const alias = A({ dot: 'E2', slide: 'E3' });
+  const same = [
+    'q(`.dot${i}`)',
+    "q('.dot' + i)",
+    "el.classList.add('dot' + i)",
+    "el.className = 'dot' + i",
+    "'<i class=\"dot' + i + '\">'",
+  ];
+  for (const js of same) assert.equal(rewriteJsClasses(js, alias), js, js);
+  // Les tokens non terminaux du meme fragment restent reecrits.
+  assert.equal(rewriteJsClasses("q('.slide .dot' + i)", alias), "q('.E3 .dot' + i)");
+  assert.equal(rewriteJsClasses("el.className = 'slide dot' + i", alias), "el.className = 'E3 dot' + i");
+  assert.equal(rewriteJsClasses("el.className = 'slide ' + i", alias), "el.className = 'E3 ' + i");
+  // += n'est pas une concatenation de chaine : la chaine est complete.
+  assert.equal(rewriteJsClasses("q('.dot'); x += 1", alias), "q('.E2'); x += 1");
+});
+
 test('rewriteJsClasses : alias vide / js vide', () => {
   assert.equal(rewriteJsClasses("q('.a')", new Map()), "q('.a')");
   assert.equal(rewriteJsClasses('', A({ a: 'x' })), '');

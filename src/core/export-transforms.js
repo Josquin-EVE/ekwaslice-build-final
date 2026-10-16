@@ -91,14 +91,24 @@ const REGEX_KEYWORDS = new Set([
   'return', 'typeof', 'case', 'in', 'of', 'void', 'delete', 'throw', 'new', 'instanceof', 'yield', 'await',
 ]);
 
-function rewriteClassList(text, alias) {
-  return text.replace(/[^\s]+/g, (t) => alias.get(t) ?? t);
+// Juste après le guillemet fermant : concaténation `+` (pas `+=`).
+const FOLLOWED_BY_PLUS_RE = /^\s*\+(?!=)/;
+
+// `continues` : la chaîne se poursuit dynamiquement juste après ce fragment
+// (suite de template `${}`, opérateur `+`, ou chaîne non terminée). Le DERNIER token
+// du fragment peut alors être partiel (`'dot' + i` -> dot1, dot2...) : on n'y touche pas.
+function rewriteClassList(text, alias, continues) {
+  return text.replace(/[^\s]+/g, (t, offset, whole) => {
+    if (continues && offset + t.length === whole.length) return t;
+    return alias.get(t) ?? t;
+  });
 }
 
-// `atEnd` : la chaîne est coupée juste après (template avant ${}) ou non terminée ;
-// le dernier token d'une valeur class="..." peut alors être partiel et reste intact.
+// `atEnd` = `continues` (voir rewriteClassList) : le dernier token du fragment, qu'il
+// s'agisse de `.name` ou de la dernière classe d'un class="...", reste intact.
 function rewriteSelectorInString(text, alias, atEnd) {
-  let out = text.replace(JS_DOT_CLASS_RE, (m, name) => {
+  let out = text.replace(JS_DOT_CLASS_RE, (m, name, offset, whole) => {
+    if (atEnd && offset + m.length === whole.length) return m;
     const to = alias.get(name);
     return to ? `.${to}` : m;
   });
@@ -169,8 +179,9 @@ function scan(src, start, alias, stopAtBrace) {
       while (j < n && src[j] !== ch && src[j] !== '\n') j += src[j] === '\\' ? 2 : 1;
       const content = src.slice(i + 1, j);
       let next = content;
-      if (pending === 1 || inListCall()) next = rewriteClassList(content, alias);
-      else next = rewriteSelectorInString(content, alias, src[j] !== ch);
+      const continues = src[j] !== ch || FOLLOWED_BY_PLUS_RE.test(src.slice(j + 1, j + 40));
+      if (pending === 1 || inListCall()) next = rewriteClassList(content, alias, continues);
+      else next = rewriteSelectorInString(content, alias, continues);
       if (inAttrCall() && content === 'class') pending = 2;
       else if (pending === 1) pending = 0;
       const close = src[j] === ch ? ch : '';
@@ -202,12 +213,14 @@ function scan(src, start, alias, stopAtBrace) {
       const hasInterp = parts.some((p) => p.e !== undefined);
       const asList = pending === 1 || inListCall();
       if (pending === 1) pending = 0;
+      const followedByPlus = FOLLOWED_BY_PLUS_RE.test(src.slice(j, j + 40));
       let res = '`';
       parts.forEach((p, idx) => {
         if (p.e !== undefined) { res += '${' + p.e + '}'; return; }
         const last = idx === parts.length - 1;
-        if (asList) res += hasInterp ? p.s : rewriteClassList(p.s, alias);
-        else res += rewriteSelectorInString(p.s, alias, !last); // suivie d'un ${} : dernier token potentiellement partiel
+        const continues = !last || followedByPlus; // suivi d'un ${} ou d'un `+`
+        if (asList) res += hasInterp ? p.s : rewriteClassList(p.s, alias, continues);
+        else res += rewriteSelectorInString(p.s, alias, continues);
       });
       out += res + '`';
       i = j; lastSig = '`'; lastWord = '';
