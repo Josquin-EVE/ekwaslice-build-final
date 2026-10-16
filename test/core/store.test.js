@@ -253,3 +253,36 @@ test('serialize : order croissant, html = serializeSlice, id/origin/meta', () =>
     assert.deepEqual(store.serialize().map((o) => o.id), [b.id, a.id]);
   } finally { cleanup(); }
 });
+
+test('insertAt : réinsère avec id, origine, meta donnés à la position voulue, change émis', () => {
+  const { cleanup, canvas, store } = setup();
+  try {
+    const a = store.add('<p>a</p>');
+    const c = store.add('<p>c</p>');
+    let changes = 0;
+    store.on('change', () => { changes += 1; });
+    const b = store.insertAt(1, { id: 'sX', html: '<p>b</p>', origin: 'prismic', meta: { prismicId: 'P' } });
+    assert.equal(b.id, 'sX');
+    assert.equal(b.origin, 'prismic');
+    assert.equal(b.root.getAttribute('data-remote-id'), 'P');
+    assert.deepEqual(store.list(), [a, b, c]);
+    assert.deepEqual([...canvas.children], [a.root, b.root, c.root]);
+    assert.equal(store.sliceOf(b.root), b);
+    assert.equal(changes, 1);
+    // les ids mintés ensuite ne collisionnent pas avec un id restauré
+    store.insertAt(0, { id: 's99', html: '<p>z</p>' });
+    assert.notEqual(store.add('<p>n</p>').id, 's99');
+    assert.equal(store.list().length, 5);
+  } finally { cleanup(); }
+});
+
+test('insertAt : id déjà présent ou index hors bornes (borné)', () => {
+  const { cleanup, store } = setup();
+  try {
+    const a = store.add('<p>a</p>');
+    assert.equal(store.insertAt(0, { id: a.id, html: '<p>dup</p>' }), null);
+    assert.equal(store.list().length, 1);
+    const z = store.insertAt(50, { id: 'sZ', html: '<p>z</p>' });
+    assert.deepEqual(store.list(), [a, z]);
+  } finally { cleanup(); }
+});

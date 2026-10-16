@@ -74,6 +74,24 @@ export class SliceStore {
     return slice;
   }
 
+  // Réinsère une slice avec un id imposé (restauration d'historique), à `index`
+  // (borné). Même chemin de construction que add(). Id déjà présent : null.
+  insertAt(index, { id, html, origin = 'generated', meta = {} }) {
+    if (this.get(id)) return null;
+    const i = Math.max(0, Math.min(index, this._slices.length));
+    const root = createSliceRoot(html, { origin, meta });
+    const slice = { id, root, origin, meta: { ...meta } };
+    // Le compteur reste en avance sur tout id restauré : add() ne peut pas le reproduire.
+    const n = /^s(\d+)$/.exec(id);
+    if (n) this._seq = Math.max(this._seq, Number(n[1]));
+    const next = this._slices[i];
+    this.canvas.insertBefore(root, next ? next.root : null);
+    this._slices.splice(i, 0, slice);
+    this._byRoot.set(root, slice);
+    this._emit();
+    return slice;
+  }
+
   remove(id) {
     const i = this._slices.findIndex((s) => s.id === id);
     if (i < 0) return;
