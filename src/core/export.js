@@ -89,14 +89,14 @@ function mintUid() {
   return Math.random().toString(36).slice(2, 6) + uidCounter.toString(36);
 }
 
-// Sélecteurs qui désignent la page elle-même : sur l'export ils désignent le wrapper.
-const ROOT_SELECTOR = /^(html|body|:root)$/i;
+// Préfixe descendant `html|body|:root ` retiré (`body .card` -> `.card`). Les règles
+// `html` / `body` / `:root` SEULES (preflight, CSS du châssis de l'app) sont volontairement
+// ignorées, comme avant : elles fuiraient sur chaque slice et écraseraient le reset du wrapper.
 const ROOT_PREFIX = /^(?:html|body|:root)\s+/i;
 
-// Une partie de sélecteur -> { wrapper: true } (cible le wrapper), { selector } (à scoper)
-// ou null (ignorée : élément nu / classe absente de cette slice).
+// Une partie de sélecteur -> { selector } (à scoper) ou null (ignorée : élément nu,
+// html/body/:root seuls, ou classe absente de cette slice).
 function classifyPart(part, alias) {
-  if (ROOT_SELECTOR.test(part)) return { wrapper: true };
   let rest = part;
   while (ROOT_PREFIX.test(rest)) rest = rest.replace(ROOT_PREFIX, ''); // `body .x` -> `.x`
   const names = classNames(rest);
@@ -112,7 +112,8 @@ function classifyPart(part, alias) {
 const EDIT_ATTRS = ['data-comp', 'data-remote-id', 'data-base-version', 'data-remote-title', 'data-remote-field', 'draggable', 'contenteditable'];
 
 // Le <div> synthétique (sans attribut) de buildVerbatimSliceHTML est l'enveloppe ; sinon
-// c'est la racine elle-même qui porte le contenu.
+// c'est la racine elle-même qui porte le contenu. Durcissement volontaire vs l'historique
+// `firstElementChild || el` (qui prenait n'importe quel premier enfant).
 function verbatimSource(root) {
   const kids = Array.from(root.children);
   const only = kids.length === 1 ? kids[0] : null;
@@ -204,17 +205,13 @@ function exportCompiled(slice, rules, uidOverride) {
     buckets.get(media).push(line);
   };
   for (const r of styleRules) {
-    const wrapperHit = [];
     const scoped = [];
     for (const part of splitSelectorList(r.selector)) {
       const c = classifyPart(part, alias);
       if (!c) continue;
-      if (c.wrapper) wrapperHit.push(part); else scoped.push(c.selector);
+      scoped.push(c.selector);
     }
     const body = fixFonts(r.body);
-    // html / body / :root = la page : sur l'export c'est le wrapper lui-même (`.uid{}`),
-    // jamais `.uid body{}` (ne matcherait rien).
-    if (wrapperHit.length) push(r.media, `.${wrapper}{${body}}`);
     if (scoped.length) push(r.media, scopeRule(scoped.join(','), body, wrapper));
   }
 
@@ -231,6 +228,7 @@ function exportCompiled(slice, rules, uidOverride) {
 
   // 6. Keyframes : seulement celles référencées par une déclaration animation retenue,
   //    puis namespacées par uid (références mises à jour).
+  // Balaie volontairement tout le CSS assemblé (y compris les corps des règles d'états).
   const animDecls = (css.match(/(?<![\w-])(?:-[a-z]+-)?animation(?:-name)?\s*:[^;}]*/gi) || []).join(' ');
   const seen = new Set();
   for (const k of keyframes) {

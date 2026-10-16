@@ -145,7 +145,7 @@ test('isolation : deux slices mêmes classes, CSS différent -> uid distincts, a
   }
 });
 
-test('html / body / :root -> le wrapper lui-même, jamais `.uid body`', () => {
+test('html / body / :root seuls sont IGNORÉS ; `body .card` -> `.uid .card`', () => {
   const { document, cleanup } = withDom();
   try {
     const slice = makeSlice(document, '<div class="card">x</div>');
@@ -161,10 +161,9 @@ test('html / body / :root -> le wrapper lui-même, jamais `.uid body`', () => {
     });
     const w = wrapperOf(out.html);
     const alias = /<div class="(eks-\w+-\d+)"/.exec(out.html.replace(/^<div class="eks-\w+">/, ''))[1];
-    assert.ok(out.css.includes(`.${w}{margin: 0}`), out.css);
-    assert.ok(out.css.includes(`.${w}{--x: 1}`), out.css);
-    assert.ok(out.css.includes(`.${w}{line-height: 1.2}`), out.css);
-    assert.ok(out.css.includes(`.${w}{padding: 1px}`), out.css);
+    for (const leaked of ['margin: 0', '--x: 1', 'line-height: 1.2', 'padding: 1px']) {
+      assert.ok(!out.css.includes(leaked), `${leaked} ne doit pas être exporté : ${out.css}`);
+    }
     assert.ok(out.css.includes(`.${w} .${alias}{color: green}`), '`body .card` -> `.uid .card`');
     assert.ok(!/\b(body|html|:root)\b/.test(out.css), out.css);
   } finally {
@@ -172,7 +171,23 @@ test('html / body / :root -> le wrapper lui-même, jamais `.uid body`', () => {
   }
 });
 
-test('@media : règles regroupées par media, mobile-first ; html/body dans un media -> wrapper', () => {
+test('fuite du châssis : une règle `body` (font-family app) n\'est pas exportée sur le wrapper', () => {
+  const { document, cleanup } = withDom();
+  try {
+    const out = exportSlice(makeSlice(document, '<div class="card">x</div>'), {
+      collectCssRules: () => [rule('body', 'font-family: Carnero'), rule('.card', 'padding: 8px')],
+    });
+    const w = wrapperOf(out.html);
+    const alias = /<div class="(eks-\w+-\d+)"/.exec(out.html.replace(/^<div class="eks-\w+">/, ''))[1];
+    assert.ok(!out.css.includes('Carnero'), out.css);
+    assert.ok(!out.css.includes(`.${w}{`), 'aucune règle `.uid{…}` issue de body');
+    assert.ok(out.css.includes(`.${w} .${alias}{padding: 8px}`), out.css);
+  } finally {
+    cleanup();
+  }
+});
+
+test('@media : règles regroupées par media, mobile-first ; body dans un media ignoré', () => {
   const { document, cleanup } = withDom();
   try {
     const slice = makeSlice(document, '<div class="card">x</div>');
@@ -189,7 +204,7 @@ test('@media : règles regroupées par media, mobile-first ; html/body dans un m
     const i768 = out.css.indexOf('@media (min-width: 768px)');
     const i1024 = out.css.indexOf('@media (min-width: 1024px)');
     assert.ok(i0 > 0 && i0 < i768 && i768 < i1024, out.css);
-    assert.ok(out.css.includes(`  .${w}{margin: 0}`), out.css);
+    assert.ok(!out.css.includes('margin: 0') && !out.css.includes(`.${w}{`), out.css);
   } finally {
     cleanup();
   }
