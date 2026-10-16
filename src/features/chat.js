@@ -44,6 +44,8 @@
 //       getPageMaxW()                → largeur max du gabarit (contexte d'affichage).
 // -------------------------------------------------------------------------------------
 
+import { serializeSlice } from '../core/slice.js';
+
 export function initChat(store, ctx = {}) {
   const doc = ctx.document || (typeof globalThis !== 'undefined' ? globalThis.document : null);
   const win = ctx.window || (doc && doc.defaultView) || (typeof globalThis !== 'undefined' ? globalThis : null);
@@ -69,6 +71,18 @@ export function initChat(store, ctx = {}) {
   // Une cible est valide seulement si elle est TOUJOURS branchée dans le canvas ET
   // reconnue par le store (pas un nœud détaché/orphelin après change/undo/replaceContent).
   const live = (node) => !!(node && canvas && canvas.contains(node) && store.sliceOf(node));
+
+  // HTML de RÉFÉRENCE envoyé à Claude pour une cible, et base de ce qu'il renvoie.
+  // RACINE de slice → contenu INTERNE canonique (serializeSlice), PAS outerHTML : le modèle
+  // ré-émet ce contenu, et store.replaceContent le repose comme contenu interne de la racine
+  // existante → aucune accumulation de wrapper (root > div > … à chaque édition), et les
+  // data-remote-* (portés par la racine, pas par le contenu) ne fuient pas dans un nœud imbriqué.
+  // Nœud imbriqué → outerHTML (il est remplacé en place par replaceWith).
+  function refHtmlFor(tgt) {
+    const slice = store.sliceOf(tgt);
+    if (slice && slice.root === tgt) return serializeSlice(slice);
+    return cleanHTML(tgt.outerHTML);
+  }
 
   // --- ciblage effectif (cœur du fix « doublon ») --------------------------------------
   function effectiveTarget() {
@@ -148,6 +162,14 @@ export function initChat(store, ctx = {}) {
   // Garde « cible obsolète » : si le nœud n'est plus vivant, on retombe sur un ajout.
   function replaceTargeted(oldEl, html) {
     if (!live(oldEl)) {
+      // Cible devenue obsolète (ex. undo a recréé les racines via insertAt → nouveau nœud,
+      // même id). On NE retombe PAS directement sur un ajout : on re-résout la chaîne de
+      // ciblage — une unique slice présente doit encore être éditée en place (sinon doublon).
+      const fallback = effectiveTarget();
+      if (live(fallback)) {
+        if (toast) toast("L'élément ciblé a changé — modification de la slice en place.");
+        return replaceTargeted(fallback, html); // fallback est vivant → pas de ré-entrée dans cette branche
+      }
       if (toast) toast("L'élément ciblé n'existe plus — ajout d'un nouvel élément.");
       return addGenerated(html);
     }
@@ -343,8 +365,13 @@ export function initChat(store, ctx = {}) {
   function sliceContextHTML(tgt) {
     let html = '';
     if (tgt) {
-      const root = tgt.closest('[data-comp]');
-      html = root ? root.outerHTML : tgt.outerHTML;
+      const slice = store.sliceOf(tgt);
+      if (slice && slice.root === tgt) {
+        html = serializeSlice(slice); // cible = racine → contenu interne (cohérent avec refHtmlFor, pas d'accumulation)
+      } else {
+        const root = tgt.closest('[data-comp]');
+        html = root ? root.outerHTML : tgt.outerHTML;
+      }
     } else {
       canvas.querySelectorAll(':scope > [data-comp]').forEach((r) => { html += r.outerHTML + '\n'; });
     }
@@ -451,7 +478,7 @@ export function initChat(store, ctx = {}) {
     if (tgt && !live(tgt)) tgt = null;
     let sendMsg = baseMsg;
     if (tgt) {
-      const refHtml = cleanHTML(tgt.outerHTML);
+      const refHtml = refHtmlFor(tgt); // racine → contenu interne (serializeSlice) ; imbriqué → outerHTML
       sendMsg = 'Voici un élément HTML existant du composant (déjà à la charte Ekwateur). '
         + 'Modifie UNIQUEMENT cet élément en gardant sa nature, et renvoie sa version modifiée '
         + 'dans UN SEUL bloc ```html (le fragment seul, sans texte superflu) :\n\n'
@@ -529,7 +556,7 @@ export function initChat(store, ctx = {}) {
   }
 
   return {
-    effectiveTarget,
+    effectiveTarget, refHtmlFor,
     setForceNewEl, setTarget, clearTarget, toggleTargetMode, refreshChatContext,
     sendChat, renderAssistant, renderMd, stripLeadMeta,
     applyCandidate, rejectCandidate,
