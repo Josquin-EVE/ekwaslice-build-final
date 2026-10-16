@@ -555,13 +555,24 @@ export function initChat(store, ctx = {}) {
     return chatFast;
   }
 
+  // Nouvelle conversation Claude : repart d'une session vierge (le prochain sendChat envoie
+  // sessionId:null → main.js abandonne --resume), oublie le contexte canvas déjà joint et tout
+  // candidat en attente (sinon un aperçu pourrait substituer un candidat orphelin). Ne touche PAS
+  // au canvas (reset chat seul). Le bootstrap vide en plus le log et la cible.
+  function resetSession() {
+    chatSessionId = null;
+    lastCanvasCtx = { sessionId: null, hash: '' };
+    pending = null;
+    pendingDisablePrev = null;
+  }
+
   return {
     effectiveTarget, refHtmlFor,
     setForceNewEl, setTarget, clearTarget, toggleTargetMode, refreshChatContext,
     sendChat, renderAssistant, renderMd, stripLeadMeta,
     applyCandidate, rejectCandidate,
     addChatImageFromFile, onChatFiles, removeChatImage, renderChatImages,
-    toggleChatFast,
+    toggleChatFast, resetSession,
     isBusy: () => chatBusy,
     getPending: () => pending,
     getSessionId: () => chatSessionId,

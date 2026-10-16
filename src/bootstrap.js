@@ -305,10 +305,11 @@ export function boot(opts = {}) {
   if (chatImages) chatImages.addEventListener('click', (e) => { const b = e.target.closest('[data-chatimg-remove]'); if (b) chat.removeChatImage(parseInt(b.dataset.chatimgRemove, 10)); });
 
   function newChat() {
+    chat.resetSession(); // session CLI vierge : prochain sendChat sans --resume, contexte/pending oubliés
     chat.clearTarget();
     const log = byId('chat-log');
     if (log) log.innerHTML = '<div id="chat-welcome" class="text-slate-500 text-xs leading-relaxed"></div>';
-    // Note : chat.js ne réinitialise pas la session CLI depuis l'extérieur (voir rapport).
+    // Canvas intact (reset du chat uniquement).
   }
 
   // --- bibliothèque : bouton sauvegarde modale ----------------------------------------
