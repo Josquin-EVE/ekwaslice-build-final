@@ -285,7 +285,470 @@
 </head>
 
 <body class="bg-slate-900 text-slate-100 font-sans h-screen flex flex-col overflow-hidden">
-    <div id="canvas"></div>
+
+    <!-- Écran de garde : connexion au compte Claude -->
+    <div id="gate" class="fixed inset-0 z-[100] bg-slate-900 flex items-center justify-center p-6">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-md p-8 text-center shadow-2xl">
+            <div id="gate-iconwrap"
+                class="hidden w-14 h-14 mx-auto rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-400 mb-5">
+                <i id="gate-icon" class="fa-solid fa-spinner fa-spin text-2xl"></i>
+            </div>
+            <img id="gate-gif" src="assets/loading.gif" alt="Chargement"
+                class="w-20 h-20 mx-auto object-contain rounded-2xl mb-5">
+            <h2 id="gate-title" class="text-lg font-bold text-white mb-2">Vérification de la connexion…</h2>
+            <p id="gate-msg" class="text-sm text-slate-400 mb-5">Contrôle de votre compte Claude.</p>
+            <div id="gate-cmd"
+                class="hidden text-left bg-slate-950 border border-slate-700 rounded-xl p-3 mb-5 font-mono text-xs text-emerald-400 select-all whitespace-pre-wrap">
+            </div>
+            <button id="gate-btn"
+                class="hidden w-full bg-secondary hover:brightness-110 text-ink-deep font-semibold py-2.5 rounded-xl transition">
+                Réessayer
+            </button>
+        </div>
+    </div>
+
+    <!-- Overlay de chargement (opérations async : Prismic…) -->
+    <div id="ekw-loading" class="hidden fixed inset-0 z-[200] flex-col items-center justify-center gap-3"
+        style="background:rgba(238,242,246,.6);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)">
+        <img data-src="assets/download.gif" alt="Chargement" class="w-32 h-32 object-contain">
+        <p id="ekw-loading-msg" class="font-display text-base font-bold text-[#132527]"></p>
+    </div>
+
+    <!-- Header -->
+    <header class="bg-slate-800 border-b border-slate-700 px-6 py-4 flex justify-between items-center shrink-0">
+        <div class="flex items-center gap-4">
+            <h1 class="text-xl font-bold text-white flex items-center gap-2">
+                <img src="assets/logo.png" alt="EkwaSlice" class="w-9 h-9 rounded-lg object-cover"> EkwaSlice
+            </h1>
+        </div>
+        <div class="flex gap-3 items-center">
+            <button id="btn-import-prismic" title="Importer une slice existante depuis Prismic (verbatim)"
+                class="px-3 py-2 text-sm bg-slate-700 hover:bg-slate-600 rounded-lg transition text-slate-200 font-medium flex items-center gap-2">
+                <i class="fa-solid fa-cloud-arrow-down"></i>Importer Prismic
+            </button>
+            <button id="btn-push-prismic" title="Envoyer la slice du canvas directement vers Prismic (brouillon)"
+                class="px-3 py-2 text-sm bg-[#d97757] hover:brightness-110 rounded-lg transition text-white font-semibold flex items-center gap-2">
+                <i class="fa-solid fa-cloud-arrow-up"></i>Envoi Prismic
+            </button>
+            <button id="prismic-update-btn" title="Mettre à jour la slice Prismic importée (brouillon en Migration Release)"
+                class="px-3 py-2 text-sm bg-indigo-600 hover:brightness-110 rounded-lg transition text-white font-semibold hidden items-center gap-2">
+                <i class="fa-solid fa-rotate"></i>MAJ Prismic
+            </button>
+            <button id="btn-export"
+                class="px-4 py-2 text-sm bg-secondary hover:brightness-110 rounded-lg transition text-ink-deep font-semibold shadow-lg shadow-secondary/20">
+                <i class="fa-solid fa-code mr-2"></i>Exporter le Code
+            </button>
+            <button id="btn-settings" title="Réglages Prismic — tokens lecture & écriture"
+                class="w-9 h-9 flex items-center justify-center text-sm bg-slate-700 hover:bg-slate-600 rounded-lg transition text-slate-300">
+                <i class="fa-solid fa-gear"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <div class="flex flex-1 overflow-hidden">
+
+        <!-- Left Sidebar: Library -->
+        <aside class="w-80 bg-slate-800 border-r border-slate-700 flex flex-col shrink-0">
+            <!-- Vue bibliothèque (par défaut) -->
+            <div id="library-panel" class="flex flex-col flex-1 overflow-hidden">
+                <div class="p-4 pb-2 flex flex-col flex-1 min-h-0 border-b border-slate-700">
+                    <div class="flex items-center justify-between mb-2 gap-2">
+                        <div class="inline-flex rounded-lg bg-slate-900 border border-slate-700 p-0.5 text-[11px] font-semibold shrink-0">
+                            <button id="tab-local" class="px-2.5 py-1 rounded-md transition bg-secondary text-ink-deep">Local</button>
+                        </div>
+                    </div>
+                    <div id="comp-grid" class="flex flex-col gap-2 overflow-y-auto flex-1 min-h-0 pr-1"></div>
+                </div>
+                <!-- Section : Pictogrammes (accordéon repliable) -->
+                <div class="shrink-0 flex flex-col">
+                    <button id="toggle-pictos" type="button"
+                        class="px-4 py-2.5 flex items-center gap-2 text-left hover:bg-slate-700/40 transition">
+                        <i class="fa-solid fa-shapes text-slate-400 text-xs"></i>
+                        <span class="flex-1 font-semibold text-sm text-slate-300 tracking-wide">Pictogrammes</span>
+                        <i data-picto-chev class="fa-solid fa-chevron-down text-[10px] text-slate-500 transition-transform"></i>
+                    </button>
+                    <div id="picto-body" class="px-4 pb-4 flex flex-col overflow-hidden" style="max-height:42vh">
+                        <input data-picto-search type="text" placeholder="Rechercher un picto…"
+                            class="w-full mb-2 bg-slate-900 border border-slate-600/50 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-secondary">
+                        <div data-picto-grid class="grid grid-cols-4 gap-1.5 overflow-y-auto flex-1 min-h-0 pr-1"></div>
+                        <p class="text-[10px] text-slate-600 mt-1.5 leading-snug">Clic = insérer dans l'élément
+                            sélectionné (sinon nouveau bloc).</p>
+                    </div>
+                </div>
+            </div><!-- /#library-panel -->
+
+            <!-- Vue éditeur : remplace la bibliothèque quand un élément est sélectionné -->
+            <div id="editor-panel" class="hidden flex-col flex-1 overflow-hidden">
+                <div class="p-4 border-b border-slate-700 flex items-center justify-between">
+                    <h2 class="font-semibold text-sm text-slate-200 flex items-center gap-2">
+                        <i class="fa-solid fa-sliders text-black"></i> Éditeur d'élément
+                    </h2>
+                    <button id="editor-close" title="Fermer — revenir aux pictogrammes"
+                        class="text-slate-400 hover:text-cloud text-sm px-2 py-1 rounded-lg hover:bg-slate-700">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <div id="editor-nav" class="px-4 pt-3 pb-2.5 border-b border-slate-700 space-y-2">
+                    <div id="editor-elctx" class="flex items-center gap-2 min-w-0"></div>
+                    <div id="editor-crumbs" class="flex items-center gap-0.5 text-[11px] overflow-x-auto whitespace-nowrap"></div>
+                </div>
+                <div id="editor-format"
+                    class="hidden fixed z-[97] flex-wrap items-center gap-1 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl px-2 py-1.5"></div>
+                <div id="editor-states" class="px-4 pt-2.5 pb-1.5 flex items-center gap-1 border-b border-slate-700">
+                    <button data-estate="normal" type="button" class="est-btn px-2.5 py-1 rounded-md text-[11px] transition">Normal</button>
+                    <button data-estate="hover" type="button" class="est-btn px-2.5 py-1 rounded-md text-[11px] transition">Survol</button>
+                    <button data-estate="focus" type="button" class="est-btn px-2.5 py-1 rounded-md text-[11px] transition">Focus</button>
+                    <button data-estate="active" type="button" class="est-btn px-2.5 py-1 rounded-md text-[11px] transition">Actif</button>
+                </div>
+                <div id="editor-state-hint" class="hidden px-4 pt-1 text-[10px] text-slate-500"></div>
+                <div id="editor-style" class="px-4 overflow-y-auto flex-1 min-h-0"></div>
+                <!-- Pictos accessibles pendant la sélection — repliable -->
+                <div class="border-t border-slate-700 shrink-0">
+                    <button id="toggle-editor-pictos" type="button"
+                        class="w-full px-3 py-2.5 flex items-center gap-2 text-left hover:bg-slate-700/40 transition">
+                        <i class="fa-solid fa-shapes text-slate-400 text-xs"></i>
+                        <span class="flex-1 text-[11px] font-medium text-slate-300">Pictogrammes</span>
+                        <i data-epicto-chev class="fa-solid fa-chevron-down text-[10px] text-slate-500 transition-transform -rotate-90"></i>
+                    </button>
+                    <div id="editor-picto-body" class="hidden px-3 pb-3">
+                        <input data-picto-search type="text" placeholder="Rechercher…"
+                            class="w-full mb-2 bg-slate-900 border border-slate-600/50 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-secondary">
+                        <div data-picto-grid class="grid grid-cols-5 gap-1.5 max-h-40 overflow-y-auto pr-1"></div>
+                        <p class="text-[10px] text-slate-600 mt-1 leading-snug">Clic = remplace le picto sélectionné,
+                            sinon insère dans l'élément.</p>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Center: Interactive Preview Canvas -->
+        <main class="relative flex-1 bg-slate-950 p-6 flex flex-col overflow-hidden">
+            <div class="flex items-center gap-3 mb-3 shrink-0">
+                <!-- Toggle mode Édition / Aperçu -->
+                <div class="flex items-center gap-1 bg-slate-800 border border-slate-700 rounded-xl p-1 h-10">
+                    <button data-mode="edit" title="Édition" class="mode-btn px-3 py-1.5 rounded-lg text-xs transition text-slate-400">
+                        <i class="fa-solid fa-pen-ruler mr-1.5"></i>Édition
+                    </button>
+                    <button data-mode="preview" title="Aperçu web fidèle" class="mode-btn px-3 py-1.5 rounded-lg text-xs transition text-slate-400">
+                        <i class="fa-solid fa-play mr-1.5"></i>Aperçu
+                    </button>
+                </div>
+                <!-- Annuler / Rétablir -->
+                <div class="flex items-center gap-1 bg-slate-800 border border-slate-700 rounded-xl p-1 h-10">
+                    <button id="btn-undo" title="Annuler (Ctrl+Z)"
+                        class="w-8 h-8 rounded-lg text-xs transition text-slate-300 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"><i class="fa-solid fa-rotate-left"></i></button>
+                    <button id="btn-redo" title="Rétablir (Ctrl+Maj+Z)"
+                        class="w-8 h-8 rounded-lg text-xs transition text-slate-300 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"><i class="fa-solid fa-rotate-right"></i></button>
+                </div>
+                <!-- Gabarit de page -->
+                <div class="flex items-center gap-1.5 bg-slate-800 border border-slate-700 rounded-xl px-2.5 h-10"
+                    title="Largeur du conteneur de la page cible">
+                    <i class="fa-solid fa-ruler-horizontal text-slate-400 text-xs"></i>
+                    <select id="page-width" class="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer">
+                        <option value="1080">Common Page (1080px)</option>
+                        <option value="712">Article de blog (712px)</option>
+                    </select>
+                </div>
+
+                <div class="flex-1"></div>
+
+                <!-- Largeurs device (visibles en Aperçu) -->
+                <div id="width-chips" class="hidden items-center gap-1 bg-slate-800 border border-slate-700 rounded-xl p-1 h-10">
+                    <button data-w="desktop" title="Desktop" class="w-btn px-3 py-1.5 rounded-lg text-xs transition text-slate-400"><i class="fa-solid fa-display mr-1.5"></i>Desktop</button>
+                    <button data-w="tablet" title="Tablette 768px" class="w-btn px-3 py-1.5 rounded-lg text-xs transition text-slate-400"><i class="fa-solid fa-tablet-screen-button mr-1.5"></i>Tablette</button>
+                    <button data-w="mobile" title="Mobile 390px" class="w-btn px-3 py-1.5 rounded-lg text-xs transition text-slate-400"><i class="fa-solid fa-mobile-screen-button mr-1.5"></i>Mobile</button>
+                </div>
+
+                <!-- Barre d'actions de l'élément sélectionné (construite par editing.js) -->
+                <div id="editor-actions" class="hidden items-center gap-1 bg-slate-800 border border-slate-700 rounded-xl p-1 h-10"></div>
+            </div>
+
+            <div id="canvas-scroll" class="flex-1 min-h-0 overflow-auto">
+                <div id="canvas-fit" class="mx-auto">
+                    <div id="canvas"
+                        class="preview-canvas font-body w-full min-h-full bg-ink-mid rounded-2xl border-2 border-dashed border-slate-700 p-8 text-cloud space-y-8">
+                        <div id="empty-state" class="h-full flex flex-col items-center justify-center text-center p-8">
+                            <div class="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center text-slate-600 mb-4 border border-slate-700">
+                                <i class="fa-solid fa-plus text-xl"></i>
+                            </div>
+                            <h3 class="text-base font-semibold text-slate-400">Le canva est vide</h3>
+                        </div>
+                    </div>
+                </div><!-- /#canvas-fit -->
+            </div><!-- /#canvas-scroll -->
+
+            <!-- Aperçu responsive (iframe à la vraie largeur device) -->
+            <div id="device-stage"
+                class="hidden flex-1 bg-ink-deep rounded-2xl border-2 border-slate-700 overflow-auto flex justify-center p-4">
+                <iframe id="device-frame"
+                    class="bg-ink-mid rounded-xl shadow-2xl border border-slate-700 h-full transition-all duration-300"
+                    style="width:100%" title="Aperçu responsive"></iframe>
+            </div>
+
+            <!-- Surimpression pendant la génération (Lottie) -->
+            <div id="gen-overlay"
+                class="hidden absolute inset-0 z-[90] flex-col items-center justify-center gap-3 bg-white/70 backdrop-blur-[1px]">
+                <div id="gen-lottie" class="w-40 h-40"></div>
+                <p class="font-display text-sm font-bold text-[#132527]">Claude travaille…</p>
+            </div>
+        </main>
+
+        <!-- Right Sidebar: Chat -->
+        <aside id="chat-panel" class="w-96 bg-slate-800 border-l border-slate-700 flex flex-col shrink-0">
+            <div class="p-4 border-b border-slate-700 flex items-center justify-between">
+                <h2 class="font-semibold text-sm text-slate-200 flex items-center gap-2">
+                    <img src="https://thesvg.org/icons/claude-code/color.svg" style="width: 20px; height: 20px;"
+                        alt="Claude Code">Claude Code
+                </h2>
+                <button id="btn-new-chat" title="Nouvelle conversation"
+                    class="text-xs text-slate-400 hover:text-cloud transition px-2 py-1 rounded-lg hover:bg-slate-700">
+                    <i class="fa-solid fa-rotate-right mr-1"></i>Nouveau
+                </button>
+            </div>
+
+            <div id="chat-log" class="flex-1 overflow-y-auto p-4 space-y-4 text-[15px] leading-relaxed">
+                <div id="chat-welcome" class="text-slate-500 text-xs leading-relaxed"></div>
+            </div>
+
+            <div class="p-3 border-t border-slate-700 shrink-0">
+                <div id="chat-context"
+                    class="hidden items-center gap-2 mb-2 bg-[#d97757]/10 border border-[#d97757]/40 rounded-xl px-2.5 py-1.5 text-xs text-black">
+                    <i id="chat-context-icon" class="fa-solid fa-pen shrink-0 text-[#d97757]"></i>
+                    <span id="chat-context-label" class="text-black truncate flex-1">élément ciblé</span>
+                    <i class="fa-solid fa-circle-info shrink-0 text-black/40 hover:text-black/70 cursor-help"
+                        title="Par défaut, Claude MODIFIE le bloc sélectionné (il le remplace en place, sans doublon). Sélectionne un autre bloc pour le viser. Le bouton à droite bascule en « nouvel élément »."></i>
+                    <button id="chat-context-action" class="text-black hover:text-[#d97757] shrink-0">
+                        <i class="fa-solid fa-plus"></i>
+                    </button>
+                </div>
+
+                <div id="chat-images" class="hidden flex-wrap gap-2 mb-2"></div>
+
+                <div class="flex items-end gap-2 bg-white border border-[#d97757]/40 rounded-2xl p-2 focus-within:ring-2 focus-within:ring-[#d97757]/40">
+                    <input id="chat-file" type="file" accept="image/*" multiple class="hidden">
+                    <button id="chat-attach" title="Joindre une image"
+                        class="shrink-0 w-9 h-9 flex items-center justify-center text-gray-500 hover:text-[#d97757] transition">
+                        <i class="fa-solid fa-paperclip"></i>
+                    </button>
+                    <button id="chat-fast" title="Réponse rapide (modèle haiku)"
+                        class="shrink-0 w-9 h-9 flex items-center justify-center text-gray-500 hover:text-[#d97757] transition">
+                        <i class="fa-solid fa-bolt"></i>
+                    </button>
+                    <textarea id="chat-input" rows="1" placeholder="Message à Claude…"
+                        class="flex-1 bg-transparent resize-none max-h-40 px-2 py-1.5 text-[15px] text-slate-900 placeholder-slate-500 focus:outline-none"></textarea>
+                    <button id="chat-send"
+                        class="shrink-0 w-9 h-9 flex items-center justify-center bg-white text-gray-800 rounded-xl hover:bg-[#d97757] hover:text-white transition">
+                        <i class="fa-solid fa-arrow-up"></i>
+                    </button>
+                </div>
+                <p class="text-[10px] text-slate-400 mt-1.5 px-1 leading-snug">
+                    <i class="fa-solid fa-lightbulb text-[#d97757]/70 mr-1"></i>Sélectionne un bloc → Claude le
+                    <b>modifie en place</b>. Rien de sélectionné → il <b>ajoute</b> un nouvel élément.
+                </p>
+            </div>
+        </aside>
+    </div>
+
+    <!-- Modal Export Code -->
+    <div id="codeModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden items-center justify-center p-6">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-3xl max-h-[80vh] flex flex-col overflow-hidden shadow-2xl">
+            <div class="p-4 border-b border-slate-700 flex justify-between items-center gap-3 shrink-0">
+                <h3 class="font-semibold text-white text-base shrink-0">Export Prismic</h3>
+                <div class="flex items-center gap-2 ml-auto">
+                    <button data-copy="all-tags" title="Copie HTML + style + script d'un coup"
+                        class="text-xs bg-secondary text-ink-deep font-semibold px-3 py-1.5 rounded-lg hover:brightness-110 transition"><i class="fa-solid fa-layer-group mr-1.5"></i>Tout copier (avec balises)</button>
+                    <button data-close-export class="text-slate-400 hover:text-white transition text-lg"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+            </div>
+            <div class="p-4 overflow-y-auto flex-1 space-y-4" style="background:#101c1e">
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-xs font-semibold text-slate-300">HTML</span>
+                        <button data-copy="html" class="text-[11px] bg-secondary hover:brightness-110 text-ink-deep font-semibold px-2.5 py-1 rounded-lg transition"><i class="fa-regular fa-copy mr-1"></i>Copier</button>
+                    </div>
+                    <pre id="out-html" class="whitespace-pre-wrap select-all font-mono text-[11px] text-emerald-400 border border-slate-800 rounded-lg p-3 max-h-56 overflow-auto" style="background:#0F1A1C"></pre>
+                </div>
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-xs font-semibold text-slate-300">CSS</span>
+                        <div class="flex items-center gap-1.5">
+                            <button data-copy="css-tag" title="Copie avec les balises style" class="text-[11px] bg-slate-700 hover:bg-slate-600 text-slate-200 px-2.5 py-1 rounded-lg transition"><i class="fa-solid fa-code mr-1"></i>&lt;style&gt;</button>
+                            <button data-copy="css" class="text-[11px] bg-secondary hover:brightness-110 text-ink-deep font-semibold px-2.5 py-1 rounded-lg transition"><i class="fa-regular fa-copy mr-1"></i>Copier</button>
+                        </div>
+                    </div>
+                    <pre id="out-css" class="whitespace-pre-wrap select-all font-mono text-[11px] text-sky-300 border border-slate-800 rounded-lg p-3 max-h-56 overflow-auto" style="background:#0F1A1C"></pre>
+                </div>
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-xs font-semibold text-slate-300">JS</span>
+                        <div class="flex items-center gap-1.5">
+                            <button data-copy="js-tag" title="Copie avec les balises script" class="text-[11px] bg-slate-700 hover:bg-slate-600 text-slate-200 px-2.5 py-1 rounded-lg transition"><i class="fa-solid fa-code mr-1"></i>&lt;script&gt;</button>
+                            <button data-copy="js" class="text-[11px] bg-secondary hover:brightness-110 text-ink-deep font-semibold px-2.5 py-1 rounded-lg transition"><i class="fa-regular fa-copy mr-1"></i>Copier</button>
+                        </div>
+                    </div>
+                    <pre id="out-js" class="whitespace-pre-wrap select-all font-mono text-[11px] text-amber-300 border border-slate-800 rounded-lg p-3 max-h-40 overflow-auto" style="background:#0F1A1C"></pre>
+                </div>
+            </div>
+            <div class="p-4 border-t border-slate-700 bg-slate-900/50 flex justify-end items-center gap-3 shrink-0">
+                <button data-close-export class="px-4 py-2 text-xs bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 transition mr-auto">Fermer</button>
+                <button data-push-prismic title="Créer la slice directement dans Prismic (brouillon)"
+                    class="px-4 py-2 text-xs bg-secondary text-ink-deep font-semibold rounded-lg hover:brightness-110 transition"><i class="fa-solid fa-cloud-arrow-up mr-1.5"></i>Envoyer vers Prismic</button>
+                <button data-copy="all" class="px-4 py-2 text-xs bg-slate-700 text-slate-200 rounded-lg hover:bg-slate-600 transition"><i class="fa-solid fa-copy mr-1.5"></i>Tout copier</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Importer du code (HTML/CSS/JS) — modale dormante -->
+    <div id="importModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden items-center justify-center p-6">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden shadow-2xl">
+            <div class="p-4 border-b border-slate-700 flex justify-between items-center shrink-0">
+                <h3 class="font-semibold text-white text-base"><i class="fa-solid fa-file-import mr-2 text-secondary"></i>Importer du code (HTML / CSS / JS)</h3>
+                <button data-close-import class="text-slate-400 hover:text-white transition text-lg"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="p-4 overflow-y-auto flex-1 space-y-3">
+                <div>
+                    <label class="text-[11px] font-medium text-slate-300 block mb-1">HTML</label>
+                    <textarea id="imp-html" rows="7" spellcheck="false" placeholder="<div>…</div>"
+                        class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-[11px] font-mono text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-secondary resize-y"></textarea>
+                </div>
+                <div>
+                    <label class="text-[11px] font-medium text-slate-300 block mb-1">CSS</label>
+                    <textarea id="imp-css" rows="6" spellcheck="false" placeholder=".ma-classe{ color:#fff }"
+                        class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-[11px] font-mono text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-secondary resize-y"></textarea>
+                </div>
+                <div>
+                    <label class="text-[11px] font-medium text-slate-300 block mb-1">JS <span class="text-slate-500">(optionnel)</span></label>
+                    <textarea id="imp-js" rows="5" spellcheck="false" placeholder="// script de la slice"
+                        class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-[11px] font-mono text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-secondary resize-y"></textarea>
+                </div>
+            </div>
+            <div class="p-4 border-t border-slate-700 bg-slate-900/50 flex justify-end gap-3 shrink-0">
+                <button data-close-import class="px-4 py-2 text-xs bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 transition">Annuler</button>
+                <button data-do-import class="px-4 py-2 text-xs bg-secondary text-ink-deep font-semibold rounded-lg hover:brightness-110 transition"><i class="fa-solid fa-file-import mr-1.5"></i>Importer dans le canvas</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Nommer le composant (sauvegarde bibliothèque) -->
+    <div id="saveModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] hidden items-center justify-center p-6">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-md flex flex-col overflow-hidden shadow-2xl">
+            <div class="p-4 border-b border-slate-700 flex justify-between items-center shrink-0">
+                <h3 class="font-semibold text-white text-base"><i class="fa-solid fa-floppy-disk mr-2 text-black"></i>Sauvegarder le composant</h3>
+                <button data-close-save class="text-slate-400 hover:text-white transition text-lg"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="p-4 space-y-2">
+                <label class="text-xs font-medium text-slate-300">Nom du composant</label>
+                <input id="save-name-input" type="text" placeholder="Ex : Hero offre gaz" spellcheck="false"
+                    class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-secondary">
+                <label id="save-overwrite-row" class="hidden items-center gap-2 text-xs text-slate-300 pt-1 cursor-pointer">
+                    <input id="save-overwrite" type="checkbox" class="accent-secondary">
+                    <span>Mettre à jour <b id="save-overwrite-name" class="text-secondary"></b> (au lieu d'un nouveau)</span>
+                </label>
+            </div>
+            <div class="p-4 border-t border-slate-700 bg-slate-900/50 flex justify-end gap-3 shrink-0">
+                <button data-close-save class="px-4 py-2 text-xs bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 transition">Annuler</button>
+                <button id="save-confirm" class="px-4 py-2 text-xs bg-secondary text-ink-deep font-semibold rounded-lg hover:brightness-110 transition"><i class="fa-solid fa-check mr-1.5"></i>Sauvegarder</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal saisie générique (askName) -->
+    <div id="authorModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] hidden items-center justify-center p-6">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-md flex flex-col overflow-hidden shadow-2xl">
+            <div class="p-4 border-b border-slate-700 flex justify-between items-center shrink-0">
+                <h3 class="font-semibold text-white text-base"><i class="fa-solid fa-user mr-2 text-black"></i><span id="author-modal-title">Ton nom (auteur)</span></h3>
+                <button id="author-close" class="text-slate-400 hover:text-white transition text-lg"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="p-4 space-y-2">
+                <label id="author-modal-label" class="text-xs font-medium text-slate-300">Affiché sur les composants que tu publies</label>
+                <input id="author-name-input" type="text" placeholder="Ex : Josquin" spellcheck="false"
+                    class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-secondary">
+            </div>
+            <div class="p-4 border-t border-slate-700 bg-slate-900/50 flex justify-end gap-3 shrink-0">
+                <button id="author-cancel" class="px-4 py-2 text-xs bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 transition">Annuler</button>
+                <button id="author-confirm" class="px-4 py-2 text-xs bg-secondary text-ink-deep font-semibold rounded-lg hover:brightness-110 transition"><i class="fa-solid fa-check mr-1.5"></i>OK</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Importer depuis Prismic -->
+    <div id="prismicImportModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden items-center justify-center p-6">
+        <div class="bg-slate-800 rounded-2xl p-6 w-full max-w-lg space-y-4">
+            <h2 class="text-white font-bold text-lg flex items-center gap-2">Importer depuis Prismic
+                <button type="button" data-open-prismic-builder title="Ouvrir Prismic" class="text-slate-400 hover:text-white">
+                    <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
+                </button>
+            </h2>
+            <p class="text-slate-400 text-sm">Colle l'URL du document</p>
+            <input id="prismic-import-input" type="text" placeholder="URL Prismic"
+                class="w-full bg-slate-950 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-secondary">
+            <div id="prismic-token-wrap">
+                <input id="prismic-token-input" type="password" autocomplete="off" spellcheck="false"
+                    class="w-full bg-slate-950 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-1 focus:ring-secondary">
+                <span class="text-[11px] text-slate-500 leading-snug block mt-1">Import instantané via l'API Prismic.
+                    Génère un <b>Permanent access token</b> : Prismic → Settings → API &amp; Security. Le token reste sur ta machine.</span>
+            </div>
+            <div id="prismic-token-saved" class="hidden items-center gap-2 text-[12px] text-slate-400">
+                <i class="fa-solid fa-circle-check text-emerald-500"></i>
+                <span>Token de lecture enregistré</span>
+                <button type="button" data-edit-read-token class="text-secondary hover:underline">Modifier</button>
+            </div>
+            <div class="border-t border-slate-700 pt-3">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-slate-400 text-xs">Ou choisis une slice publiée :</span>
+                    <button type="button" data-load-prismic-lib class="text-[11px] text-secondary hover:underline">Charger la bibliothèque</button>
+                </div>
+                <input id="prismic-lib-search" placeholder="Filtrer…"
+                    class="hidden w-full mb-2 bg-slate-950 border border-slate-600 rounded-lg px-3 py-1.5 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-secondary">
+                <div id="prismic-lib-list" class="max-h-56 overflow-y-auto space-y-1 pr-1"></div>
+            </div>
+            <div class="flex justify-end gap-2">
+                <button data-close-prismic-import class="px-4 py-2 text-sm text-slate-300 hover:text-white">Annuler</button>
+                <button id="prismic-import-go" data-do-prismic-import disabled
+                    class="px-4 py-2 text-sm bg-[#d97757] hover:brightness-110 rounded-lg text-white font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:brightness-100">Importer</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Réglages Prismic : 2 tokens (lecture / écriture) -->
+    <div id="prismicSettingsModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden items-center justify-center p-6">
+        <div class="bg-slate-800 rounded-2xl p-6 w-full max-w-lg space-y-5">
+            <h2 class="text-white font-bold text-lg">Token Prismic</h2>
+            <div class="space-y-1.5">
+                <span class="text-[12px] font-semibold text-slate-200">Token de lecture <span class="text-slate-500 font-normal">— import de slices</span></span>
+                <div id="ps-read-wrap" class="flex gap-2">
+                    <input id="ps-read-input" type="password" autocomplete="off" spellcheck="false" placeholder="colle le token de lecture…"
+                        class="flex-1 min-w-0 bg-slate-950 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-secondary">
+                    <button data-ps-save="read" class="px-3 py-2 text-sm bg-secondary hover:brightness-110 rounded-lg text-ink-deep font-semibold shrink-0">Enregistrer</button>
+                </div>
+                <div id="ps-read-saved" class="hidden items-center gap-2 text-[12px] text-slate-400">
+                    <i class="fa-solid fa-circle-check text-emerald-500"></i>
+                    <span class="flex-1">Token de lecture enregistré</span>
+                    <button type="button" data-ps-edit="read" class="text-secondary hover:underline">Modifier</button>
+                    <button type="button" data-ps-clear="read" class="text-red-400 hover:underline">Effacer</button>
+                </div>
+            </div>
+            <div class="space-y-1.5">
+                <span class="text-[12px] font-semibold text-slate-200">Token d'écriture <span class="text-slate-500 font-normal">— mise à jour de slices</span></span>
+                <div id="ps-write-wrap" class="flex gap-2">
+                    <input id="ps-write-input" type="password" autocomplete="off" spellcheck="false" placeholder="colle le token d'écriture…"
+                        class="flex-1 min-w-0 bg-slate-950 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-secondary">
+                    <button data-ps-save="write" class="px-3 py-2 text-sm bg-secondary hover:brightness-110 rounded-lg text-ink-deep font-semibold shrink-0">Enregistrer</button>
+                </div>
+                <div id="ps-write-saved" class="hidden items-center gap-2 text-[12px] text-slate-400">
+                    <i class="fa-solid fa-circle-check text-emerald-500"></i>
+                    <span class="flex-1">Token d'écriture enregistré</span>
+                    <button type="button" data-ps-edit="write" class="text-secondary hover:underline">Modifier</button>
+                    <button type="button" data-ps-clear="write" class="text-red-400 hover:underline">Effacer</button>
+                </div>
+            </div>
+            <div class="flex justify-end">
+                <button data-close-settings class="px-4 py-2 text-sm bg-slate-700 hover:bg-slate-600 rounded-lg text-slate-200 font-semibold">Fermer</button>
+            </div>
+        </div>
+    </div>
+
     <script type="module" src="src/bootstrap.js"></script>
 </body>
 
