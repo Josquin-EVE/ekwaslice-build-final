@@ -50,3 +50,25 @@ export function createSliceRoot(html, { origin, meta = {} } = {}) {
   }
   return root;
 }
+
+// Point d'entrée unique de sérialisation : html stocké / exporté d'une slice.
+// Retourne le contenu de la racine (pas l'enveloppe div[data-comp]) ; le root vivant n'est jamais muté.
+// - origin 'imported' : verbatim (<style>, <script type="text/ekw-js">, data-remote-*…), seuls les
+//   artefacts d'édition sont retirés ; aucun scope/compile/renommage, aucun autre nettoyage.
+// - sinon (generated/code/library) : html auteur canonique. En plus des artefacts d'édition, on retire
+//   les résidus de drag et les wrappers [data-comp] imbriqués (data-comp, draggable, opacity-40,
+//   relative), comme le faisaient cleanForSave/cleanHTML — uniquement sur ces wrappers, car
+//   `opacity-40`/`relative` sont des classes Tailwind légitimes ailleurs dans le contenu auteur.
+export function serializeSlice(slice) {
+  const clone = slice.root.cloneNode(true);
+  cleanArtifacts(clone);
+  if (slice.origin !== 'imported') {
+    clone.querySelectorAll('[data-comp]').forEach((el) => {
+      el.removeAttribute('data-comp');
+      el.removeAttribute('draggable');
+      el.classList.remove('opacity-40', 'relative');
+      if (!el.classList.length) el.removeAttribute('class');
+    });
+  }
+  return clone.innerHTML;
+}
