@@ -247,7 +247,10 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js')
     }
   });
-  win.loadFile('index.html');
+  // Bascule de vérification (refonte canvas) : EKWA_NEW=1 charge le nouveau coeur
+  // (index2.html) sans toucher au legacy ; `npm start` normal garde index.html.
+  // Toggle temporaire, retiré à la bascule big-bang (Task 14).
+  win.loadFile(process.env.EKWA_NEW ? 'index2.html' : 'index.html');
 }
 
 // Enlève un éventuel bloc de code markdown si le modèle en ajoute un
