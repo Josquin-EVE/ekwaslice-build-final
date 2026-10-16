@@ -645,7 +645,8 @@ export function initEditing(store, ctx = {}) {
     return null;
   }
   function elementLinkAnchor() {
-    if (sel && sel.tagName === 'A') return sel;
+    if (!sel || isRoot(sel)) return null; // une racine de slice entière n'est pas un élément linkable
+    if (sel.tagName === 'A') return sel;
     const p = sel && sel.parentElement;
     if (p && p.tagName === 'A' && p.childElementCount === 1 && !p.textContent.replace(sel.textContent, '').trim()) return p;
     return null;
@@ -672,6 +673,8 @@ export function initEditing(store, ctx = {}) {
       const url = (doc.getElementById('ekw-link-input').value || '').trim();
       if (linkMode === 'element') {
         if (!sel) { closeLinkBubble(); return; }
+        // Racine de slice : wrapper dans un <a> l'insérerait dans #canvas hors store (désync).
+        if (isRoot(sel)) { closeLinkBubble(); toast('Sélectionne un élément à l’intérieur de la slice pour ajouter un lien'); return; }
         const a = elementLinkAnchor();
         if (act === 'apply' && url) {
           if (a) { a.setAttribute('href', url); }
@@ -713,6 +716,7 @@ export function initEditing(store, ctx = {}) {
   }
   function openElementLink() {
     ensureLinkBubble(); if (!linkBubble || !sel) return;
+    if (isRoot(sel)) { toast('Sélectionne un élément à l’intérieur de la slice pour ajouter un lien'); return; }
     linkMode = 'element'; linkOpen = true;
     const a = elementLinkAnchor(); const input = doc.getElementById('ekw-link-input');
     input.value = a ? (a.getAttribute('href') || '') : '';
@@ -1026,6 +1030,9 @@ export function initEditing(store, ctx = {}) {
     } else if (slice) {
       const clone = el.cloneNode(true);
       clone.classList.remove('ekw-selected', 'ekw-editing');
+      // cloneNode copie les data-eid → re-mint pour que la copie ne partage pas les règles d'états.
+      if (clone.hasAttribute && clone.hasAttribute('data-ekw-states')) clone.setAttribute('data-eid', newEid());
+      clone.querySelectorAll('[data-ekw-states]').forEach((n) => n.setAttribute('data-eid', newEid()));
       el.parentNode.insertBefore(clone, el.nextSibling);
       store.touch(slice.id);
       selectElement(clone);

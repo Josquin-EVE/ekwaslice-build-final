@@ -57,7 +57,7 @@ test('delete : sel = nœud imbriqué → nœud parti, slice présente, store.tou
   } finally { cleanup(); }
 });
 
-test('delete : nœud imbriqué unique → racine vit encore (zéro coquille, pas de remove)', () => {
+test('delete : nœud imbriqué unique → nœud retiré, slice conservée (racine jamais supprimée implicitement)', () => {
   const { cleanup, store, api } = setup();
   try {
     const s = store.add('<div><span id="only">x</span></div>');
@@ -71,5 +71,58 @@ test('delete : nœud imbriqué unique → racine vit encore (zéro coquille, pas
     assert.equal(removeCalled, false);
     assert.equal(store.get(s.id), s);              // la slice n'est jamais supprimée implicitement
     assert.equal(s.root.querySelector('#only'), null);
+  } finally { cleanup(); }
+});
+
+test('element-link : sur une racine de slice → refusé, racine non wrappée, store intact', () => {
+  const env = withDom('<!doctype html><html><body><div id="canvas"></div></body></html>');
+  const canvas = env.document.getElementById('canvas');
+  const store = new SliceStore(canvas);
+  const toolbar = env.document.createElement('div');
+  env.document.body.appendChild(toolbar);
+  let toastMsg = null;
+  const api = initEditing(store, { document: env.document, canvas, toolbar, hooks: { toast: (m) => { toastMsg = m; } } });
+  try {
+    const s = store.add('<p>a</p>');            // slice d'une seule racine ; sel = racine
+    let touched = 0;
+    store.touch = () => { touched += 1; };
+    api.selectElement(s.root);
+
+    // Clic sur le bouton « lien » de la toolbar → openElementLink sur une racine.
+    const linkBtn = toolbar.querySelector('[data-act="link"]');
+    assert.ok(linkBtn);
+    linkBtn.click();
+
+    assert.ok(toastMsg && /lien/i.test(toastMsg));   // refus signalé à l'utilisateur
+    assert.equal(canvas.children.length, 1);
+    assert.equal(canvas.children[0], s.root);        // racine NON wrappée
+    assert.equal(s.root.parentNode, canvas);         // toujours enfant direct du canvas
+    assert.equal(canvas.querySelector('a'), null);   // aucun <a> injecté dans le canvas
+    assert.equal(store.sliceOf(s.root), s);          // store/DOM cohérents (pas de désync)
+    assert.equal(touched, 0);                        // aucune mutation de contenu
+  } finally { env.cleanup(); }
+});
+
+test('regenStateStyles : re-mint d\'eid (replaceContent) → seul le nouvel eid, aucune règle orpheline', () => {
+  const { cleanup, store, api, document } = setup();
+  try {
+    const stateAttr = '{"hover":{"color":"#17E7D0"}}';
+    const s = store.add('<button data-ekw-states=\'' + stateAttr + '\'>x</button>');
+    const oldEid = s.root.querySelector('[data-ekw-states]').getAttribute('data-eid'); // minté par createSliceRoot
+    assert.ok(oldEid);
+
+    api.regenStateStyles();
+    let css = document.getElementById('ekw-live-states').textContent;
+    assert.ok(css.includes('data-eid="' + oldEid + '"'));   // règle posée sur l'eid courant
+
+    // replaceContent passe par createSliceRoot → re-mint l'eid du descendant [data-ekw-states].
+    store.replaceContent(s.id, '<button data-ekw-states=\'' + stateAttr + '\'>x</button>');
+    const newEid = s.root.querySelector('[data-ekw-states]').getAttribute('data-eid');
+    assert.notEqual(newEid, oldEid);
+
+    api.regenStateStyles();
+    css = document.getElementById('ekw-live-states').textContent;
+    assert.ok(css.includes('data-eid="' + newEid + '"'));   // nouvel eid présent
+    assert.ok(!css.includes('data-eid="' + oldEid + '"'));  // AUCUNE règle orpheline (ancien eid)
   } finally { cleanup(); }
 });
