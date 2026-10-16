@@ -71,12 +71,16 @@ export function initPrismic(store, ctx = {}) {
   const isPrismicSlice = (s) => !!s && (s.origin === 'imported' || !!(s.meta && s.meta.prismicId));
   const prismicSlices = () => store.list().filter(isPrismicSlice);
 
-  let targetId = null; // id de la slice Prismic ciblée (dernière importée / sélectionnée)
+  let targetId = null; // id de la slice Prismic ciblée (dernière importée / sélectionnée) : MAJ uniquement
+  // Dernière slice sélectionnée, toute origine : l'éditeur désélectionne au mousedown hors
+  // canvas (bouton d'en-tête « Envoi Prismic »), donc getSelected() est déjà vide au clic.
+  let lastSelectedId = null;
 
   // --- état du bouton MAJ + cible ------------------------------------------------------
 
   function refreshUpdateBtn() {
     if (targetId && !store.get(targetId)) targetId = null; // cible retirée du canvas
+    if (lastSelectedId && !store.get(lastSelectedId)) lastSelectedId = null;
     const b = updateBtn();
     if (!b) return;
     const has = prismicSlices().length > 0;
@@ -92,6 +96,8 @@ export function initPrismic(store, ctx = {}) {
 
   function noteSelection(el) {
     const s = el ? store.sliceOf(el) : null;
+    if (!s) return;
+    lastSelectedId = s.id;
     if (isPrismicSlice(s)) targetId = s.id;
   }
 
@@ -105,11 +111,14 @@ export function initPrismic(store, ctx = {}) {
     return candidates.length === 1 ? candidates[0] : null;
   }
 
-  // Cible de l'ENVOI (1 slice = 1 doc) : sélection > cible Prismic mémorisée > unique slice.
+  // Cible de l'ENVOI (1 slice = 1 doc) : sélection vivante > dernière slice sélectionnée >
+  // cible Prismic mémorisée > unique slice.
   function resolvePushTarget() {
     const sel = getSelected();
     const selSlice = sel ? store.sliceOf(sel) : null;
     if (selSlice) return selSlice;
+    const last = lastSelectedId ? store.get(lastSelectedId) : null;
+    if (last) return last;
     const mem = targetId ? store.get(targetId) : null;
     if (mem) return mem;
     const all = store.list();
@@ -174,6 +183,7 @@ export function initPrismic(store, ctx = {}) {
       name: r.title || '',
     });
     targetId = slice.id; // slice fraîchement importée = cible MAJ par défaut
+    lastSelectedId = slice.id; // et cible d'envoi la plus récente (elle vient d'être sélectionnée)
     return slice;
   }
 

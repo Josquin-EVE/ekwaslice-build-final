@@ -184,6 +184,35 @@ test('push : plusieurs slices sans sélection -> pas d\'envoi ; la sélection d�
   } finally { t.cleanup(); }
 });
 
+test('push : sélection perdue (deselect au clic bouton) -> dernière slice sélectionnée (toute origine)', async () => {
+  const t = setup();
+  try {
+    const a = t.store.add('<h2>A</h2>');
+    t.store.add('<h2>B</h2>');
+    t.prismic.noteSelection(a.root.firstElementChild); // sélection puis deselect : getSelected() renvoie null
+    await t.prismic.push(null);
+    assert.equal(t.calls.push.length, 1);
+    assert.ok(t.calls.push[0].html.includes('A'));
+    assert.equal(a.meta.prismicId, 'NEWDOC');
+    // la MAJ (Prismic-only) cible bien la slice envoyée, pas une autre
+    await t.prismic.update(null);
+    assert.equal(t.calls.update[0].documentId, 'NEWDOC');
+  } finally { t.cleanup(); }
+});
+
+test('push : dernière slice sélectionnée retirée -> retombe sur le toast de choix (2 slices restantes)', async () => {
+  const t = setup();
+  try {
+    const a = t.store.add('<h2>A</h2>');
+    t.store.add('<h2>B</h2>');
+    t.store.add('<h2>C</h2>');
+    t.prismic.noteSelection(a.root);
+    t.store.remove(a.id);
+    await t.prismic.push(null);
+    assert.equal(t.calls.push.length, 0);
+  } finally { t.cleanup(); }
+});
+
 test('push : échec -> pas d\'identité adoptée ; documentId vide -> pas d\'identité', async () => {
   const t = setup({ apiOver: { pushResult: { error: 'HTTP 500' } } });
   try {
