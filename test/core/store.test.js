@@ -286,3 +286,64 @@ test('insertAt : id déjà présent ou index hors bornes (borné)', () => {
     assert.deepEqual(store.list(), [a, z]);
   } finally { cleanup(); }
 });
+
+test('setMeta : meta fusionné, attributs data-remote-* de la racine à jour, change émis', () => {
+  const { cleanup, store } = setup();
+  try {
+    const s = store.add('<p>a</p>', 'generated', { name: 'N' });
+    let changes = 0;
+    store.on('change', () => { changes += 1; });
+    const out = store.setMeta(s.id, { prismicId: 'NEW', prismicTitle: 'T', prismicField: 'html_only', baseVersion: 'v1', prismicUid: 'u1', extra: 1 });
+    assert.equal(out, s);
+    assert.deepEqual(s.meta, { name: 'N', prismicId: 'NEW', prismicTitle: 'T', prismicField: 'html_only', baseVersion: 'v1', prismicUid: 'u1', extra: 1 });
+    assert.equal(s.root.getAttribute('data-remote-id'), 'NEW');
+    assert.equal(s.root.getAttribute('data-remote-title'), 'T');
+    assert.equal(s.root.getAttribute('data-remote-field'), 'html_only');
+    assert.equal(s.root.getAttribute('data-base-version'), 'v1');
+    assert.equal(s.root.getAttribute('data-remote-uid'), 'u1');
+    assert.equal(changes, 1);
+    // patch partiel : le reste est conservé ; undefined = inchangé ; '' / null = retiré
+    store.setMeta(s.id, { prismicId: 'NEW2', prismicTitle: undefined, prismicUid: '', baseVersion: null });
+    assert.equal(s.meta.prismicId, 'NEW2');
+    assert.equal(s.root.getAttribute('data-remote-id'), 'NEW2');
+    assert.equal(s.root.getAttribute('data-remote-title'), 'T');
+    assert.equal(s.root.hasAttribute('data-remote-uid'), false);
+    assert.equal(s.root.hasAttribute('data-base-version'), false);
+    assert.equal(changes, 2);
+  } finally { cleanup(); }
+});
+
+test('setMeta : id inconnu -> null, pas de change', () => {
+  const { cleanup, store } = setup();
+  try {
+    let changes = 0;
+    store.on('change', () => { changes += 1; });
+    assert.equal(store.setMeta('nope', { prismicId: 'X' }), null);
+    assert.equal(changes, 0);
+  } finally { cleanup(); }
+});
+
+test('setMeta : mêmes attributs que createSliceRoot pour le même meta (tables alignées)', () => {
+  const { cleanup, store } = setup();
+  try {
+    const meta = { prismicId: 'A', prismicTitle: 'T', prismicField: 'html', baseVersion: 'v', prismicUid: 'u' };
+    const ref = store.add('<p>a</p>', 'imported', meta);
+    const s = store.add('<p>a</p>');
+    store.setMeta(s.id, meta);
+    const attrs = (r) => [...r.attributes].map((a) => a.name + '=' + a.value).filter((x) => /^data-(remote|base)/.test(x)).sort();
+    assert.deepEqual(attrs(s.root), attrs(ref.root));
+    assert.equal(attrs(s.root).length, 5);
+  } finally { cleanup(); }
+});
+
+test('setMeta : l\'identité posée survit à replaceContent et est écartée par duplicate', () => {
+  const { cleanup, store } = setup();
+  try {
+    const s = store.add('<p>a</p>');
+    store.setMeta(s.id, { prismicId: 'P' });
+    store.replaceContent(s.id, '<p>b</p>');
+    assert.equal(s.root.getAttribute('data-remote-id'), 'P');
+    const d = store.duplicate(s.id);
+    assert.equal(d.root.hasAttribute('data-remote-id'), false);
+  } finally { cleanup(); }
+});

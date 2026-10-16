@@ -3,8 +3,17 @@
 // le DOM du canvas et la liste ordonnée restent synchrones par construction.
 import { createSliceRoot, serializeSlice } from './slice.js';
 
-// Identité d'un document Prismic : jamais héritée par une copie.
-const PRISMIC_IDENTITY_KEYS = ['prismicId', 'prismicTitle', 'prismicField', 'baseVersion', 'prismicUid'];
+// Identité d'un document Prismic : jamais héritée par une copie. Mapping meta -> attribut de
+// la racine ; MÊME table que IDENTITY_ATTRS de slice.js (non exporté : un test de cohérence
+// dans store.test.js garde les deux alignées).
+const IDENTITY_ATTRS = [
+  ['prismicId', 'data-remote-id'],
+  ['prismicTitle', 'data-remote-title'],
+  ['prismicField', 'data-remote-field'],
+  ['baseVersion', 'data-base-version'],
+  ['prismicUid', 'data-remote-uid'],
+];
+const PRISMIC_IDENTITY_KEYS = IDENTITY_ATTRS.map(([k]) => k);
 
 export class SliceStore {
   constructor(canvasEl) {
@@ -135,6 +144,27 @@ export class SliceStore {
     if (!slice) return null;
     const fresh = createSliceRoot(html, { origin: slice.origin, meta: slice.meta });
     slice.root.replaceChildren(...fresh.childNodes);
+    this._emit();
+    return slice;
+  }
+
+  // Met à jour le meta d'une slice ET les attributs d'identité de sa racine, de façon
+  // synchrone (une seule source de vérité : meta et data-remote-* ne divergent jamais).
+  // Typiquement après un envoi Prismic qui a créé un document. Clés `undefined` ignorées ;
+  // valeur null/'' = identité retirée (attribut ôté). Émet `change`. Id inconnu : null.
+  setMeta(id, patch = {}) {
+    const slice = this.get(id);
+    if (!slice) return null;
+    for (const [key, attr] of IDENTITY_ATTRS) {
+      if (!(key in patch) || patch[key] === undefined) continue;
+      const value = patch[key];
+      slice.meta[key] = value;
+      if (value === null || value === '') slice.root.removeAttribute(attr);
+      else slice.root.setAttribute(attr, String(value));
+    }
+    for (const key of Object.keys(patch)) {
+      if (patch[key] !== undefined && !PRISMIC_IDENTITY_KEYS.includes(key)) slice.meta[key] = patch[key];
+    }
     this._emit();
     return slice;
   }
