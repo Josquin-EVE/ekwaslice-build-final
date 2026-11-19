@@ -344,8 +344,24 @@ export function boot(opts = {}) {
   const bic = byId('btn-import-code');
   if (bic) bic.addEventListener('click', () => modals.openImportCode());
 
-  // --- thème (clair uniquement) -------------------------------------------------------
-  doc.documentElement.setAttribute('data-app-theme', 'light');
+  // --- thème de l'APPLICATION (clair par défaut | neon optionnel) ---------------------
+  // Ne touche QUE le châssis de l'app (variables --app-*), jamais la charte du canvas.
+  function applyAppTheme(t) {
+    const v = (t === 'neon') ? 'neon' : 'light';
+    doc.documentElement.setAttribute('data-app-theme', v);
+    try { if (win.localStorage) win.localStorage.setItem('ekwa_app_theme', v); } catch (_) { }
+    const btn = byId('btn-theme');
+    if (btn) {
+      const ic = btn.querySelector('i');
+      if (ic) ic.className = 'fa-solid ' + (v === 'neon' ? 'fa-sun' : 'fa-palette');
+      btn.title = (v === 'neon') ? 'Thème : Neon Coast — cliquer pour revenir au thème clair' : 'Thème : clair — cliquer pour Neon Coast';
+    }
+  }
+  function storedAppTheme() {
+    try { return (win.localStorage && win.localStorage.getItem('ekwa_app_theme')) || ''; } catch (_) { return ''; }
+  }
+  // Application immédiate (synchrone, évite le flash) ; réconciliée après loadSettings.
+  applyAppTheme(storedAppTheme() || 'light');
 
   // --- gate (connexion Claude) --------------------------------------------------------
   function setGate({ icon, iconClass, title, msg, cmd, btn, login }) {
@@ -401,6 +417,16 @@ export function boot(opts = {}) {
       if (v) await setAuthorName(v);
     }
   }
+  // Bascule du thème de l'app (clair <-> neon), persistée (localStorage + settings).
+  const themeBtn = byId('btn-theme');
+  if (themeBtn) themeBtn.addEventListener('click', () => {
+    const cur = doc.documentElement.getAttribute('data-app-theme');
+    const next = (cur === 'neon') ? 'light' : 'neon';
+    applyAppTheme(next);
+    const a = api();
+    if (a && a.settingsSet) { try { a.settingsSet({ appTheme: next }); } catch (_) { } }
+  });
+
   const gateBtn = byId('gate-btn');
   if (gateBtn) gateBtn.addEventListener('click', () => runGate());
   const gateLogin = byId('gate-login');
@@ -427,6 +453,8 @@ export function boot(opts = {}) {
   // =====================================================================================
   (async () => {
     await loadSettings();
+    // Réconcilie le thème depuis les réglages durables (cross-machine) si défini.
+    if (APP_SETTINGS && APP_SETTINGS.appTheme && !storedAppTheme()) applyAppTheme(APP_SETTINGS.appTheme);
     runGate();
     preview.setMode('edit');
     preview.setWidth('desktop');

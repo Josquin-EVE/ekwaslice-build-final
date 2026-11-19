@@ -83,6 +83,23 @@
             --app-text-faint: #64748b;
         }
 
+        /* Thème « Neon Coast » (optionnel, issu de l'artefact design-system) —
+           nuit Miami : violet nuit + rose néon. N'affecte QUE le châssis de l'app
+           (via les variables --app-* remappées plus bas, gardées :not(#canvas *)),
+           JAMAIS la charte de création du canvas ni l'aperçu (iframe isolée). */
+        html[data-app-theme="neon"] {
+            --app-bg-deep: #1c1233;
+            --app-panel: #120a22;
+            --app-surface: #2a1b47;
+            --app-elevated: #3a2760;
+            --app-hover: #5b2a86;
+            --app-border: #46336e;
+            --app-text: #fff1e6;
+            --app-text-2: #d7c4ec;
+            --app-text-dim: #bfa9d9;
+            --app-text-faint: #8f78b0;
+        }
+
         /* Remap des utilitaires slate-* du châssis (hors #canvas) */
         .bg-slate-950:not(#canvas *) {
             background-color: var(--app-bg-deep) !important;
@@ -136,6 +153,20 @@
         .text-slate-500:not(#canvas *),
         .text-slate-600:not(#canvas *) {
             color: var(--app-text-faint) !important;
+        }
+
+        /* Neon Coast — accent du châssis : jaune secondary -> rose néon (hors #canvas).
+           La charte canvas (bg-secondary dans les slices) reste intacte via :not(#canvas *). */
+        html[data-app-theme="neon"] .bg-secondary:not(#canvas *) {
+            background-color: #ff4fa3 !important;
+        }
+
+        html[data-app-theme="neon"] .text-ink-deep:not(#canvas *) {
+            color: #1a0f2e !important;
+        }
+
+        html[data-app-theme="neon"] .shadow-secondary\/20:not(#canvas *) {
+            --tw-shadow-color: #ff4fa359 !important;
         }
 
         /* Polices Ekwateur — chargées en local (hors-ligne) */
@@ -341,6 +372,10 @@
             <button id="btn-export"
                 class="px-4 py-2 text-sm bg-secondary hover:brightness-110 rounded-lg transition text-ink-deep font-semibold shadow-lg shadow-secondary/20">
                 <i class="fa-solid fa-code mr-2"></i>Exporter le Code
+            </button>
+            <button id="btn-theme" title="Thème de l'application"
+                class="w-9 h-9 flex items-center justify-center text-sm bg-slate-700 hover:bg-slate-600 rounded-lg transition text-slate-300">
+                <i class="fa-solid fa-palette"></i>
             </button>
             <button id="btn-settings" title="Réglages Prismic — tokens lecture & écriture"
                 class="w-9 h-9 flex items-center justify-center text-sm bg-slate-700 hover:bg-slate-600 rounded-lg transition text-slate-300">
