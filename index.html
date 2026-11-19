@@ -88,16 +88,18 @@
            (via les variables --app-* remappées plus bas, gardées :not(#canvas *)),
            JAMAIS la charte de création du canvas ni l'aperçu (iframe isolée). */
         html[data-app-theme="neon"] {
-            --app-bg-deep: #1c1233;
-            --app-panel: #120a22;
-            --app-surface: #2a1b47;
-            --app-elevated: #3a2760;
-            --app-hover: #5b2a86;
-            --app-border: #46336e;
-            --app-text: #fff1e6;
-            --app-text-2: #d7c4ec;
-            --app-text-dim: #bfa9d9;
-            --app-text-faint: #8f78b0;
+            /* Variante « Jour » Neon Coast : blanc/crème dominant, violet réduit
+               au texte (encre), accents chauds coucher-de-soleil. */
+            --app-bg-deep: #ffe8d6;
+            --app-panel: #fff6ee;
+            --app-surface: #ffffff;
+            --app-elevated: #ffefe2;
+            --app-hover: #ffe0cc;
+            --app-border: #eec3aa;
+            --app-text: #1e1030;
+            --app-text-2: #3a2550;
+            --app-text-dim: #6a4a6e;
+            --app-text-faint: #9a7a9e;
         }
 
         /* Remap des utilitaires slate-* du châssis (hors #canvas) */
@@ -175,12 +177,12 @@
            #canvas ni l'aperçu (iframe isolée). Images = créations originales de
            l'artefact design-system (assets/wallpapers/).
            ===================================================================== */
-        /* Fond du panneau de chat : ville néon + grille, assombri pour lisibilité */
+        /* Fond du panneau de chat : palmiers coucher de soleil (jour), voile clair */
         html[data-app-theme="neon"] #chat-panel {
             position: relative;
             background-image:
-                linear-gradient(180deg, rgba(18, 10, 34, .80), rgba(18, 10, 34, .93)),
-                url("assets/wallpapers/wallpaper-nuit-neon.png") !important;
+                linear-gradient(180deg, rgba(255, 246, 238, .72), rgba(255, 246, 238, .88)),
+                url("assets/wallpapers/wallpaper-jour.png") !important;
             background-size: cover !important;
             background-position: center bottom !important;
             background-repeat: no-repeat !important;
@@ -203,19 +205,19 @@
         /* Décor derrière la carte #canvas (dans le scroll, autour du canvas) */
         html[data-app-theme="neon"] #canvas-scroll {
             background-image:
-                linear-gradient(180deg, rgba(28, 18, 51, .90), rgba(18, 10, 34, .95)),
-                url("assets/wallpapers/wallpaper-crepuscule.png") !important;
+                linear-gradient(180deg, rgba(255, 246, 238, .82), rgba(255, 232, 214, .90)),
+                url("assets/wallpapers/wallpaper-jour.png") !important;
             background-size: cover !important;
             background-position: center top !important;
             background-repeat: no-repeat !important;
             background-attachment: local !important;
         }
 
-        /* Écran de connexion : hero coucher de soleil */
+        /* Écran de connexion : hero palmiers coucher de soleil */
         html[data-app-theme="neon"] #gate {
             background-image:
-                linear-gradient(180deg, rgba(18, 10, 34, .74), rgba(18, 10, 34, .90)),
-                url("assets/wallpapers/wallpaper-crepuscule.png") !important;
+                linear-gradient(180deg, rgba(255, 246, 238, .55), rgba(255, 246, 238, .82)),
+                url("assets/wallpapers/wallpaper-jour.png") !important;
             background-size: cover !important;
             background-position: center !important;
         }
@@ -235,12 +237,6 @@
             background: linear-gradient(90deg, #ff4fa3, #ff8a3d, #ffc857);
             opacity: .9;
             pointer-events: none;
-        }
-
-        /* Sidebars néon : léger dégradé vertical (moins « uni », note plus claire) */
-        html[data-app-theme="neon"] aside.w-80,
-        html[data-app-theme="neon"] #chat-panel {
-            box-shadow: inset 0 1px 0 #ffffff12;
         }
 
         /* Polices Ekwateur — chargées en local (hors-ligne) */
