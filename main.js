@@ -931,6 +931,36 @@ ipcMain.handle('open-external', async (event, url) => {
   return false;
 });
 
+// Lance « claude login » dans un VRAI terminal (le flow est interactif : TTY +
+// page web OAuth). On ne peut pas le spawner en headless de façon fiable, donc
+// on ouvre le terminal du système pré-chargé avec la commande ; le renderer
+// auto-sonde ensuite check-claude jusqu'à la connexion.
+ipcMain.handle('claude-login', async () => {
+  const bin = resolveClaudeBin();
+  const cmd = `"${bin}" login`;
+  try {
+    if (process.platform === 'darwin') {
+      spawn('osascript', [
+        '-e', 'tell application "Terminal"',
+        '-e', 'activate',
+        '-e', 'do script ' + JSON.stringify(cmd),
+        '-e', 'end tell',
+      ], { detached: true }).unref();
+      return { ok: true };
+    }
+    if (process.platform === 'win32') {
+      spawn('cmd', ['/c', 'start', '"Claude login"', 'cmd', '/k', cmd], { detached: true }).unref();
+      return { ok: true };
+    }
+    // Linux : meilleur effort via un émulateur de terminal courant.
+    const term = process.env.TERMINAL || 'x-terminal-emulator';
+    spawn(term, ['-e', 'sh', '-c', `${cmd}; exec $SHELL`], { detached: true }).unref();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String((e && e.message) || e) };
+  }
+});
+
 app.whenReady().then(() => {
   migrateLibraryIfNeeded(); // récupère les slices d'un ancien nom de dossier (non-destructif)
   createWindow();

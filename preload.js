@@ -36,5 +36,7 @@ contextBridge.exposeInMainWorld('api', {
   getQuotation: (body) => ipcRenderer.invoke('get-quotation', body),
   // Mise à jour
   checkUpdate: () => ipcRenderer.invoke('check-update'),
-  openExternal: (url) => ipcRenderer.invoke('open-external', url)
+  openExternal: (url) => ipcRenderer.invoke('open-external', url),
+  // Lance « claude login » dans un vrai terminal (flow interactif)
+  claudeLogin: () => ipcRenderer.invoke('claude-login')
 });

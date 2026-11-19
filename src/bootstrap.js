@@ -348,7 +348,7 @@ export function boot(opts = {}) {
   doc.documentElement.setAttribute('data-app-theme', 'light');
 
   // --- gate (connexion Claude) --------------------------------------------------------
-  function setGate({ icon, iconClass, title, msg, cmd, btn }) {
+  function setGate({ icon, iconClass, title, msg, cmd, btn, login }) {
     const loading = /fa-spinner/.test(icon || '');
     const iw = byId('gate-iconwrap'), gg = byId('gate-gif');
     if (iw) iw.classList.toggle('hidden', loading);
@@ -359,15 +359,40 @@ export function boot(opts = {}) {
     const cmdEl = byId('gate-cmd');
     if (cmdEl) { if (cmd) { cmdEl.textContent = cmd; cmdEl.classList.remove('hidden'); } else cmdEl.classList.add('hidden'); }
     const gb = byId('gate-btn'); if (gb) gb.classList.toggle('hidden', !btn);
+    const gl = byId('gate-login'); if (gl) gl.classList.toggle('hidden', !login);
+  }
+  let loginPoll = null;
+  function stopLoginPoll() { if (loginPoll) { clearInterval(loginPoll); loginPoll = null; } }
+  function startLoginPoll() {
+    stopLoginPoll();
+    let tries = 0;
+    loginPoll = setInterval(async () => {
+      tries++;
+      const a = api(); if (!a) return;
+      let s; try { s = await a.checkClaude(); } catch (_) { s = {}; }
+      if (s && s.loggedIn) { stopLoginPoll(); runGate(); }
+      else if (tries >= 60) { stopLoginPoll(); runGate(); } // ~3 min puis on réaffiche l'écran
+    }, 3000);
   }
   async function runGate() {
     const gate = byId('gate');
     const a = api();
+    stopLoginPoll();
     setGate({ icon: 'fa-spinner fa-spin', title: 'Vérification de la connexion…', msg: 'Contrôle de votre compte Claude.' });
     if (!a) { setGate({ icon: 'fa-triangle-exclamation', iconClass: 'text-amber-400', title: 'Lancez via Electron', msg: "Ouvrez l'app avec « npm start », pas dans un navigateur." }); return; }
     let s; try { s = await a.checkClaude(); } catch (_) { s = {}; }
     if (!s.installed) { setGate({ icon: 'fa-download', iconClass: 'text-amber-400', title: 'Claude Code non installé', msg: 'Installez le CLI Claude, puis cliquez sur Réessayer.', cmd: 'curl -fsSL https://claude.ai/install.sh | bash', btn: true }); return; }
-    if (!s.loggedIn) { setGate({ icon: 'fa-right-to-bracket', iconClass: 'text-amber-400', title: 'Connexion requise', msg: 'Ouvrez un terminal, lancez la commande ci-dessous et connectez-vous avec votre compte Ekwateur, puis cliquez sur Réessayer.', cmd: 'claude login', btn: true }); return; }
+    if (!s.loggedIn) {
+      const canAuto = !!(a && a.claudeLogin);
+      setGate({
+        icon: 'fa-right-to-bracket', iconClass: 'text-amber-400', title: 'Connexion requise',
+        msg: canAuto
+          ? 'Cliquez sur « Se connecter » : un terminal s’ouvre pour vous connecter avec votre compte Ekwateur. Cette fenêtre se mettra à jour automatiquement.'
+          : 'Ouvrez un terminal, lancez la commande ci-dessous et connectez-vous avec votre compte Ekwateur, puis cliquez sur Réessayer.',
+        cmd: 'claude login', btn: true, login: canAuto,
+      });
+      return;
+    }
     if (gate) gate.style.display = 'none';
     { const gg = byId('gate-gif'); if (gg) gg.removeAttribute('src'); }
     if (!authorName() && s.email) {
@@ -378,6 +403,24 @@ export function boot(opts = {}) {
   }
   const gateBtn = byId('gate-btn');
   if (gateBtn) gateBtn.addEventListener('click', () => runGate());
+  const gateLogin = byId('gate-login');
+  if (gateLogin) gateLogin.addEventListener('click', async () => {
+    const a = api(); if (!a || !a.claudeLogin) return;
+    setGate({
+      icon: 'fa-spinner fa-spin', title: 'Connexion en cours…',
+      msg: 'Un terminal s’est ouvert : connectez-vous avec votre compte Ekwateur (une page web peut s’ouvrir). Cette fenêtre se mettra à jour automatiquement.',
+    });
+    let r; try { r = await a.claudeLogin(); } catch (_) { r = null; }
+    if (r && r.ok === false) {
+      setGate({
+        icon: 'fa-triangle-exclamation', iconClass: 'text-amber-400', title: 'Terminal introuvable',
+        msg: 'Impossible d’ouvrir un terminal automatiquement. Lancez la commande ci-dessous à la main, puis cliquez sur Réessayer.',
+        cmd: 'claude login', btn: true,
+      });
+      return;
+    }
+    startLoginPoll();
+  });
 
   // =====================================================================================
   // DÉMARRAGE.
