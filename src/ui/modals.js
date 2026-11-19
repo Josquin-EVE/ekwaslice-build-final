@@ -160,12 +160,28 @@ export function initModals(store, ctx = {}) {
     const tk = byId('prismic-token-input'); if (tk) tk.value = '';
     const wrap = byId('prismic-token-wrap'); if (wrap) wrap.classList.toggle('hidden', saved);
     const savedRow = byId('prismic-token-saved'); if (savedRow) { savedRow.classList.toggle('hidden', !saved); savedRow.classList.toggle('flex', saved); }
-    _prismicLib = []; _selectedSliceId = '';
-    const list = byId('prismic-lib-list'); if (list) list.innerHTML = '';
-    const search = byId('prismic-lib-search'); if (search) { search.value = ''; search.classList.add('hidden'); }
+    _selectedSliceId = '';
+    const list = byId('prismic-lib-list');
+    const search = byId('prismic-lib-search');
+    if (search) search.value = '';
     const inp = byId('prismic-import-input'); if (inp) inp.value = '';
     updateImportBtnState();
-    if (saved) loadPrismicLibrary();
+    if (saved) {
+      if (_prismicLib.length) {
+        // Cache mémoire : affichage INSTANTANÉ + rafraîchissement silencieux (SWR)
+        if (search) search.classList.remove('hidden');
+        renderPrismicLib();
+        loadPrismicLibrary(null, { silent: true });
+      } else {
+        if (search) search.classList.add('hidden');
+        if (list) list.innerHTML = '';
+        loadPrismicLibrary();
+      }
+    } else {
+      _prismicLib = [];
+      if (search) search.classList.add('hidden');
+      if (list) list.innerHTML = '';
+    }
     if (inp) inp.focus();
   }
   function closePrismicImport() { hide(byId('prismicImportModal')); }
@@ -181,14 +197,22 @@ export function initModals(store, ctx = {}) {
     const btn = byId('prismic-import-go');
     if (btn) btn.disabled = !(url || _selectedSliceId);
   }
-  async function loadPrismicLibrary(btn) {
+  async function loadPrismicLibrary(btn, opts) {
+    opts = opts || {};
     const a = api();
-    if (!a || !a.listPrismicSlices) { toast("Dispo seulement dans l'app"); return; }
+    if (!a || !a.listPrismicSlices) { if (!opts.silent) toast("Dispo seulement dans l'app"); return; }
     await saveReadToken();
     if (btn) { btn.disabled = true; btn.textContent = 'Chargement…'; }
-    let r; try { r = await a.listPrismicSlices(); } catch (e) { r = { error: e.message }; }
+    const list = byId('prismic-lib-list');
+    if (!opts.silent && !_prismicLib.length && list) {
+      list.innerHTML = '<div class="col-span-4 text-[12px] text-slate-500 py-6 text-center">Chargement…</div>';
+    }
+    let r; try { r = await a.listPrismicSlices({ force: !!opts.force }); } catch (e) { r = { error: e.message }; }
     if (btn) { btn.disabled = false; btn.textContent = 'Recharger'; }
-    if (!r || r.error || !r.ok) { toast('Biblio Prismic : ' + (r && r.error === 'NO_READ_TOKEN' ? 'token de lecture requis' : ((r && r.error) || 'échec'))); return; }
+    if (!r || r.error || !r.ok) {
+      if (!opts.silent) toast('Biblio Prismic : ' + (r && r.error === 'NO_READ_TOKEN' ? 'token de lecture requis' : ((r && r.error) || 'échec')));
+      return; // en silencieux (SWR), on garde le cache déjà affiché
+    }
     _prismicLib = r.slices || [];
     const search = byId('prismic-lib-search'); if (search) search.classList.remove('hidden');
     renderPrismicLib();
@@ -277,7 +301,7 @@ export function initModals(store, ctx = {}) {
     }
     if (e.target.closest('[data-close-prismic-import]')) { closePrismicImport(); return; }
     if (e.target.closest('[data-edit-read-token]')) { editReadToken(); return; }
-    if (e.target.closest('[data-load-prismic-lib]')) { loadPrismicLibrary(e.target.closest('[data-load-prismic-lib]')); return; }
+    if (e.target.closest('[data-load-prismic-lib]')) { loadPrismicLibrary(e.target.closest('[data-load-prismic-lib]'), { force: true }); return; }
     if (e.target.closest('[data-open-prismic-builder]')) { const a = api(); if (a && a.openExternal) a.openExternal('https://ekwateur-edito.prismic.io/builder/working?customTypes=custom_slice'); return; }
     const go = e.target.closest('[data-do-prismic-import]');
     if (go) { const p = prismic(); if (typeof p.doImport === 'function') p.doImport(go); return; }

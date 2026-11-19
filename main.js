@@ -821,24 +821,48 @@ ipcMain.handle('update-prismic', async (event, payload) => {
 // (rapide, sans LLM). Renvoie [{id, name, date, size}] ; name dérivé du 1er texte
 // visible du html_only (pas de titre stocké côté Prismic). Lecture seule.
 // ---------------------------------------------------------------------------
-ipcMain.handle('list-prismic-slices', async () => {
+// Cache de la bibliothèque de slices (liste + HTML de preview). Évite de
+// re-télécharger les ~94 slices (avec leur HTML) à chaque ouverture. Mémoire +
+// disque (userData, survit au redémarrage). Stale-while-revalidate côté
+// renderer : le cache s'affiche instantanément, un refresh silencieux suit.
+let _sliceCache = null;            // { at, token, slices }
+let _sliceCacheLoaded = false;
+const SLICE_CACHE_TTL = 10 * 60 * 1000; // 10 min : au-delà, on rafraîchit
+function sliceCachePath() { return path.join(app.getPath('userData'), 'prismic-slices-cache.json'); }
+function loadSliceCache() {
+  if (_sliceCacheLoaded) return;
+  _sliceCacheLoaded = true;
+  try { _sliceCache = JSON.parse(fs.readFileSync(sliceCachePath(), 'utf8')); } catch (_) { _sliceCache = null; }
+}
+function saveSliceCache(c) {
+  _sliceCache = c;
+  try { fs.writeFileSync(sliceCachePath(), JSON.stringify(c)); } catch (_) { }
+}
+ipcMain.handle('list-prismic-slices', async (e, opts) => {
+  const force = !!(opts && opts.force);
   const token = (readSettings().prismicToken || '').trim();
   if (!token) return { error: 'NO_READ_TOKEN' };
+  loadSliceCache();
+  const cacheOkForToken = _sliceCache && _sliceCache.token === token && Array.isArray(_sliceCache.slices);
+  const fresh = cacheOkForToken && (Date.now() - (_sliceCache.at || 0) < SLICE_CACHE_TTL);
+  if (!force && fresh) return { ok: true, slices: _sliceCache.slices, cached: true, at: _sliceCache.at };
+  // Repli : si le réseau échoue mais qu'on a un cache (même périmé), on le sert.
+  const stale = () => (cacheOkForToken ? { ok: true, slices: _sliceCache.slices, cached: true, stale: true, at: _sliceCache.at } : null);
   try {
     const base = 'https://ekwateur-edito.cdn.prismic.io/api/v2';
     const apiRes = await fetch(base + '?access_token=' + encodeURIComponent(token));
     if (apiRes.status === 401 || apiRes.status === 403) return { error: 'Token Prismic refusé (' + apiRes.status + ') — vérifie-le dans les réglages.' };
-    if (!apiRes.ok) return { error: 'API Prismic: HTTP ' + apiRes.status };
+    if (!apiRes.ok) return stale() || { error: 'API Prismic: HTTP ' + apiRes.status };
     const apiJson = await apiRes.json();
     const master = (apiJson.refs || []).find(r => r.isMasterRef) || (apiJson.refs || [])[0];
-    if (!master) return { error: 'Réponse API Prismic inattendue (pas de ref).' };
+    if (!master) return stale() || { error: 'Réponse API Prismic inattendue (pas de ref).' };
     const q = '[[at(document.type,"custom_slice")]]';
     const out = [];
     let page = 1, totalPages = 1;
     do {
       const url = base + '/documents/search?ref=' + encodeURIComponent(master.ref) + '&q=' + encodeURIComponent(q) + '&pageSize=100&page=' + page + '&access_token=' + encodeURIComponent(token);
       const res = await fetch(url);
-      if (!res.ok) return { error: 'API Content Prismic: HTTP ' + res.status };
+      if (!res.ok) return stale() || { error: 'API Content Prismic: HTTP ' + res.status };
       const j = await res.json();
       totalPages = j.total_pages || 1;
       (j.results || []).forEach(d => {
@@ -864,8 +888,10 @@ ipcMain.handle('list-prismic-slices', async () => {
       page++;
     } while (page <= totalPages);
     out.sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
-    return { ok: true, slices: out };
-  } catch (e) { return { error: 'API Content Prismic: ' + e.message }; }
+    const at = Date.now();
+    saveSliceCache({ at, token, slices: out });
+    return { ok: true, slices: out, cached: false, at };
+  } catch (e2) { return stale() || { error: 'API Content Prismic: ' + e2.message }; }
 });
 
 // ---------------------------------------------------------------------------
