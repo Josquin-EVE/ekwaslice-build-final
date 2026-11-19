@@ -20,19 +20,22 @@
 
 const DEFAULT_DEVICE_W = { desktop: 1080, tablet: 768, mobile: 390 };
 
-// Document d'aperçu STATIQUE pour les vignettes (grille d'import Prismic) :
-// Tailwind + polices + FontAwesome comme le vrai aperçu, MAIS les
-// <script type="text/ekw-js"> NE sont PAS réactivés (restent inertes => rendu
-// statique, aucun appel à l'API prix) et il n'y a pas de shim postMessage.
+// Document d'aperçu pour les vignettes (grille d'import Prismic). Rend la slice
+// FIDÈLEMENT comme le vrai aperçu : scripts réactivés (les simulateurs
+// construisent leur UI en JS), Tailwind + polices, et shim prix postMessage
+// relayé au parent (bridge dans modals.js). Fond BLANC = contexte réel du site
+// Ekwateur (les cartes des slices portent leur propre fond sombre).
 export function buildThumbDoc(inner, siteBg) {
+  inner = (inner || '').replace(/<script\s+type=["']text\/ekw-js["']\s*>/gi, '<script>');
   let assetBase = 'assets/';
   try { assetBase = new URL('assets/', (typeof window !== 'undefined' && window.location ? window.location.href : '')).href; } catch (_) { }
   const fontBase = assetBase + 'fonts/';
   let cfg = '{}';
   try { cfg = JSON.stringify((typeof window !== 'undefined' && window.EKW_TW) || {}); } catch (_) { }
-  const bg = siteBg || '#101c1e';
+  const bg = siteBg || '#ffffff';
   return '<!DOCTYPE html><html lang="fr"><head>'
     + '<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
+    + '<script>(function(){var _f=window.fetch;window.fetch=function(u,o){try{if(typeof u==="string"&&u.indexOf("api-so.ekwateur.fr/quotations")>=0){return new Promise(function(res){var id=Math.random().toString(36).slice(2);function h(ev){var d=ev.data||{};if(d&&d.type==="ekw-quotation-reply"&&d.id===id){window.removeEventListener("message",h);res(new Response(JSON.stringify(d.json||{}),{status:d.ok?201:(d.status||401),headers:{"content-type":"application/json"}}));}}window.addEventListener("message",h);var b={};try{b=o&&o.body?JSON.parse(o.body):{};}catch(e){}parent.postMessage({type:"ekw-quotation",id:id,body:b},"*");});}}catch(e){}return _f.apply(this,arguments);};})();<\/script>'
     + '<script src="' + assetBase + 'vendor/tailwindcss.js"><\/script>'
     + '<script>tailwind.config=' + cfg + ';<\/script>'
     + '<link rel="stylesheet" href="' + assetBase + 'vendor/fontawesome.css">'
@@ -43,7 +46,7 @@ export function buildThumbDoc(inner, siteBg) {
     + "@font-face{font-family:'Gothic A1';src:url('" + fontBase + "gothic-a1-700.otf') format('opentype');font-weight:700;}"
     + 'body{margin:0;padding:16px;}'
     + '</style></head>'
-    + '<body class="font-body text-cloud" style="background-color:' + bg + '">' + (inner || '') + '</body></html>';
+    + '<body class="font-body" style="background-color:' + bg + '">' + inner + '</body></html>';
 }
 
 export function initPreview(store, ctx = {}) {

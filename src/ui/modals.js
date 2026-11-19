@@ -285,6 +285,25 @@ export function initModals(store, ctx = {}) {
   listen(byId('prismic-import-input'), 'input', updateImportBtnState);
   listen(byId('prismic-lib-search'), 'input', renderPrismicLib);
 
+  // Pont prix pour les vignettes : une iframe de la grille demande un devis
+  // (shim fetch) → relayé à main.js (Referer forcé) → réponse renvoyée. On ne
+  // répond qu'aux iframes de notre grille (pas à l'aperçu device, géré ailleurs).
+  listen(win, 'message', async (e) => {
+    const d = e.data || {};
+    if (!d || d.type !== 'ekw-quotation') return;
+    const list = byId('prismic-lib-list'); if (!list) return;
+    let mine = false;
+    list.querySelectorAll('iframe').forEach((f) => { if (f.contentWindow === e.source) mine = true; });
+    if (!mine) return;
+    let reply = { type: 'ekw-quotation-reply', id: d.id, ok: false, status: 401, json: null };
+    const a = api();
+    if (a && a.getQuotation) {
+      try { const r = await a.getQuotation(d.body); reply = { type: 'ekw-quotation-reply', id: d.id, ok: !!(r && r.ok), status: (r && r.status) || 0, json: (r && r.json) || null }; }
+      catch (_) { }
+    }
+    try { if (e.source) e.source.postMessage(reply, '*'); } catch (_) { }
+  });
+
   // =====================================================================================
   // Réglages Prismic — 2 tokens (lecture / écriture).
   // =====================================================================================
