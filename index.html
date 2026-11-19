@@ -169,6 +169,80 @@
             --tw-shadow-color: #ff4fa359 !important;
         }
 
+        /* =====================================================================
+           Neon Coast — DÉCOR (wallpapers + dégradés signature).
+           Châssis UNIQUEMENT (chat, workspace autour du canvas, gate). Jamais le
+           #canvas ni l'aperçu (iframe isolée). Images = créations originales de
+           l'artefact design-system (assets/wallpapers/).
+           ===================================================================== */
+        /* Fond du panneau de chat : ville néon + grille, assombri pour lisibilité */
+        html[data-app-theme="neon"] #chat-panel {
+            position: relative;
+            background-image:
+                linear-gradient(180deg, rgba(18, 10, 34, .80), rgba(18, 10, 34, .93)),
+                url("assets/wallpapers/wallpaper-nuit-neon.png") !important;
+            background-size: cover !important;
+            background-position: center bottom !important;
+            background-repeat: no-repeat !important;
+        }
+
+        /* Filet lagon→rose en haut du chat (note claire, casse l'aplat) */
+        html[data-app-theme="neon"] #chat-panel::before {
+            content: "";
+            position: absolute;
+            left: 0;
+            right: 0;
+            top: 0;
+            height: 2px;
+            background: linear-gradient(90deg, #22d3c5, #ff4fa3);
+            opacity: .85;
+            pointer-events: none;
+            z-index: 2;
+        }
+
+        /* Décor derrière la carte #canvas (dans le scroll, autour du canvas) */
+        html[data-app-theme="neon"] #canvas-scroll {
+            background-image:
+                linear-gradient(180deg, rgba(28, 18, 51, .90), rgba(18, 10, 34, .95)),
+                url("assets/wallpapers/wallpaper-crepuscule.png") !important;
+            background-size: cover !important;
+            background-position: center top !important;
+            background-repeat: no-repeat !important;
+            background-attachment: local !important;
+        }
+
+        /* Écran de connexion : hero coucher de soleil */
+        html[data-app-theme="neon"] #gate {
+            background-image:
+                linear-gradient(180deg, rgba(18, 10, 34, .74), rgba(18, 10, 34, .90)),
+                url("assets/wallpapers/wallpaper-crepuscule.png") !important;
+            background-size: cover !important;
+            background-position: center !important;
+        }
+
+        /* Filet dégradé coucher de soleil (signature) sous le header */
+        html[data-app-theme="neon"] header {
+            position: relative;
+        }
+
+        html[data-app-theme="neon"] header::after {
+            content: "";
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: -1px;
+            height: 2px;
+            background: linear-gradient(90deg, #ff4fa3, #ff8a3d, #ffc857);
+            opacity: .9;
+            pointer-events: none;
+        }
+
+        /* Sidebars néon : léger dégradé vertical (moins « uni », note plus claire) */
+        html[data-app-theme="neon"] aside.w-80,
+        html[data-app-theme="neon"] #chat-panel {
+            box-shadow: inset 0 1px 0 #ffffff12;
+        }
+
         /* Polices Ekwateur — chargées en local (hors-ligne) */
         @font-face {
             font-family: 'Carnero';
