@@ -324,6 +324,21 @@ export function boot(opts = {}) {
     else if (e.key === 'Escape') { library.closeSaveModal(); }
   });
 
+  // --- Échap ferme le modal visible du dessus -----------------------------------------
+  // (le champ nom et la modale de sauvegarde gèrent déjà Échap quand ils ont le focus ;
+  // ce handler global couvre export, import code, import Prismic, réglages Prismic.)
+  doc.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    const vis = (id) => { const m = byId(id); return m && !m.classList.contains('hidden'); };
+    if (vis('prismicSettingsModal')) modals.closeSettings();
+    else if (vis('prismicImportModal')) modals.closePrismicImport();
+    else if (vis('importModal')) modals.closeImportCode();
+    else if (vis('codeModal')) modals.closeExport();
+    else if (vis('saveModal')) library.closeSaveModal();
+    else return;
+    e.preventDefault();
+  });
+
   // --- accordéons pictos + recherche --------------------------------------------------
   function toggleAcc(bodyId, chevSel, lsKey, defOpen) {
     const b = byId(bodyId); if (!b) return;
