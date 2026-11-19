@@ -190,23 +190,63 @@ export function initModals(store, ctx = {}) {
     const search = byId('prismic-lib-search'); if (search) search.classList.remove('hidden');
     renderPrismicLib();
   }
-  function escHtml(s) { return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
   function renderPrismicLib() {
     const list = byId('prismic-lib-list'); if (!list) return;
     const search = byId('prismic-lib-search');
     const q = ((search && search.value) || '').toLowerCase();
     const items = _prismicLib.filter((s) => !q || (s.name || '').toLowerCase().includes(q) || s.id.toLowerCase().includes(q));
-    if (!items.length) { list.innerHTML = '<div class="text-[12px] text-slate-500 py-3 text-center">Aucune slice</div>'; return; }
-    list.innerHTML = items.map((s) => {
+    list.innerHTML = '';
+    if (!items.length) {
+      const empty = document.createElement('div');
+      empty.className = 'col-span-4 text-[12px] text-slate-500 py-6 text-center';
+      empty.textContent = 'Aucune slice';
+      list.appendChild(empty);
+      return;
+    }
+    for (const s of items) {
       const d = s.date ? new Date(s.date).toLocaleDateString('fr-FR') : '';
       const on = s.id === _selectedSliceId;
-      const border = on ? 'border-secondary ring-1 ring-secondary bg-secondary/20' : 'border-slate-700 bg-slate-950 hover:border-secondary';
-      const nameCls = on ? 'text-[12px] text-white font-bold truncate' : 'text-[12px] text-slate-100 truncate';
-      const mark = on ? '<i class="fa-solid fa-circle-check text-[15px] text-secondary shrink-0"></i>' : '';
-      return '<button type="button" data-slice-id="' + s.id + '" aria-pressed="' + on + '" class="w-full text-left px-3 py-2 rounded-lg border ' + border + ' transition flex items-center gap-2.5">'
-        + '<span class="min-w-0 flex-1"><span class="block ' + nameCls + '">' + escHtml(s.name || s.id) + '</span><span class="block text-[10px] text-slate-500">' + d + '</span></span>'
-        + mark + '</button>';
-    }).join('');
+      const card = document.createElement('button');
+      card.type = 'button';
+      card.dataset.sliceId = s.id;
+      card.setAttribute('aria-pressed', String(on));
+      card.title = s.name || s.id;
+      card.className = 'group text-left rounded-xl border overflow-hidden transition flex flex-col ' +
+        (on ? 'border-secondary ring-2 ring-secondary' : 'border-slate-700 hover:border-secondary');
+
+      // Vignette : HTML de la slice rendu dans un Shadow DOM (isole son <style>
+      // du reste de l'app ; scripts inertes => aperçu statique) + mise à l'échelle.
+      const thumb = document.createElement('div');
+      thumb.className = 'relative h-36 w-full overflow-hidden bg-white';
+      try {
+        const shadow = thumb.attachShadow({ mode: 'open' });
+        const scaler = document.createElement('div');
+        scaler.style.cssText = 'transform:scale(0.28);transform-origin:top left;width:357%;height:357%;pointer-events:none;';
+        scaler.innerHTML = s.html || '';
+        shadow.appendChild(scaler);
+      } catch (_) {
+        thumb.innerHTML = '<div class="flex items-center justify-center h-full text-slate-400 text-xs">Aperçu indisponible</div>';
+      }
+      if (on) {
+        const chk = document.createElement('div');
+        chk.className = 'absolute top-1.5 right-1.5 text-secondary text-lg drop-shadow';
+        chk.innerHTML = '<i class="fa-solid fa-circle-check"></i>';
+        thumb.appendChild(chk);
+      }
+
+      const meta = document.createElement('div');
+      meta.className = 'px-2.5 py-1.5 border-t ' + (on ? 'border-secondary bg-secondary/15' : 'border-slate-800 bg-slate-950');
+      const nm = document.createElement('div');
+      nm.className = 'text-[11px] truncate ' + (on ? 'text-white font-bold' : 'text-slate-100');
+      nm.textContent = s.name || s.id;
+      const dt = document.createElement('div');
+      dt.className = 'text-[10px] text-slate-500';
+      dt.textContent = d;
+      meta.appendChild(nm); meta.appendChild(dt);
+
+      card.appendChild(thumb); card.appendChild(meta);
+      list.appendChild(card);
+    }
   }
   listen(byId('prismicImportModal'), 'click', (e) => {
     const slice = e.target.closest('#prismic-lib-list [data-slice-id]');

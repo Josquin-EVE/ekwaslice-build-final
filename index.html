@@ -783,7 +783,7 @@
 
     <!-- Modal Importer depuis Prismic -->
     <div id="prismicImportModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden items-center justify-center p-6">
-        <div class="bg-slate-800 rounded-2xl p-6 w-full max-w-lg space-y-4">
+        <div class="bg-slate-800 rounded-2xl p-6 w-full max-w-5xl space-y-4">
             <h2 class="text-white font-bold text-lg flex items-center gap-2">Importer depuis Prismic
                 <button type="button" data-open-prismic-builder title="Ouvrir Prismic" class="text-slate-400 hover:text-white">
                     <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
@@ -810,7 +810,7 @@
                 </div>
                 <input id="prismic-lib-search" placeholder="Filtrer…"
                     class="hidden w-full mb-2 bg-slate-950 border border-slate-600 rounded-lg px-3 py-1.5 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-secondary">
-                <div id="prismic-lib-list" class="max-h-56 overflow-y-auto space-y-1 pr-1"></div>
+                <div id="prismic-lib-list" class="grid grid-cols-4 gap-2 max-h-[62vh] overflow-y-auto pr-1"></div>
             </div>
             <div class="flex justify-end gap-2">
                 <button data-close-prismic-import class="px-4 py-2 text-sm text-slate-300 hover:text-white">Annuler</button>

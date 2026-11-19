@@ -853,7 +853,13 @@ ipcMain.handle('list-prismic-slices', async () => {
           name = src.replace(/<[^>]+>/g, ' ').replace(/&[a-z#0-9]+;/gi, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
         }
         if (!name) name = '(sans texte)';
-        out.push({ id: d.id, name, date: d.last_publication_date || d.first_publication_date || '', size: (data.html_only || data.html || '').length });
+        // HTML auto-suffisant (style inclus, scripts neutralisés) pour la preview
+        // dans la grille d'import. Même assemblage qu'à l'import (verbatim).
+        const S = (x) => (typeof x === 'string' ? x : '');
+        let html = '';
+        try { html = PrismicSlice.buildVerbatimSliceHTML({ html_only: S(data.html_only), css: S(data.css), js: S(data.js), html: S(data.html) }); }
+        catch (_) { html = S(data.html) || S(data.html_only); }
+        out.push({ id: d.id, name, date: d.last_publication_date || d.first_publication_date || '', size: (data.html_only || data.html || '').length, html });
       });
       page++;
     } while (page <= totalPages);
