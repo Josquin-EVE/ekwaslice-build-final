@@ -18,6 +18,8 @@
 //   ctx.prismic ; ctx.importCode ; ctx.getSettings() ; ctx.authorName() ;
 //   ctx.toast ; ctx.showLoading ; ctx.hideLoading.
 
+import { buildThumbDoc } from './preview.js';
+
 export function initModals(store, ctx = {}) {
   const doc = ctx.document || (typeof globalThis !== 'undefined' ? globalThis.document : null);
   const win = ctx.window || (doc && doc.defaultView) || (typeof globalThis !== 'undefined' ? globalThis : null);
@@ -129,6 +131,7 @@ export function initModals(store, ctx = {}) {
   // =====================================================================================
   let _prismicLib = [];
   let _selectedSliceId = '';
+  let _thumbObserver = null; // lazy-load des vignettes iframe (grille d'import)
 
   function getImportSource() {
     const inp = byId('prismic-import-input');
@@ -203,33 +206,50 @@ export function initModals(store, ctx = {}) {
       list.appendChild(empty);
       return;
     }
+    // (Re)crée l'observer de lazy-load : seules les vignettes visibles chargent
+    // leur iframe (Tailwind) — évite d'instancier N iframes d'un coup.
+    if (_thumbObserver) { try { _thumbObserver.disconnect(); } catch (_) { } _thumbObserver = null; }
+    try {
+      _thumbObserver = new IntersectionObserver((entries, obs) => {
+        for (const en of entries) {
+          if (!en.isIntersecting) continue;
+          const f = en.target;
+          if (f && f._ekwHtml != null && !f.getAttribute('srcdoc')) {
+            f.srcdoc = buildThumbDoc(f._ekwHtml);
+          }
+          obs.unobserve(f);
+        }
+      }, { root: list, rootMargin: '300px' });
+    } catch (_) { _thumbObserver = null; }
+
     for (const s of items) {
       const d = s.date ? new Date(s.date).toLocaleDateString('fr-FR') : '';
       const on = s.id === _selectedSliceId;
-      const card = document.createElement('button');
-      card.type = 'button';
+      const card = document.createElement('div');
+      card.setAttribute('role', 'button');
+      card.tabIndex = 0;
       card.dataset.sliceId = s.id;
       card.setAttribute('aria-pressed', String(on));
       card.title = s.name || s.id;
-      card.className = 'group text-left rounded-xl border overflow-hidden transition flex flex-col ' +
+      card.className = 'group cursor-pointer rounded-xl border overflow-hidden transition flex flex-col ' +
         (on ? 'border-secondary ring-2 ring-secondary' : 'border-slate-700 hover:border-secondary');
 
-      // Vignette : HTML de la slice rendu dans un Shadow DOM (isole son <style>
-      // du reste de l'app ; scripts inertes => aperçu statique) + mise à l'échelle.
+      // Vignette : HTML de la slice rendu en iframe (Tailwind + polices, scripts
+      // inertes => statique). Lazy via IntersectionObserver.
       const thumb = document.createElement('div');
       thumb.className = 'relative h-36 w-full overflow-hidden bg-white';
-      try {
-        const shadow = thumb.attachShadow({ mode: 'open' });
-        const scaler = document.createElement('div');
-        scaler.style.cssText = 'transform:scale(0.28);transform-origin:top left;width:357%;height:357%;pointer-events:none;';
-        scaler.innerHTML = s.html || '';
-        shadow.appendChild(scaler);
-      } catch (_) {
-        thumb.innerHTML = '<div class="flex items-center justify-center h-full text-slate-400 text-xs">Aperçu indisponible</div>';
-      }
+      const ifr = document.createElement('iframe');
+      ifr.setAttribute('scrolling', 'no');
+      ifr.setAttribute('tabindex', '-1');
+      ifr.setAttribute('aria-hidden', 'true');
+      ifr.style.cssText = 'width:1000px;height:576px;border:0;transform:scale(0.25);transform-origin:top left;pointer-events:none;background:#fff;';
+      ifr._ekwHtml = s.html || '';
+      thumb.appendChild(ifr);
+      if (_thumbObserver) _thumbObserver.observe(ifr);
+      else ifr.srcdoc = buildThumbDoc(ifr._ekwHtml); // repli : pas d'observer
       if (on) {
         const chk = document.createElement('div');
-        chk.className = 'absolute top-1.5 right-1.5 text-secondary text-lg drop-shadow';
+        chk.className = 'absolute top-1.5 right-1.5 text-secondary text-lg drop-shadow z-10';
         chk.innerHTML = '<i class="fa-solid fa-circle-check"></i>';
         thumb.appendChild(chk);
       }

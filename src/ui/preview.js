@@ -20,6 +20,32 @@
 
 const DEFAULT_DEVICE_W = { desktop: 1080, tablet: 768, mobile: 390 };
 
+// Document d'aperçu STATIQUE pour les vignettes (grille d'import Prismic) :
+// Tailwind + polices + FontAwesome comme le vrai aperçu, MAIS les
+// <script type="text/ekw-js"> NE sont PAS réactivés (restent inertes => rendu
+// statique, aucun appel à l'API prix) et il n'y a pas de shim postMessage.
+export function buildThumbDoc(inner, siteBg) {
+  let assetBase = 'assets/';
+  try { assetBase = new URL('assets/', (typeof window !== 'undefined' && window.location ? window.location.href : '')).href; } catch (_) { }
+  const fontBase = assetBase + 'fonts/';
+  let cfg = '{}';
+  try { cfg = JSON.stringify((typeof window !== 'undefined' && window.EKW_TW) || {}); } catch (_) { }
+  const bg = siteBg || '#101c1e';
+  return '<!DOCTYPE html><html lang="fr"><head>'
+    + '<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
+    + '<script src="' + assetBase + 'vendor/tailwindcss.js"><\/script>'
+    + '<script>tailwind.config=' + cfg + ';<\/script>'
+    + '<link rel="stylesheet" href="' + assetBase + 'vendor/fontawesome.css">'
+    + '<style>'
+    + "@font-face{font-family:'Carnero';src:url('" + fontBase + "carnero-var.ttf') format('truetype');font-weight:300 900;}"
+    + "@font-face{font-family:'Gothic A1';src:url('" + fontBase + "gothic-a1-400.otf') format('opentype');font-weight:400;}"
+    + "@font-face{font-family:'Gothic A1';src:url('" + fontBase + "gothic-a1-600.otf') format('opentype');font-weight:600;}"
+    + "@font-face{font-family:'Gothic A1';src:url('" + fontBase + "gothic-a1-700.otf') format('opentype');font-weight:700;}"
+    + 'body{margin:0;padding:16px;}'
+    + '</style></head>'
+    + '<body class="font-body text-cloud" style="background-color:' + bg + '">' + (inner || '') + '</body></html>';
+}
+
 export function initPreview(store, ctx = {}) {
   const doc = ctx.document || (typeof globalThis !== 'undefined' ? globalThis.document : null);
   const win = ctx.window || (doc && doc.defaultView) || (typeof globalThis !== 'undefined' ? globalThis : null);
