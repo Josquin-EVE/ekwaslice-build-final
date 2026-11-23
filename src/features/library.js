@@ -413,9 +413,10 @@ export function initLibrary(store, ctx = {}) {
     currentLibTab = (t === 'shared') ? 'shared' : (t === 'prismic') ? 'prismic' : 'local';
     const on = 'bg-secondary text-ink-deep', off = 'text-slate-400 hover:text-slate-200';
     const loc = byId('tab-local'), sh = byId('tab-shared'), pr = byId('tab-prismic');
-    if (loc) loc.className = 'px-2.5 py-1 rounded-md transition ' + (currentLibTab === 'local' ? on : off);
-    if (sh) sh.className = 'px-2.5 py-1 rounded-md transition flex items-center gap-1 ' + (currentLibTab === 'shared' ? on : off);
-    if (pr) pr.className = 'px-2.5 py-1 rounded-md transition flex items-center gap-1 ' + (currentLibTab === 'prismic' ? on : off);
+    const tabBase = 'flex-1 justify-center px-2 py-1 rounded-md transition flex items-center gap-1 ';
+    if (loc) loc.className = tabBase + (currentLibTab === 'local' ? on : off);
+    if (sh) sh.className = tabBase + (currentLibTab === 'shared' ? on : off);
+    if (pr) pr.className = tabBase + (currentLibTab === 'prismic' ? on : off);
     const rl = byId('shared-reload');
     if (rl) { rl.classList.toggle('hidden', currentLibTab !== 'shared'); rl.classList.toggle('flex', currentLibTab === 'shared'); }
     const g = grid(), sg = sharedGridEl(), pg = prismicGridEl();

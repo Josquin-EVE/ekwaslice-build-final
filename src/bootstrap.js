@@ -512,6 +512,9 @@ export function boot(opts = {}) {
     preview.setWidth('desktop');
     preview.applyCanvasWidth();
     library.load();
+    // Préchargement Prismic : chauffe le cache + la liste dès le lancement (sans attendre
+    // l'ouverture de l'onglet) → affichage instantané. Silencieux, seulement si token présent.
+    try { if (getSettings().prismicToken) panelPrismicBrowser.load({ silent: true }); } catch (_) { }
     loadPictos();
     checkEmpty();
     // Accordéons : état initial (pictos ouverts, pictos éditeur fermés).
