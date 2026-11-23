@@ -395,6 +395,8 @@ export function initLibrary(store, ctx = {}) {
     if (g) { g.classList.toggle('hidden', currentLibTab !== 'local'); g.classList.toggle('flex', currentLibTab === 'local'); }
     if (sg) { sg.classList.toggle('hidden', currentLibTab !== 'shared'); sg.classList.toggle('flex', currentLibTab === 'shared'); }
     if (pg) { pg.classList.toggle('hidden', currentLibTab !== 'prismic'); pg.classList.toggle('flex', currentLibTab === 'prismic'); }
+    const psearch = byId('prismic-grid-search');
+    if (psearch) psearch.classList.toggle('hidden', currentLibTab !== 'prismic');
     if (currentLibTab === 'shared') { renderSharedGrid(); if (!SHARED.length) loadShared(); }
     else if (currentLibTab === 'prismic') { openPrismicTab(); }
     else renderGrid();

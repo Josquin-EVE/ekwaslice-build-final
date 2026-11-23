@@ -130,7 +130,10 @@ export function initPrismicBrowser(ctx = {}) {
       card.dataset.sliceId = s.id;
       card.setAttribute('aria-pressed', String(on));
       card.title = s.name || s.id;
-      card.className = 'group cursor-pointer rounded-xl border overflow-hidden transition flex flex-col ' +
+      // shrink-0 : dans un conteneur flex-col (panneau), sans ça les cartes se compriment
+      // en fines lignes quand la liste dépasse la hauteur (au lieu de défiler). La grille
+      // de la modale (grid) n'en a pas besoin, mais shrink-0 y est inoffensif.
+      card.className = 'group shrink-0 cursor-pointer rounded-xl border overflow-hidden transition flex flex-col ' +
         (on ? 'border-secondary ring-2 ring-secondary' : 'border-slate-700 hover:border-secondary');
 
       const thumb = doc.createElement('div');

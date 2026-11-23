@@ -10,6 +10,7 @@ const PAGE = '<!doctype html><html><body><div id="canvas"></div>'
   + '<button id="tab-local"></button><button id="tab-shared"></button><button id="tab-prismic"></button><button id="shared-reload" class="hidden"></button>'
   + '<div id="comp-grid" class="flex"></div>'
   + '<div id="shared-grid" class="hidden"></div>'
+  + '<input id="prismic-grid-search" class="hidden">'
   + '<div id="prismic-grid" class="hidden"></div>'
   + '<div id="saveModal" class="hidden"></div>'
   + '<input id="save-name-input"><div id="save-overwrite-row" class="hidden"></div>'
@@ -181,6 +182,16 @@ test('setLibTab(prismic) monte et peuple la grille Prismic (token present)', asy
     const pg = t.document.getElementById('prismic-grid');
     assert.equal(pg.classList.contains('hidden'), false);
     assert.equal(pg.querySelectorAll('[data-slice-id]').length, 1);
+  } finally { t.cleanup(); }
+});
+
+test('setLibTab : la barre de filtre Prismic est visible sur l onglet Prismic, masquee ailleurs', () => {
+  const t = setup({ hasReadToken: true, prismicApi: { listPrismicSlices: async () => ({ ok: true, slices: [] }) } });
+  try {
+    t.lib.setLibTab('prismic');
+    assert.equal(t.document.getElementById('prismic-grid-search').classList.contains('hidden'), false);
+    t.lib.setLibTab('local');
+    assert.equal(t.document.getElementById('prismic-grid-search').classList.contains('hidden'), true);
   } finally { t.cleanup(); }
 });
 
