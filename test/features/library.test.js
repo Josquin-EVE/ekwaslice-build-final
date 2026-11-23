@@ -4,11 +4,13 @@ import { withDom } from '../helpers/dom.js';
 import { SliceStore } from '../../src/core/store.js';
 import { serializeSlice } from '../../src/core/slice.js';
 import { initLibrary } from '../../src/features/library.js';
+import { initPrismicBrowser } from '../../src/ui/prismic-browser.js';
 
 const PAGE = '<!doctype html><html><body><div id="canvas"></div>'
-  + '<button id="tab-local"></button><button id="tab-shared"></button><button id="shared-reload" class="hidden"></button>'
+  + '<button id="tab-local"></button><button id="tab-shared"></button><button id="tab-prismic"></button><button id="shared-reload" class="hidden"></button>'
   + '<div id="comp-grid" class="flex"></div>'
   + '<div id="shared-grid" class="hidden"></div>'
+  + '<div id="prismic-grid" class="hidden"></div>'
   + '<div id="saveModal" class="hidden"></div>'
   + '<input id="save-name-input"><div id="save-overwrite-row" class="hidden"></div>'
   + '<input id="save-overwrite" type="checkbox"><b id="save-overwrite-name"></b></body></html>';
@@ -36,12 +38,25 @@ function setup(opts = {}) {
   const store = new SliceStore(env.document.getElementById('canvas'));
   const api = fakeApi(opts.items);
   const sel = { el: null }; const selected = []; const toasts = [];
+  let prismicBrowser = null;
+  if (opts.prismicApi) {
+    prismicBrowser = initPrismicBrowser({
+      document: env.document, window: env.window, api: opts.prismicApi,
+      buildThumbDoc: () => '', onPick: opts.onPrismicPick || (() => {}),
+    });
+  }
+  const flags = {};
   const lib = initLibrary(store, {
     document: env.document, window: env.window, api,
     editing: { getSelected: () => sel.el, deselect: () => { sel.el = null; }, selectElement: (el) => { sel.el = el; selected.push(el); } },
-    hooks: { toast: (m) => toasts.push(m), confirm: () => opts.confirm !== false },
+    prismicBrowser,
+    hooks: {
+      toast: (m) => toasts.push(m), confirm: () => opts.confirm !== false,
+      hasReadToken: () => !!opts.hasReadToken,
+      openPrismicConfig: () => { flags.configOpened = true; },
+    },
   });
-  return { ...env, store, api, lib, sel, selected, toasts };
+  return { ...env, store, api, lib, sel, selected, toasts, flags };
 }
 
 test('saveComponent -> confirmSave : sauvegarde serializeSlice (html propre, sans wrapper/artefacts) de la slice sélectionnée', async () => {
@@ -150,6 +165,36 @@ test('publish sans cle declenche le prompt d import (NO_KEY)', async () => {
     t.api.gsheetImportKey = async () => { imported = true; return { error: 'CANCELLED' }; };
     await t.lib.publish({ name: 't', html: '<i>x</i>' });
     assert.equal(imported, true);
+  } finally { t.cleanup(); }
+});
+
+// --- Onglet Prismic (3ᵉ source dans le hub) ----------------------------------------------
+
+test('setLibTab(prismic) monte et peuple la grille Prismic (token present)', async () => {
+  const t = setup({
+    hasReadToken: true,
+    prismicApi: { listPrismicSlices: async () => ({ ok: true, slices: [{ id: 'p1', name: 'Slice', html: '<b>x</b>' }] }) },
+  });
+  try {
+    t.lib.setLibTab('prismic');
+    await new Promise((r) => setTimeout(r, 0)); // load() est async
+    const pg = t.document.getElementById('prismic-grid');
+    assert.equal(pg.classList.contains('hidden'), false);
+    assert.equal(pg.querySelectorAll('[data-slice-id]').length, 1);
+  } finally { t.cleanup(); }
+});
+
+test('setLibTab(prismic) sans token : invite a configurer, pas de crash', () => {
+  const t = setup({ hasReadToken: false });
+  try {
+    t.lib.setLibTab('prismic');
+    const pg = t.document.getElementById('prismic-grid');
+    assert.equal(pg.classList.contains('hidden'), false);
+    assert.match(pg.textContent, /token/i);
+    const cfg = pg.querySelector('[data-prismic-config]');
+    assert.ok(cfg);
+    cfg.click();
+    assert.equal(t.flags.configOpened, true);
   } finally { t.cleanup(); }
 });
 

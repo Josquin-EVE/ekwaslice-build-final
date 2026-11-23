@@ -355,19 +355,48 @@ export function initLibrary(store, ctx = {}) {
     });
   }
 
-  // Bascule d'onglet local/partagé (styles, bouton recharger, visibilité des grilles).
+  // --- onglet Prismic (3ᵉ source : slices publiées) -------------------------------------
+  const prismicGridEl = () => ctx.prismicGrid || byId('prismic-grid');
+  let _prismicMounted = false;
+
+  // Invite affichée quand le token de lecture Prismic manque (pas de grille muette).
+  function renderPrismicInvite() {
+    const g = prismicGridEl();
+    if (!g || !doc) return;
+    g.innerHTML = '<div class="text-[11px] text-slate-500 leading-snug p-1">Token de lecture Prismic requis pour parcourir les slices publiées. '
+      + '<button data-prismic-config class="text-secondary underline">Configurer</button></div>';
+    const b = g.querySelector('[data-prismic-config]');
+    if (b) b.addEventListener('click', () => { if (typeof hooks.openPrismicConfig === 'function') hooks.openPrismicConfig(); });
+  }
+
+  // Monte/charge le navigateur Prismic injecté (ctx.prismicBrowser) dans la grille du panneau.
+  function openPrismicTab() {
+    const g = prismicGridEl();
+    const hasToken = (typeof hooks.hasReadToken === 'function') ? !!hooks.hasReadToken() : true;
+    if (!hasToken) { renderPrismicInvite(); return; }
+    const b = ctx.prismicBrowser;
+    if (!b) return;
+    if (!_prismicMounted && g) { b.mount(g, { filterInput: byId('prismic-grid-search') }); _prismicMounted = true; }
+    if (typeof b.hasItems === 'function' && b.hasItems()) b.render();
+    else if (typeof b.load === 'function') b.load();
+  }
+
+  // Bascule d'onglet local/partagé/prismic (styles, bouton recharger, visibilité des grilles).
   function setLibTab(t) {
-    currentLibTab = (t === 'shared') ? 'shared' : 'local';
+    currentLibTab = (t === 'shared') ? 'shared' : (t === 'prismic') ? 'prismic' : 'local';
     const on = 'bg-secondary text-ink-deep', off = 'text-slate-400 hover:text-slate-200';
-    const loc = byId('tab-local'), sh = byId('tab-shared');
+    const loc = byId('tab-local'), sh = byId('tab-shared'), pr = byId('tab-prismic');
     if (loc) loc.className = 'px-2.5 py-1 rounded-md transition ' + (currentLibTab === 'local' ? on : off);
     if (sh) sh.className = 'px-2.5 py-1 rounded-md transition flex items-center gap-1 ' + (currentLibTab === 'shared' ? on : off);
+    if (pr) pr.className = 'px-2.5 py-1 rounded-md transition flex items-center gap-1 ' + (currentLibTab === 'prismic' ? on : off);
     const rl = byId('shared-reload');
     if (rl) { rl.classList.toggle('hidden', currentLibTab !== 'shared'); rl.classList.toggle('flex', currentLibTab === 'shared'); }
-    const g = grid(), sg = sharedGridEl();
+    const g = grid(), sg = sharedGridEl(), pg = prismicGridEl();
     if (g) { g.classList.toggle('hidden', currentLibTab !== 'local'); g.classList.toggle('flex', currentLibTab === 'local'); }
     if (sg) { sg.classList.toggle('hidden', currentLibTab !== 'shared'); sg.classList.toggle('flex', currentLibTab === 'shared'); }
+    if (pg) { pg.classList.toggle('hidden', currentLibTab !== 'prismic'); pg.classList.toggle('flex', currentLibTab === 'prismic'); }
     if (currentLibTab === 'shared') { renderSharedGrid(); if (!SHARED.length) loadShared(); }
+    else if (currentLibTab === 'prismic') { openPrismicTab(); }
     else renderGrid();
   }
 

@@ -17,6 +17,7 @@ import { initImportCode } from './features/importCode.js';
 import { initOverlay } from './ui/overlay.js';
 import { initPreview } from './ui/preview.js';
 import { initModals } from './ui/modals.js';
+import { initPrismicBrowser } from './ui/prismic-browser.js';
 import { initToolbar } from './ui/toolbar.js';
 
 const SITE_BG = '#101c1e';
@@ -180,6 +181,8 @@ export function boot(opts = {}) {
   });
 
   // --- prismic ------------------------------------------------------------------------
+  // Source d'import Prismic venant de l'onglet du panneau (prioritaire sur la modale).
+  let _panelPrismicId = '';
   prismic = initPrismic(store, {
     document: doc,
     window: win,
@@ -194,7 +197,7 @@ export function boot(opts = {}) {
       askName: (o) => modals.askName(o),
       getSettings,
       authorName,
-      getImportSource: () => (modals ? modals.getImportSource() : ''),
+      getImportSource: () => _panelPrismicId || (modals ? modals.getImportSource() : ''),
       beforeImport: () => (modals ? modals.saveReadToken() : undefined),
       closeImportModal: () => { if (modals) modals.closePrismicImport(); },
       clearImportInput: () => { if (modals) modals.clearPrismicImportInput(); },
@@ -205,12 +208,25 @@ export function boot(opts = {}) {
     },
   });
 
+  // Navigateur Prismic du panneau (onglet « Prismic ») : liste + import de la slice choisie.
+  const panelPrismicBrowser = initPrismicBrowser({
+    document: doc, window: win, api: api(), toast,
+    beforeLoad: () => (modals ? modals.saveReadToken() : undefined),
+    onPick: (id) => { if (id) importPrismicFromPanel(id); },
+  });
+  async function importPrismicFromPanel(id) {
+    _panelPrismicId = id;
+    try { await prismic.doImport(); }
+    finally { _panelPrismicId = ''; panelPrismicBrowser.clearSelection(); panelPrismicBrowser.render(); }
+  }
+
   // --- library ------------------------------------------------------------------------
   library = initLibrary(store, {
     document: doc,
     window: win,
     api: api(),
     editing,
+    prismicBrowser: panelPrismicBrowser,
     hooks: {
       toast,
       resolvePictos,
@@ -219,6 +235,9 @@ export function boot(opts = {}) {
       setAuthorName,
       // Modale de saisie générique (réutilise #authorModal via modals.askName).
       askName: (o) => (modals ? modals.askName(o) : null),
+      // Onglet Prismic : token de lecture requis ; sinon invite -> config via la modale.
+      hasReadToken: () => !!getSettings().prismicToken,
+      openPrismicConfig: () => { if (modals) modals.openPrismicImport(); },
     },
   });
 
@@ -267,7 +286,7 @@ export function boot(opts = {}) {
     setMode: (m) => preview.setMode(m),
     setWidth: (w) => preview.setWidth(w),
     setPageWidth: (v) => preview.setPageWidth(v),
-    openPrismicImport: () => modals.openPrismicImport(),
+    openPrismicImport: () => library.setLibTab('prismic'),
     pushPrismic: (btn) => prismic.push(btn),
     updatePrismic: (btn) => prismic.update(btn),
     openExport: () => { editing.stopEditing(); editing.deselect(); modals.openExport(); },
@@ -325,6 +344,8 @@ export function boot(opts = {}) {
   if (tabLocal) tabLocal.addEventListener('click', () => library.setLibTab('local'));
   const tabShared = byId('tab-shared');
   if (tabShared) tabShared.addEventListener('click', () => library.setLibTab('shared'));
+  const tabPrismic = byId('tab-prismic');
+  if (tabPrismic) tabPrismic.addEventListener('click', () => library.setLibTab('prismic'));
   const sharedReload = byId('shared-reload');
   if (sharedReload) sharedReload.addEventListener('click', () => library.loadShared());
 
