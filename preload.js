@@ -19,6 +19,8 @@ contextBridge.exposeInMainWorld('api', {
   settingsGet: () => ipcRenderer.invoke('settings-get'),
   settingsSet: (patch) => ipcRenderer.invoke('settings-set', patch),
   // Bibliothèque partagée en ligne (Supabase)
+  gsheetImportKey: () => ipcRenderer.invoke('gsheet-import-key'),
+  gsheetKeyStatus: () => ipcRenderer.invoke('gsheet-key-status'),
   sharedList: () => ipcRenderer.invoke('shared-list'),
   sharedPublish: (item) => ipcRenderer.invoke('shared-publish', item),
   sharedDelete: (payload) => ipcRenderer.invoke('shared-delete', payload),
