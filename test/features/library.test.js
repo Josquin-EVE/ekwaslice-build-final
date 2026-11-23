@@ -6,7 +6,9 @@ import { serializeSlice } from '../../src/core/slice.js';
 import { initLibrary } from '../../src/features/library.js';
 
 const PAGE = '<!doctype html><html><body><div id="canvas"></div>'
-  + '<div id="comp-grid"></div>'
+  + '<button id="tab-local"></button><button id="tab-shared"></button><button id="shared-reload" class="hidden"></button>'
+  + '<div id="comp-grid" class="flex"></div>'
+  + '<div id="shared-grid" class="hidden"></div>'
   + '<div id="saveModal" class="hidden"></div>'
   + '<input id="save-name-input"><div id="save-overwrite-row" class="hidden"></div>'
   + '<input id="save-overwrite" type="checkbox"><b id="save-overwrite-name"></b></body></html>';
@@ -123,6 +125,31 @@ test('slice issue de la biblio : sauvegarde propose l\'écrasement et envoie l\'
     assert.equal(t.api.state.saved[0].id, 'c-7');
     assert.equal(t.api.state.saved[0].html, '<p>v2</p>');
     assert.equal(t.lib.getItems().length, 1);          // écrasé, pas dupliqué
+  } finally { t.cleanup(); }
+});
+
+// --- Bibliothèque PARTAGÉE (Google Sheets) -----------------------------------------------
+
+test('loadShared peuple la grille partagee depuis l API (1 row, sans owner_key)', async () => {
+  const t = setup();
+  try {
+    t.api.gsheetKeyStatus = async () => ({ present: true });
+    t.api.sharedList = async () => ({ list: [{ id: 's1', name: 'Hero partagé', author: 'Jo', html: '<b>x</b>' }] });
+    await t.lib.loadShared();
+    const sg = t.document.getElementById('shared-grid');
+    assert.equal(sg.querySelectorAll('[data-shared-card]').length, 1);
+  } finally { t.cleanup(); }
+});
+
+test('publish sans cle declenche le prompt d import (NO_KEY)', async () => {
+  const t = setup();
+  try {
+    t.api.settingsGet = async () => ({ author: 'Jo' }); // auteur défini -> pas de modale de nom
+    let imported = false;
+    t.api.sharedPublish = async () => ({ error: 'NO_KEY' });
+    t.api.gsheetImportKey = async () => { imported = true; return { error: 'CANCELLED' }; };
+    await t.lib.publish({ name: 't', html: '<i>x</i>' });
+    assert.equal(imported, true);
   } finally { t.cleanup(); }
 });
 

@@ -211,7 +211,15 @@ export function boot(opts = {}) {
     window: win,
     api: api(),
     editing,
-    hooks: { toast, resolvePictos },
+    hooks: {
+      toast,
+      resolvePictos,
+      // Identité auteur unifiée avec le châssis (gate/prismic) : une seule source.
+      authorName,
+      setAuthorName,
+      // Modale de saisie générique (réutilise #authorModal via modals.askName).
+      askName: (o) => (modals ? modals.askName(o) : null),
+    },
   });
 
   // --- importCode ---------------------------------------------------------------------
@@ -311,6 +319,14 @@ export function boot(opts = {}) {
     if (log) log.innerHTML = '<div id="chat-welcome" class="text-slate-500 text-xs leading-relaxed"></div>';
     // Canvas intact (reset du chat uniquement).
   }
+
+  // --- bibliothèque : onglets Local / Partagée + rechargement cloud -------------------
+  const tabLocal = byId('tab-local');
+  if (tabLocal) tabLocal.addEventListener('click', () => library.setLibTab('local'));
+  const tabShared = byId('tab-shared');
+  if (tabShared) tabShared.addEventListener('click', () => library.setLibTab('shared'));
+  const sharedReload = byId('shared-reload');
+  if (sharedReload) sharedReload.addEventListener('click', () => library.loadShared());
 
   // --- bibliothèque : bouton sauvegarde modale ----------------------------------------
   const saveConfirm = byId('save-confirm');
