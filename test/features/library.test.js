@@ -7,6 +7,7 @@ import { initLibrary } from '../../src/features/library.js';
 import { initPrismicBrowser } from '../../src/ui/prismic-browser.js';
 
 const PAGE = '<!doctype html><html><body><div id="canvas"></div>'
+  + '<span id="lib-count"></span>'
   + '<button id="tab-local"></button><button id="tab-shared"></button><button id="tab-prismic"></button><button id="shared-reload" class="hidden"></button>'
   + '<div id="comp-grid" class="flex"></div>'
   + '<div id="shared-grid" class="hidden"></div>'
@@ -141,6 +142,14 @@ test('slice issue de la biblio : sauvegarde propose l\'écrasement et envoie l\'
     assert.equal(t.api.state.saved[0].id, 'c-7');
     assert.equal(t.api.state.saved[0].html, '<p>v2</p>');
     assert.equal(t.lib.getItems().length, 1);          // écrasé, pas dupliqué
+  } finally { t.cleanup(); }
+});
+
+test('le compteur #lib-count reflete le nombre d items de l onglet courant', async () => {
+  const t = setup({ items: [{ id: 'c1', name: 'A', html: '<p>a</p>' }, { id: 'c2', name: 'B', html: '<p>b</p>' }] });
+  try {
+    await t.lib.load();
+    assert.equal(t.document.getElementById('lib-count').textContent.trim(), '2');
   } finally { t.cleanup(); }
 });
 

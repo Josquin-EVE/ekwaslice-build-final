@@ -157,10 +157,10 @@ export function initPrismicBrowser(ctx = {}) {
       const meta = doc.createElement('div');
       meta.className = 'px-2.5 py-1.5 border-t ' + (on ? 'border-secondary bg-secondary/15' : 'border-slate-800 bg-slate-950');
       const nm = doc.createElement('div');
-      nm.className = 'text-[11px] truncate ' + (on ? 'text-white font-bold' : 'text-slate-100');
+      nm.className = 'text-[12px] truncate ' + (on ? 'text-white font-bold' : 'text-slate-100');
       nm.textContent = s.name || s.id;
       const dt = doc.createElement('div');
-      dt.className = 'text-[10px] text-slate-500';
+      dt.className = 'text-[11px] text-slate-400';
       dt.textContent = dte;
       meta.appendChild(nm); meta.appendChild(dt);
 

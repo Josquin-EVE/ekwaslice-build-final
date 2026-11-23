@@ -57,6 +57,8 @@ export function initLibrary(store, ctx = {}) {
   const grid = () => ctx.grid || byId('comp-grid');
 
   const sharedGridEl = () => ctx.sharedGrid || byId('shared-grid');
+  // Compteur d'items de l'onglet courant, affiché dans l'en-tête du panneau (#lib-count).
+  const setCount = (n) => { const el = byId('lib-count'); if (el) el.textContent = (n == null ? '' : String(n)); };
 
   const call = (name, ...args) => { const fn = hooks[name]; return typeof fn === 'function' ? fn(...args) : undefined; };
   const toast = (m) => call('toast', m);
@@ -207,16 +209,17 @@ export function initLibrary(store, ctx = {}) {
     card.innerHTML =
       '<div class="h-24 w-full overflow-hidden bg-night pointer-events-none">'
       + '<div class="origin-top-left" style="transform:scale(0.27);width:370%;">' + (html || '') + '</div></div>'
-      + '<div class="px-2 py-1.5 text-[11px] text-slate-300 truncate border-t border-slate-800">' + escHtml(name) + '</div>';
+      + '<div class="px-2 py-1.5 text-[13px] text-slate-200 truncate border-t border-slate-800">' + escHtml(name) + '</div>';
   }
 
   // Grille LOCALE — cartes avec publier/MAJ cloud (la biblio partagée est active ici).
   function renderGrid() {
+    setCount(LIB.length);
     const g = grid();
     if (!g || !doc) return;
     g.innerHTML = '';
     if (!LIB.length) {
-      g.innerHTML = '<p class="text-[10px] text-slate-600 leading-snug">Aucun composant local. Sauvegarde un slice pour le retrouver ici.</p>';
+      g.innerHTML = '<p class="text-[11px] text-slate-400 leading-snug">Aucun composant local. Sauvegarde un slice pour le retrouver ici.</p>';
       return;
     }
     LIB.forEach((item) => {
@@ -318,6 +321,7 @@ export function initLibrary(store, ctx = {}) {
 
   // Grille PARTAGÉE — bandeau identité + cartes (badge auteur ; renommer/suppr si propriétaire).
   function renderSharedGrid() {
+    setCount(SHARED.length);
     const g = sharedGridEl();
     if (!g || !doc) return;
     g.innerHTML = '';
@@ -330,7 +334,7 @@ export function initLibrary(store, ctx = {}) {
     if (eb) eb.addEventListener('click', () => editAuthorName());
     g.appendChild(bar);
     if (!SHARED.length) {
-      g.insertAdjacentHTML('beforeend', '<p class="text-[10px] text-slate-600 leading-snug">Bibliothèque partagée vide (ou pas encore chargée). Clique « Recharger ».</p>');
+      g.insertAdjacentHTML('beforeend', '<p class="text-[11px] text-slate-400 leading-snug">Bibliothèque partagée vide (ou pas encore chargée). Clique « Recharger ».</p>');
       return;
     }
     SHARED.forEach((row) => {
@@ -373,12 +377,13 @@ export function initLibrary(store, ctx = {}) {
   function openPrismicTab() {
     const g = prismicGridEl();
     const hasToken = (typeof hooks.hasReadToken === 'function') ? !!hooks.hasReadToken() : true;
-    if (!hasToken) { renderPrismicInvite(); return; }
+    if (!hasToken) { renderPrismicInvite(); setCount(0); return; }
     const b = ctx.prismicBrowser;
     if (!b) return;
     if (!_prismicMounted && g) { b.mount(g, { filterInput: byId('prismic-grid-search') }); _prismicMounted = true; }
-    if (typeof b.hasItems === 'function' && b.hasItems()) b.render();
-    else if (typeof b.load === 'function') b.load();
+    const count = () => setCount(typeof b.getItems === 'function' ? b.getItems().length : null);
+    if (typeof b.hasItems === 'function' && b.hasItems()) { b.render(); count(); }
+    else if (typeof b.load === 'function') { const r = b.load(); if (r && r.then) r.then(count); else count(); }
   }
 
   // Bascule d'onglet local/partagé/prismic (styles, bouton recharger, visibilité des grilles).
