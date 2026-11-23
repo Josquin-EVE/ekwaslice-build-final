@@ -42,6 +42,8 @@
 // -------------------------------------------------------------------------------------
 
 import { serializeSlice } from '../core/slice.js';
+import { buildThumbDoc } from '../ui/preview.js';
+import { mountSliceThumb, attachPriceBridge } from '../ui/slice-thumb.js';
 
 const LIB_LS = 'ekwaslice_library';
 
@@ -203,13 +205,18 @@ export function initLibrary(store, ctx = {}) {
 
   // --- grilles (vignette commune local / partagé) ---------------------------------------
 
-  // Cadre carte : aperçu scalé + libellé. (Boutons d'action ajoutés par l'appelant.)
+  // Cadre carte : vignette FIDÈLE (iframe Tailwind lazy, comme Prismic) + libellé.
+  // (Boutons d'action ajoutés par l'appelant.)
   function libCardShell(card, html, name) {
     card.className = 'relative group w-full rounded-lg border border-slate-700 bg-slate-900 overflow-hidden cursor-pointer hover:border-secondary transition';
-    card.innerHTML =
-      '<div class="h-24 w-full overflow-hidden bg-night pointer-events-none">'
-      + '<div class="origin-top-left" style="transform:scale(0.27);width:370%;">' + (html || '') + '</div></div>'
-      + '<div class="px-2 py-1.5 text-[13px] text-slate-200 truncate border-t border-slate-800">' + escHtml(name) + '</div>';
+    const thumb = doc.createElement('div');
+    thumb.className = 'h-24 w-full overflow-hidden bg-white pointer-events-none';
+    mountSliceThumb(thumb, html || '', { buildThumbDoc, win });
+    const label = doc.createElement('div');
+    label.className = 'px-2 py-1.5 text-[13px] text-slate-200 truncate border-t border-slate-800';
+    label.textContent = name || '';
+    card.appendChild(thumb);
+    card.appendChild(label);
   }
 
   // Grille LOCALE — cartes avec publier/MAJ cloud (la biblio partagée est active ici).
@@ -222,17 +229,24 @@ export function initLibrary(store, ctx = {}) {
       g.innerHTML = '<p class="text-[11px] text-slate-400 leading-snug">Aucun composant local. Sauvegarde un slice pour le retrouver ici.</p>';
       return;
     }
-    LIB.forEach((item) => {
+    const q = ((byId('comp-grid-search') || {}).value || '').toLowerCase();
+    const items = LIB.filter((it) => !q || (it.name || '').toLowerCase().includes(q));
+    if (!items.length) {
+      g.innerHTML = '<p class="text-[11px] text-slate-400 leading-snug">Aucun résultat pour « ' + escHtml(q) + ' ».</p>';
+      return;
+    }
+    items.forEach((item) => {
       const linked = !!item.remoteId;
       const card = doc.createElement('div');
+      card.setAttribute('data-lib-card', item.id || '');
       card.title = 'Insérer : ' + item.name;
       libCardShell(card, item.html, item.name);
       const cloudTag = linked ? '<div class="absolute top-1 left-1 w-4 h-4 rounded bg-secondary/90 text-ink-deep text-[9px] font-bold flex items-center justify-center" title="Publié en ligne"><i class="fa-solid fa-cloud"></i></div>' : '';
       const actBtn = linked
-        ? '<button data-upd title="Mettre à jour la version en ligne" class="absolute top-1 right-7 w-5 h-5 rounded bg-black/60 text-secondary opacity-0 group-hover:opacity-100 transition text-[10px] flex items-center justify-center"><i class="fa-solid fa-rotate"></i></button>'
-        : '<button data-pub title="Publier en ligne" class="absolute top-1 right-7 w-5 h-5 rounded bg-black/60 text-secondary opacity-0 group-hover:opacity-100 transition text-[10px] flex items-center justify-center"><i class="fa-solid fa-cloud-arrow-up"></i></button>';
+        ? '<button data-upd title="Mettre à jour la version en ligne" class="absolute top-1 right-8 w-6 h-6 rounded bg-black/70 text-secondary transition text-[11px] flex items-center justify-center hover:bg-black"><i class="fa-solid fa-rotate"></i></button>'
+        : '<button data-pub title="Publier en ligne" class="absolute top-1 right-8 w-6 h-6 rounded bg-black/70 text-secondary transition text-[11px] flex items-center justify-center hover:bg-black"><i class="fa-solid fa-cloud-arrow-up"></i></button>';
       card.insertAdjacentHTML('beforeend', cloudTag + actBtn
-        + '<button data-del title="Retirer du local" class="absolute top-1 right-1 w-5 h-5 rounded bg-black/60 text-red-300 opacity-0 group-hover:opacity-100 transition text-[10px] flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>');
+        + '<button data-del title="Retirer du local" class="absolute top-1 right-1 w-6 h-6 rounded bg-black/70 text-red-300 transition text-[11px] flex items-center justify-center hover:bg-black"><i class="fa-solid fa-xmark"></i></button>');
       card.addEventListener('click', (e) => {
         if (e.target.closest('[data-del]')) { e.stopPropagation(); remove(item.id); return; }
         if (e.target.closest('[data-pub]')) { e.stopPropagation(); publish(item); return; }
@@ -327,7 +341,7 @@ export function initLibrary(store, ctx = {}) {
     g.innerHTML = '';
     const owned = ownedIds();
     const bar = doc.createElement('div');
-    bar.className = 'flex items-center justify-between text-[10px] text-slate-400 px-0.5 pb-1';
+    bar.className = 'flex items-center justify-between text-[11px] text-slate-400 px-0.5 pb-1';
     bar.innerHTML = '<span>Publié en tant que <b class="text-secondary">' + escHtml(authorName() || '—') + '</b></span>'
       + '<button data-editauthor class="hover:text-secondary underline">Modifier</button>';
     const eb = bar.querySelector('[data-editauthor]');
@@ -337,16 +351,22 @@ export function initLibrary(store, ctx = {}) {
       g.insertAdjacentHTML('beforeend', '<p class="text-[11px] text-slate-400 leading-snug">Bibliothèque partagée vide (ou pas encore chargée). Clique « Recharger ».</p>');
       return;
     }
-    SHARED.forEach((row) => {
+    const q = ((byId('shared-grid-search') || {}).value || '').toLowerCase();
+    const items = SHARED.filter((r) => !q || (r.name || '').toLowerCase().includes(q) || (r.author || '').toLowerCase().includes(q));
+    if (!items.length) {
+      g.insertAdjacentHTML('beforeend', '<p class="text-[11px] text-slate-400 leading-snug">Aucun résultat pour « ' + escHtml(q) + ' ».</p>');
+      return;
+    }
+    items.forEach((row) => {
       const mine = owned.has(row.id);
       const card = doc.createElement('div');
       card.setAttribute('data-shared-card', row.id || '');  // Ruling B : point d'ancrage du test
       card.title = 'Insérer : ' + row.name;
       libCardShell(card, row.html, row.name);
-      const badge = '<div class="absolute top-1 left-1 max-w-[70%] px-1.5 py-0.5 rounded bg-secondary/90 text-ink-deep text-[9px] font-bold flex items-center gap-1 truncate"><i class="fa-solid fa-cloud"></i>' + escHtml(row.author || 'anonyme') + '</div>';
+      const badge = '<div class="absolute top-1 left-1 max-w-[70%] px-1.5 py-0.5 rounded bg-secondary/90 text-ink-deep text-[10px] font-bold flex items-center gap-1 truncate"><i class="fa-solid fa-cloud"></i>' + escHtml(row.author || 'anonyme') + '</div>';
       const ownerBtns = mine
-        ? '<button data-rename title="Renommer (ma publication)" class="absolute top-1 right-7 w-5 h-5 rounded bg-black/60 text-secondary opacity-0 group-hover:opacity-100 transition text-[10px] flex items-center justify-center"><i class="fa-solid fa-pen"></i></button>'
-        + '<button data-del title="Supprimer du cloud (ma publication)" class="absolute top-1 right-1 w-5 h-5 rounded bg-black/60 text-red-300 opacity-0 group-hover:opacity-100 transition text-[10px] flex items-center justify-center"><i class="fa-solid fa-trash"></i></button>'
+        ? '<button data-rename title="Renommer (ma publication)" class="absolute top-1 right-8 w-6 h-6 rounded bg-black/70 text-secondary transition text-[11px] flex items-center justify-center hover:bg-black"><i class="fa-solid fa-pen"></i></button>'
+        + '<button data-del title="Supprimer du cloud (ma publication)" class="absolute top-1 right-1 w-6 h-6 rounded bg-black/70 text-red-300 transition text-[11px] flex items-center justify-center hover:bg-black"><i class="fa-solid fa-trash"></i></button>'
         : '';
       card.insertAdjacentHTML('beforeend', badge + ownerBtns);
       card.addEventListener('click', (e) => {
@@ -400,6 +420,10 @@ export function initLibrary(store, ctx = {}) {
     if (g) { g.classList.toggle('hidden', currentLibTab !== 'local'); g.classList.toggle('flex', currentLibTab === 'local'); }
     if (sg) { sg.classList.toggle('hidden', currentLibTab !== 'shared'); sg.classList.toggle('flex', currentLibTab === 'shared'); }
     if (pg) { pg.classList.toggle('hidden', currentLibTab !== 'prismic'); pg.classList.toggle('flex', currentLibTab === 'prismic'); }
+    const csearch = byId('comp-grid-search');
+    if (csearch) csearch.classList.toggle('hidden', currentLibTab !== 'local');
+    const ssearch = byId('shared-grid-search');
+    if (ssearch) ssearch.classList.toggle('hidden', currentLibTab !== 'shared');
     const psearch = byId('prismic-grid-search');
     if (psearch) psearch.classList.toggle('hidden', currentLibTab !== 'prismic');
     if (currentLibTab === 'shared') { renderSharedGrid(); if (!SHARED.length) loadShared(); }
@@ -520,6 +544,21 @@ export function initLibrary(store, ctx = {}) {
     }
     renderSharedGrid(); toast('Nom mis à jour');
   }
+
+  // Câblage interne : filtres Local/Partagée + pont prix des vignettes iframe (Prismic a le sien).
+  (function setupLibrary() {
+    const cs = byId('comp-grid-search'); if (cs) cs.addEventListener('input', renderGrid);
+    const ss = byId('shared-grid-search'); if (ss) ss.addEventListener('input', renderSharedGrid);
+    attachPriceBridge(win, api, (src) => {
+      for (const gid of ['comp-grid', 'shared-grid']) {
+        const g = byId(gid); if (!g) continue;
+        let mine = false;
+        g.querySelectorAll('iframe').forEach((f) => { if (f.contentWindow === src) mine = true; });
+        if (mine) return true;
+      }
+      return false;
+    });
+  })();
 
   return {
     load, saveComponent, confirmSave, closeSaveModal, insert, remove, renderGrid,
