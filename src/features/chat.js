@@ -393,9 +393,11 @@ export function initChat(store, ctx = {}) {
   // au CLI (pas dans la bulle), pour empêcher l'agent de modifier autre chose que le demandé.
   let chatGuard = false;
   try { chatGuard = win && win.localStorage && win.localStorage.getItem('ekwa_chat_guard') === '1'; } catch (_) { }
-  const GUARD_PREFIX = 'IMPORTANT : modifie UNIQUEMENT ce qui est demandé ci-dessous. Ne change RIEN d\'autre — '
-    + 'ni le reste du HTML, ni les styles, scripts, classes ou structure existants que la demande ne vise pas '
-    + 'explicitement. Conserve tout le reste strictement à l\'identique.\n\n';
+  const GUARD_PREFIX = 'IMPORTANT — MODIFICATION CHIRURGICALE. Tu dois RENVOYER L\'ÉLÉMENT COMPLET, '
+    + 'identique à l\'original, en n\'appliquant QUE la modification demandée ci-dessous. '
+    + 'Recopie à l\'identique, sans rien supprimer, raccourcir ni réécrire : le(s) bloc(s) <style> EN ENTIER, '
+    + 'les <script>, toute la structure HTML, les classes, les attributs et les autres textes. '
+    + 'Ne touche à AUCUN autre élément. Si tu n\'es pas sûr, garde l\'existant tel quel.\n\n';
   let chatImages = []; // { mime, data(base64), url(dataURL) }
   let streamState = null;
 
