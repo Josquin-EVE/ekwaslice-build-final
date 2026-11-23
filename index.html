@@ -382,6 +382,8 @@
             background: #cbd5e1;
             border-radius: 4px;
         }
+        /* Feature B : blocs réservés à l'édition masqués en mode aperçu (marqueur data-mode sur body). */
+        body[data-mode="preview"] [data-editor-only] { display: none !important; }
     </style>
 </head>
 
@@ -472,8 +474,8 @@
                     <div id="comp-grid" class="flex flex-col gap-2 overflow-y-auto flex-1 min-h-0 pr-1"></div>
                     <div id="shared-grid" class="hidden flex-col gap-2 overflow-y-auto flex-1 min-h-0 pr-1"></div>
                 </div>
-                <!-- Section : Pictogrammes (accordéon repliable) -->
-                <div class="shrink-0 flex flex-col">
+                <!-- Section : Pictogrammes (accordéon repliable) — masquée hors mode édition -->
+                <div class="shrink-0 flex flex-col" data-editor-only>
                     <button id="toggle-pictos" type="button"
                         class="px-4 py-2.5 flex items-center gap-2 text-left hover:bg-slate-700/40 transition">
                         <i class="fa-solid fa-shapes text-slate-400 text-xs"></i>
@@ -515,8 +517,8 @@
                 </div>
                 <div id="editor-state-hint" class="hidden px-4 pt-1 text-[10px] text-slate-500"></div>
                 <div id="editor-style" class="px-4 overflow-y-auto flex-1 min-h-0"></div>
-                <!-- Pictos accessibles pendant la sélection — repliable -->
-                <div class="border-t border-slate-700 shrink-0">
+                <!-- Pictos accessibles pendant la sélection — repliable, masquée hors mode édition -->
+                <div class="border-t border-slate-700 shrink-0" data-editor-only>
                     <button id="toggle-editor-pictos" type="button"
                         class="w-full px-3 py-2.5 flex items-center gap-2 text-left hover:bg-slate-700/40 transition">
                         <i class="fa-solid fa-shapes text-slate-400 text-xs"></i>
