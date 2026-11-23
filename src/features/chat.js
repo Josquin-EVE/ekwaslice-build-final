@@ -389,6 +389,15 @@ export function initChat(store, ctx = {}) {
   let chatBusy = false;
   let chatFast = false;
   try { chatFast = win && win.localStorage && win.localStorage.getItem('ekwa_chat_fast') === '1'; } catch (_) { }
+  // Toggle « garde » : quand actif, un préfixe invisible est ajouté EN TÊTE du message envoyé
+  // au CLI (pas dans la bulle), pour empêcher l'agent de modifier autre chose que le demandé.
+  let chatGuard = false;
+  try { chatGuard = win && win.localStorage && win.localStorage.getItem('ekwa_chat_guard') === '1'; } catch (_) { }
+  const GUARD_PREFIX = 'IMPORTANT — MODIFICATION CHIRURGICALE. Tu dois RENVOYER L\'ÉLÉMENT COMPLET, '
+    + 'identique à l\'original, en n\'appliquant QUE la modification demandée ci-dessous. '
+    + 'Recopie à l\'identique, sans rien supprimer, raccourcir ni réécrire : le(s) bloc(s) <style> EN ENTIER, '
+    + 'les <script>, toute la structure HTML, les classes, les attributs et les autres textes. '
+    + 'Ne touche à AUCUN autre élément. Si tu n\'es pas sûr, garde l\'existant tel quel.\n\n';
   let chatImages = []; // { mime, data(base64), url(dataURL) }
   let streamState = null;
 
@@ -505,6 +514,8 @@ export function initChat(store, ctx = {}) {
         sendMsg = label + '\n\n```html\n' + ctxHtml + '\n```\n\n' + sendMsg;
       }
     }
+    // Garde invisible : préfixe ajouté EN TÊTE du message envoyé au CLI (jamais dans la bulle).
+    if (chatGuard) sendMsg = GUARD_PREFIX + sendMsg;
     // Bulle utilisateur : marqueur de cible + vignettes + texte.
     const userContent = (!tgt && !imgUrls.length) ? msg : (() => {
       const d = doc.createElement('div');
@@ -555,6 +566,15 @@ export function initChat(store, ctx = {}) {
     return chatFast;
   }
 
+  // Toggle « garde » : voir GUARD_PREFIX. Persisté, invisible dans l'UX du chat.
+  function toggleChatGuard() {
+    chatGuard = !chatGuard;
+    try { if (win && win.localStorage) win.localStorage.setItem('ekwa_chat_guard', chatGuard ? '1' : '0'); } catch (_) { }
+    toast(chatGuard ? 'Garde activée : le reste du composant ne sera pas modifié' : 'Garde désactivée');
+    return chatGuard;
+  }
+  function isGuardOn() { return chatGuard; }
+
   // Nouvelle conversation Claude : repart d'une session vierge (le prochain sendChat envoie
   // sessionId:null → main.js abandonne --resume), oublie le contexte canvas déjà joint et tout
   // candidat en attente (sinon un aperçu pourrait substituer un candidat orphelin). Ne touche PAS
@@ -572,7 +592,7 @@ export function initChat(store, ctx = {}) {
     sendChat, renderAssistant, renderMd, stripLeadMeta,
     applyCandidate, rejectCandidate,
     addChatImageFromFile, onChatFiles, removeChatImage, renderChatImages,
-    toggleChatFast, resetSession,
+    toggleChatFast, toggleChatGuard, isGuardOn, resetSession,
     isBusy: () => chatBusy,
     getPending: () => pending,
     getSessionId: () => chatSessionId,

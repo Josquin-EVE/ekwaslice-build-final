@@ -326,6 +326,22 @@ export function boot(opts = {}) {
   if (chatAttach && chatFile) chatAttach.addEventListener('click', () => chatFile.click());
   const chatFast = byId('chat-fast');
   if (chatFast) chatFast.addEventListener('click', () => { const on = chat.toggleChatFast(); chatFast.classList.toggle('text-[#d97757]', on); chatFast.classList.toggle('bg-[#d97757]/10', on); });
+  // Toggle « garde » (préfixe invisible anti-modifications) — reflète l'état persisté au démarrage.
+  const chatGuardBtn = byId('chat-guard');
+  if (chatGuardBtn) {
+    const reflectGuard = (on) => { chatGuardBtn.classList.toggle('text-[#d97757]', on); chatGuardBtn.classList.toggle('bg-[#d97757]/10', on); };
+    reflectGuard(chat.isGuardOn());
+    chatGuardBtn.addEventListener('click', () => reflectGuard(chat.toggleChatGuard()));
+  }
+  // Glisser-déposer de fichiers (images/captures) sur le panneau chat → pièces jointes.
+  const chatPanel = byId('chat-panel');
+  if (chatPanel) {
+    const stop = (e) => { e.preventDefault(); e.stopPropagation(); };
+    const ring = (on) => { chatPanel.classList.toggle('ring-2', on); chatPanel.classList.toggle('ring-[#d97757]/50', on); chatPanel.classList.toggle('ring-inset', on); };
+    ['dragenter', 'dragover'].forEach((ev) => chatPanel.addEventListener(ev, (e) => { stop(e); ring(true); }));
+    ['dragleave', 'dragend'].forEach((ev) => chatPanel.addEventListener(ev, (e) => { stop(e); ring(false); }));
+    chatPanel.addEventListener('drop', (e) => { stop(e); ring(false); const f = e.dataTransfer && e.dataTransfer.files; if (f && f.length) chat.onChatFiles(f); });
+  }
   const chatCtxAction = byId('chat-context-action');
   if (chatCtxAction) chatCtxAction.addEventListener('click', () => chat.toggleTargetMode());
   const chatImages = byId('chat-images');
