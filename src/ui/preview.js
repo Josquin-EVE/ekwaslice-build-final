@@ -203,6 +203,8 @@ export function initPreview(store, ctx = {}) {
   function getMode() { return currentMode; }
   function setMode(mode) {
     currentMode = mode;
+    // Marqueur de mode unique : pilote le CSS des blocs [data-editor-only] (pictos masqués en aperçu).
+    if (doc && doc.body) doc.body.dataset.mode = mode;
     doc && doc.querySelectorAll('.mode-btn').forEach((b) => {
       const on = b.dataset.mode === mode;
       b.classList.toggle('bg-[#ffc969]', on);

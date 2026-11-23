@@ -382,6 +382,8 @@
             background: #cbd5e1;
             border-radius: 4px;
         }
+        /* Feature B : blocs réservés à l'édition masqués en mode aperçu (marqueur data-mode sur body). */
+        body[data-mode="preview"] [data-editor-only] { display: none !important; }
     </style>
 </head>
 
@@ -466,14 +468,18 @@
                         <div class="inline-flex rounded-lg bg-slate-900 border border-slate-700 p-0.5 text-[11px] font-semibold shrink-0">
                             <button id="tab-local" class="px-2.5 py-1 rounded-md transition bg-secondary text-ink-deep">Local</button>
                             <button id="tab-shared" class="px-2.5 py-1 rounded-md transition flex items-center gap-1 text-slate-400 hover:text-slate-200"><i class="fa-solid fa-cloud text-[10px]"></i>Partagée</button>
+                            <button id="tab-prismic" class="px-2.5 py-1 rounded-md transition flex items-center gap-1 text-slate-400 hover:text-slate-200"><i class="fa-solid fa-cloud-arrow-down text-[10px]"></i>Prismic</button>
                         </div>
                         <button id="shared-reload" title="Recharger la bibliothèque partagée" class="hidden items-center gap-1 text-[11px] text-slate-400 hover:text-secondary px-2 py-1 rounded-md transition shrink-0"><i class="fa-solid fa-rotate text-[10px]"></i></button>
                     </div>
                     <div id="comp-grid" class="flex flex-col gap-2 overflow-y-auto flex-1 min-h-0 pr-1"></div>
                     <div id="shared-grid" class="hidden flex-col gap-2 overflow-y-auto flex-1 min-h-0 pr-1"></div>
+                    <input id="prismic-grid-search" type="text" placeholder="Filtrer par nom…"
+                        class="hidden w-full mb-2 bg-slate-900 border border-slate-600/50 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-secondary shrink-0">
+                    <div id="prismic-grid" class="hidden flex-col gap-2 overflow-y-auto flex-1 min-h-0 pr-1"></div>
                 </div>
-                <!-- Section : Pictogrammes (accordéon repliable) -->
-                <div class="shrink-0 flex flex-col">
+                <!-- Section : Pictogrammes (accordéon repliable) — masquée hors mode édition -->
+                <div class="shrink-0 flex flex-col" data-editor-only>
                     <button id="toggle-pictos" type="button"
                         class="px-4 py-2.5 flex items-center gap-2 text-left hover:bg-slate-700/40 transition">
                         <i class="fa-solid fa-shapes text-slate-400 text-xs"></i>
@@ -515,8 +521,8 @@
                 </div>
                 <div id="editor-state-hint" class="hidden px-4 pt-1 text-[10px] text-slate-500"></div>
                 <div id="editor-style" class="px-4 overflow-y-auto flex-1 min-h-0"></div>
-                <!-- Pictos accessibles pendant la sélection — repliable -->
-                <div class="border-t border-slate-700 shrink-0">
+                <!-- Pictos accessibles pendant la sélection — repliable, masquée hors mode édition -->
+                <div class="border-t border-slate-700 shrink-0" data-editor-only>
                     <button id="toggle-editor-pictos" type="button"
                         class="w-full px-3 py-2.5 flex items-center gap-2 text-left hover:bg-slate-700/40 transition">
                         <i class="fa-solid fa-shapes text-slate-400 text-xs"></i>
