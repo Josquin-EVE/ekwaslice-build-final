@@ -19,6 +19,7 @@
 //   ctx.toast ; ctx.showLoading ; ctx.hideLoading.
 
 import { buildThumbDoc } from './preview.js';
+import { initPrismicBrowser } from './prismic-browser.js';
 
 export function initModals(store, ctx = {}) {
   const doc = ctx.document || (typeof globalThis !== 'undefined' ? globalThis.document : null);
@@ -129,18 +130,23 @@ export function initModals(store, ctx = {}) {
   // Import Prismic — la modale fournit la SOURCE (URL ou slice choisie) + le token de
   // lecture ; prismic.doImport() fait le pull + l'ajout au store.
   // =====================================================================================
-  let _prismicLib = [];
-  let _selectedSliceId = '';
-  let _thumbObserver = null; // lazy-load des vignettes iframe (grille d'import)
+  // Navigateur Prismic réutilisable (grille #prismic-lib-list) — monté à la 1re ouverture.
+  // La modale garde sa chrome (token, URL, bouton import) ; le browser gère liste/vignettes/
+  // filtre/sélection/pont prix. onPick : une slice choisie vide l'URL et met à jour le bouton.
+  let _prismicMounted = false;
+  const prismicBrowser = initPrismicBrowser({
+    document: doc, window: win, buildThumbDoc, toast, beforeLoad: saveReadToken,
+    onPick: (sel) => { if (sel) { const inp = byId('prismic-import-input'); if (inp) inp.value = ''; } updateImportBtnState(); },
+  });
 
   function getImportSource() {
     const inp = byId('prismic-import-input');
     const raw = inp ? (inp.value || '').trim() : '';
-    return raw || _selectedSliceId;
+    return raw || prismicBrowser.getSelectedId();
   }
   function clearPrismicImportInput() {
     const inp = byId('prismic-import-input'); if (inp) inp.value = '';
-    _selectedSliceId = '';
+    prismicBrowser.clearSelection(); prismicBrowser.render();
   }
   // Persiste le token de lecture saisi AVANT le pull (chemin rapide API). hook beforeImport.
   async function saveReadToken() {
@@ -160,25 +166,26 @@ export function initModals(store, ctx = {}) {
     const tk = byId('prismic-token-input'); if (tk) tk.value = '';
     const wrap = byId('prismic-token-wrap'); if (wrap) wrap.classList.toggle('hidden', saved);
     const savedRow = byId('prismic-token-saved'); if (savedRow) { savedRow.classList.toggle('hidden', !saved); savedRow.classList.toggle('flex', saved); }
-    _selectedSliceId = '';
     const list = byId('prismic-lib-list');
     const search = byId('prismic-lib-search');
     if (search) search.value = '';
     const inp = byId('prismic-import-input'); if (inp) inp.value = '';
+    prismicBrowser.clearSelection();
+    if (!_prismicMounted && list) { prismicBrowser.mount(list, { filterInput: search }); _prismicMounted = true; }
     updateImportBtnState();
+    const revealSearch = (r) => { if (r && r.ok && search) search.classList.remove('hidden'); };
     if (saved) {
-      if (_prismicLib.length) {
+      if (prismicBrowser.hasItems()) {
         // Cache mémoire : affichage INSTANTANÉ + rafraîchissement silencieux (SWR)
         if (search) search.classList.remove('hidden');
-        renderPrismicLib();
-        loadPrismicLibrary(null, { silent: true });
+        prismicBrowser.render();
+        prismicBrowser.load({ silent: true });
       } else {
         if (search) search.classList.add('hidden');
         if (list) list.innerHTML = '';
-        loadPrismicLibrary();
+        prismicBrowser.load().then(revealSearch);
       }
     } else {
-      _prismicLib = [];
       if (search) search.classList.add('hidden');
       if (list) list.innerHTML = '';
     }
@@ -193,140 +200,29 @@ export function initModals(store, ctx = {}) {
   function updateImportBtnState() {
     const inp = byId('prismic-import-input');
     const url = inp ? (inp.value || '').trim() : '';
-    if (url && _selectedSliceId) { _selectedSliceId = ''; renderPrismicLib(); } // URL et slice exclusifs
+    if (url && prismicBrowser.getSelectedId()) { prismicBrowser.clearSelection(); prismicBrowser.render(); } // URL et slice exclusifs
     const btn = byId('prismic-import-go');
-    if (btn) btn.disabled = !(url || _selectedSliceId);
-  }
-  async function loadPrismicLibrary(btn, opts) {
-    opts = opts || {};
-    const a = api();
-    if (!a || !a.listPrismicSlices) { if (!opts.silent) toast("Dispo seulement dans l'app"); return; }
-    await saveReadToken();
-    if (btn) { btn.disabled = true; btn.textContent = 'Chargement…'; }
-    const list = byId('prismic-lib-list');
-    if (!opts.silent && !_prismicLib.length && list) {
-      list.innerHTML = '<div class="col-span-4 text-[12px] text-slate-500 py-6 text-center">Chargement…</div>';
-    }
-    let r; try { r = await a.listPrismicSlices({ force: !!opts.force }); } catch (e) { r = { error: e.message }; }
-    if (btn) { btn.disabled = false; btn.textContent = 'Recharger'; }
-    if (!r || r.error || !r.ok) {
-      if (!opts.silent) toast('Biblio Prismic : ' + (r && r.error === 'NO_READ_TOKEN' ? 'token de lecture requis' : ((r && r.error) || 'échec')));
-      return; // en silencieux (SWR), on garde le cache déjà affiché
-    }
-    _prismicLib = r.slices || [];
-    const search = byId('prismic-lib-search'); if (search) search.classList.remove('hidden');
-    renderPrismicLib();
-  }
-  function renderPrismicLib() {
-    const list = byId('prismic-lib-list'); if (!list) return;
-    const search = byId('prismic-lib-search');
-    const q = ((search && search.value) || '').toLowerCase();
-    const items = _prismicLib.filter((s) => !q || (s.name || '').toLowerCase().includes(q) || s.id.toLowerCase().includes(q));
-    list.innerHTML = '';
-    if (!items.length) {
-      const empty = document.createElement('div');
-      empty.className = 'col-span-4 text-[12px] text-slate-500 py-6 text-center';
-      empty.textContent = 'Aucune slice';
-      list.appendChild(empty);
-      return;
-    }
-    // (Re)crée l'observer de lazy-load : seules les vignettes visibles chargent
-    // leur iframe (Tailwind) — évite d'instancier N iframes d'un coup.
-    if (_thumbObserver) { try { _thumbObserver.disconnect(); } catch (_) { } _thumbObserver = null; }
-    try {
-      _thumbObserver = new IntersectionObserver((entries, obs) => {
-        for (const en of entries) {
-          if (!en.isIntersecting) continue;
-          const f = en.target;
-          if (f && f._ekwHtml != null && !f.getAttribute('srcdoc')) {
-            f.srcdoc = buildThumbDoc(f._ekwHtml);
-          }
-          obs.unobserve(f);
-        }
-      }, { root: list, rootMargin: '300px' });
-    } catch (_) { _thumbObserver = null; }
-
-    for (const s of items) {
-      const d = s.date ? new Date(s.date).toLocaleDateString('fr-FR') : '';
-      const on = s.id === _selectedSliceId;
-      const card = document.createElement('div');
-      card.setAttribute('role', 'button');
-      card.tabIndex = 0;
-      card.dataset.sliceId = s.id;
-      card.setAttribute('aria-pressed', String(on));
-      card.title = s.name || s.id;
-      card.className = 'group cursor-pointer rounded-xl border overflow-hidden transition flex flex-col ' +
-        (on ? 'border-secondary ring-2 ring-secondary' : 'border-slate-700 hover:border-secondary');
-
-      // Vignette : HTML de la slice rendu en iframe (Tailwind + polices, scripts
-      // inertes => statique). Lazy via IntersectionObserver.
-      const thumb = document.createElement('div');
-      thumb.className = 'relative h-36 w-full overflow-hidden bg-white';
-      const ifr = document.createElement('iframe');
-      ifr.setAttribute('scrolling', 'no');
-      ifr.setAttribute('tabindex', '-1');
-      ifr.setAttribute('aria-hidden', 'true');
-      ifr.style.cssText = 'width:1000px;height:576px;border:0;transform:scale(0.25);transform-origin:top left;pointer-events:none;background:#fff;';
-      ifr._ekwHtml = s.html || '';
-      thumb.appendChild(ifr);
-      if (_thumbObserver) _thumbObserver.observe(ifr);
-      else ifr.srcdoc = buildThumbDoc(ifr._ekwHtml); // repli : pas d'observer
-      if (on) {
-        const chk = document.createElement('div');
-        chk.className = 'absolute top-1.5 right-1.5 text-secondary text-lg drop-shadow z-10';
-        chk.innerHTML = '<i class="fa-solid fa-circle-check"></i>';
-        thumb.appendChild(chk);
-      }
-
-      const meta = document.createElement('div');
-      meta.className = 'px-2.5 py-1.5 border-t ' + (on ? 'border-secondary bg-secondary/15' : 'border-slate-800 bg-slate-950');
-      const nm = document.createElement('div');
-      nm.className = 'text-[11px] truncate ' + (on ? 'text-white font-bold' : 'text-slate-100');
-      nm.textContent = s.name || s.id;
-      const dt = document.createElement('div');
-      dt.className = 'text-[10px] text-slate-500';
-      dt.textContent = d;
-      meta.appendChild(nm); meta.appendChild(dt);
-
-      card.appendChild(thumb); card.appendChild(meta);
-      list.appendChild(card);
-    }
+    if (btn) btn.disabled = !(url || prismicBrowser.getSelectedId());
   }
   listen(byId('prismicImportModal'), 'click', (e) => {
-    const slice = e.target.closest('#prismic-lib-list [data-slice-id]');
-    if (slice) {
-      _selectedSliceId = (_selectedSliceId === slice.dataset.sliceId) ? '' : slice.dataset.sliceId;
-      if (_selectedSliceId) { const inp = byId('prismic-import-input'); if (inp) inp.value = ''; }
-      renderPrismicLib(); updateImportBtnState(); return;
-    }
+    // Le clic sur une carte de la grille est géré par le navigateur Prismic (onPick).
     if (e.target.closest('[data-close-prismic-import]')) { closePrismicImport(); return; }
     if (e.target.closest('[data-edit-read-token]')) { editReadToken(); return; }
-    if (e.target.closest('[data-load-prismic-lib]')) { loadPrismicLibrary(e.target.closest('[data-load-prismic-lib]'), { force: true }); return; }
+    const reload = e.target.closest('[data-load-prismic-lib]');
+    if (reload) {
+      reload.disabled = true; reload.textContent = 'Chargement…';
+      prismicBrowser.load({ force: true }).then((r) => {
+        reload.disabled = false; reload.textContent = 'Recharger';
+        const search = byId('prismic-lib-search'); if (r && r.ok && search) search.classList.remove('hidden');
+      });
+      return;
+    }
     if (e.target.closest('[data-open-prismic-builder]')) { const a = api(); if (a && a.openExternal) a.openExternal('https://ekwateur-edito.prismic.io/builder/working?customTypes=custom_slice'); return; }
     const go = e.target.closest('[data-do-prismic-import]');
     if (go) { const p = prismic(); if (typeof p.doImport === 'function') p.doImport(go); return; }
   });
   listen(byId('prismic-import-input'), 'input', updateImportBtnState);
-  listen(byId('prismic-lib-search'), 'input', renderPrismicLib);
-
-  // Pont prix pour les vignettes : une iframe de la grille demande un devis
-  // (shim fetch) → relayé à main.js (Referer forcé) → réponse renvoyée. On ne
-  // répond qu'aux iframes de notre grille (pas à l'aperçu device, géré ailleurs).
-  listen(win, 'message', async (e) => {
-    const d = e.data || {};
-    if (!d || d.type !== 'ekw-quotation') return;
-    const list = byId('prismic-lib-list'); if (!list) return;
-    let mine = false;
-    list.querySelectorAll('iframe').forEach((f) => { if (f.contentWindow === e.source) mine = true; });
-    if (!mine) return;
-    let reply = { type: 'ekw-quotation-reply', id: d.id, ok: false, status: 401, json: null };
-    const a = api();
-    if (a && a.getQuotation) {
-      try { const r = await a.getQuotation(d.body); reply = { type: 'ekw-quotation-reply', id: d.id, ok: !!(r && r.ok), status: (r && r.status) || 0, json: (r && r.json) || null }; }
-      catch (_) { }
-    }
-    try { if (e.source) e.source.postMessage(reply, '*'); } catch (_) { }
-  });
+  // (filtre #prismic-lib-search et pont prix postMessage : gérés par le navigateur Prismic)
 
   // =====================================================================================
   // Réglages Prismic — 2 tokens (lecture / écriture).
