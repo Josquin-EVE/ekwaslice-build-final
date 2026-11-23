@@ -24,6 +24,17 @@ function setup(selectionRef = { sel: null }) {
   return { ...env, canvas, store, editing, chat, selectionRef, calls };
 }
 
+test('toggleChatGuard bascule l état invisible et isGuardOn le reflète', () => {
+  const { cleanup, chat } = setup();
+  try {
+    const before = chat.isGuardOn();
+    const after = chat.toggleChatGuard();
+    assert.equal(after, !before);
+    assert.equal(chat.isGuardOn(), after);
+    assert.equal(chat.toggleChatGuard(), before); // re-bascule
+  } finally { cleanup(); }
+});
+
 test('effectiveTarget : une seule slice, aucune sélection → cette slice (pas null, pas de doublon)', () => {
   const { cleanup, store, chat } = setup();
   try {
