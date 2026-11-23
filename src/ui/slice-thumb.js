@@ -26,6 +26,14 @@ function ensureObserver(win) {
   return _io;
 }
 
+// À appeler avant de reconstruire une grille (innerHTML vidé) : libère l'observer
+// partagé pour que les iframes détachées de l'ancien rendu ne restent pas observées
+// (fuite sinon, car l'IntersectionObserver garde une réf forte sur ses cibles).
+// Le prochain mountSliceThumb recrée l'observer à la volée.
+export function resetThumbObserver() {
+  if (_io) { try { _io.disconnect(); } catch (_) { } _io = null; }
+}
+
 // Crée et monte une iframe de vignette dans `container`. Lazy si IntersectionObserver
 // est dispo (sinon srcdoc immédiat). Retourne l'iframe.
 export function mountSliceThumb(container, html, opts = {}) {

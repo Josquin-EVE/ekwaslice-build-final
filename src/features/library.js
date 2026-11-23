@@ -43,7 +43,7 @@
 
 import { serializeSlice } from '../core/slice.js';
 import { buildThumbDoc } from '../ui/preview.js';
-import { mountSliceThumb, attachPriceBridge } from '../ui/slice-thumb.js';
+import { mountSliceThumb, attachPriceBridge, resetThumbObserver } from '../ui/slice-thumb.js';
 
 const LIB_LS = 'ekwaslice_library';
 
@@ -225,6 +225,7 @@ export function initLibrary(store, ctx = {}) {
     const g = grid();
     if (!g || !doc) return;
     g.innerHTML = '';
+    resetThumbObserver(); // libère les iframes de l'ancien rendu (anti-fuite au re-filtrage)
     if (!LIB.length) {
       g.innerHTML = '<p class="text-[11px] text-slate-400 leading-snug">Aucun composant local. Sauvegarde un slice pour le retrouver ici.</p>';
       return;
@@ -339,6 +340,7 @@ export function initLibrary(store, ctx = {}) {
     const g = sharedGridEl();
     if (!g || !doc) return;
     g.innerHTML = '';
+    resetThumbObserver(); // idem : libère les iframes détachées avant de reconstruire
     const owned = ownedIds();
     const bar = doc.createElement('div');
     bar.className = 'flex items-center justify-between text-[11px] text-slate-400 px-0.5 pb-1';
