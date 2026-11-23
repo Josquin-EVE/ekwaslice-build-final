@@ -210,7 +210,7 @@ export function initLibrary(store, ctx = {}) {
   function libCardShell(card, html, name) {
     card.className = 'relative group w-full rounded-lg border border-slate-700 bg-slate-900 overflow-hidden cursor-pointer hover:border-secondary transition';
     const thumb = doc.createElement('div');
-    thumb.className = 'h-24 w-full overflow-hidden bg-white pointer-events-none';
+    thumb.className = 'h-28 w-full overflow-hidden bg-white pointer-events-none';
     mountSliceThumb(thumb, html || '', { buildThumbDoc, win });
     const label = doc.createElement('div');
     label.className = 'px-2 py-1.5 text-[13px] text-slate-200 truncate border-t border-slate-800';

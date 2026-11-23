@@ -820,10 +820,13 @@ ipcMain.handle('list-prismic-slices', async (e, opts) => {
           ? data.document_title[0].text.trim() : '';
         let name = titleText.replace(/^\[Custom Slice\]\s*/i, '').trim();
         if (!name) {
-          const src = (typeof data.html_only === 'string' && data.html_only) ? data.html_only : (typeof data.html === 'string' ? data.html : '');
+          let src = (typeof data.html_only === 'string' && data.html_only) ? data.html_only : (typeof data.html === 'string' ? data.html : '');
+          // Retire <style>/<script> AVANT de dénuder les balises, sinon le CSS (ex. @font-face)
+          // fuit dans le nom dérivé.
+          src = src.replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<script[\s\S]*?<\/script>/gi, ' ');
           name = src.replace(/<[^>]+>/g, ' ').replace(/&[a-z#0-9]+;/gi, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
         }
-        if (!name) name = '(sans texte)';
+        name = PrismicSlice.cleanSliceName(name, d.id);
         // HTML auto-suffisant (style inclus, scripts neutralisés) pour la preview
         // dans la grille d'import. Même assemblage qu'à l'import (verbatim).
         const S = (x) => (typeof x === 'string' ? x : '');
