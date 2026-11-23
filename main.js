@@ -541,21 +541,38 @@ ipcMain.handle('shared-list', async () => {
   if (!gsheet.keyStatus().present) return NO_KEY();
   return await gsheet.list();
 });
+const MAX_HTML = 50000; // plafond d'une cellule Google Sheets
+const TOO_BIG = () => ({ error: 'Composant trop volumineux (max 50000 caractères).' });
 ipcMain.handle('shared-publish', async (event, item) => {
+  if (!item || !item.html || !item.name) return { error: 'Composant vide.' };
+  if (String(item.html).length > MAX_HTML) return TOO_BIG();
   if (!gsheet.keyStatus().present) return NO_KEY();
-  return await gsheet.publish(item);
+  return await gsheet.publish(Object.assign({}, item, {
+    name: String(item.name).slice(0, 120),
+    author: String(item.author || '').slice(0, 80),
+    html: String(item.html)
+  }));
 });
 ipcMain.handle('shared-delete', async (event, payload) => {
+  const id = payload && payload.id, ownerKey = payload && payload.ownerKey;
+  if (!id || !ownerKey) return { error: 'id/clé manquant.' };
   if (!gsheet.keyStatus().present) return NO_KEY();
   return await gsheet.remove(payload);
 });
 ipcMain.handle('shared-update', async (event, payload) => {
+  const id = payload && payload.id, ownerKey = payload && payload.ownerKey;
+  if (!id || !ownerKey) return { error: 'id/clé manquant.' };
+  if (payload.html != null && String(payload.html).length > MAX_HTML) return TOO_BIG();
   if (!gsheet.keyStatus().present) return NO_KEY();
-  return await gsheet.update(payload);
+  const p = Object.assign({}, payload);
+  if (p.name != null) p.name = String(p.name).slice(0, 120);
+  return await gsheet.update(p);
 });
 ipcMain.handle('shared-rename-author', async (event, payload) => {
+  const ownerKey = payload && payload.ownerKey;
+  if (!ownerKey) return { error: 'clé manquante.' };
   if (!gsheet.keyStatus().present) return NO_KEY();
-  return await gsheet.renameAuthor(payload);
+  return await gsheet.renameAuthor(Object.assign({}, payload, { author: String(payload.author || '').slice(0, 80) }));
 });
 ipcMain.handle('gsheet-key-status', async () => gsheet.keyStatus());
 ipcMain.handle('gsheet-import-key', async () => {
