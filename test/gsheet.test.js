@@ -126,3 +126,32 @@ test('getAccessToken refuse un token_uri hors oauth2.googleapis.com', async () =
   );
   await assert.rejects(() => gsheet.getAccessToken(), /token_uri/);
 });
+
+test('findOwned : proprietaire OK / autre proprietaire interdit / id absent', () => {
+  const rows = [
+    gsheet.COLUMNS,
+    ['id1', 'Nom1', 'Alice', '<p>1</p>', 'c1', '', 'keyA'],
+    ['id2', 'Nom2', 'Bob', '<p>2</p>', 'c2', '', 'keyB'],
+  ];
+  // (a) id present et owner_key identique -> idx + obj
+  const ok = gsheet.findOwned(rows, 'id2', 'keyB');
+  assert.strictEqual(ok.idx, 2);
+  assert.ok(ok.obj);
+  assert.strictEqual(ok.obj.id, 'id2');
+  assert.strictEqual(ok.obj.owner_key, 'keyB');
+  assert.ok(!ok.forbidden);
+  // (b) id present mais autre owner_key (ou cle vide) -> forbidden, pas d'obj
+  const bad = gsheet.findOwned(rows, 'id1', 'keyB');
+  assert.strictEqual(bad.idx, 1);
+  assert.strictEqual(bad.forbidden, true);
+  assert.ok(!bad.obj);
+  const empty = gsheet.findOwned(rows, 'id1', '');
+  assert.strictEqual(empty.forbidden, true);
+  assert.ok(!empty.obj);
+  // (c) id absent (et l'en-tete n'est jamais une ligne de donnees) -> idx -1
+  const miss = gsheet.findOwned(rows, 'nope', 'keyA');
+  assert.strictEqual(miss.idx, -1);
+  assert.ok(!miss.obj);
+  assert.ok(!miss.forbidden);
+  assert.strictEqual(gsheet.findOwned(rows, 'id', 'keyA').idx, -1);
+});

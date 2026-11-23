@@ -293,11 +293,15 @@ export function initLibrary(store, ctx = {}) {
     let r;
     try { r = await action(); } catch (e) { return { error: (e && e.message) || 'erreur' }; }
     if (r && r.error === 'NO_KEY') {
-      if (!a || !a.gsheetImportKey) { toast('Clé de service Google requise (indisponible).'); return r; }
+      if (!a || !a.gsheetImportKey) { toast('Clé de service Google requise (indisponible).'); return { error: 'CANCELLED' }; }
       let imp; try { imp = await a.gsheetImportKey(); } catch (_) { imp = null; }
-      if (imp && imp.ok) { try { r = await action(); } catch (e) { return { error: (e && e.message) || 'erreur' }; } }
+      if (imp && imp.ok) {
+        try { r = await action(); } catch (e) { return { error: (e && e.message) || 'erreur' }; }
+        // NO_KEY persistant après import : message clair (toast ici), puis silencieux pour les appelants.
+        if (r && r.error === 'NO_KEY') { toast('Clé Google Sheets introuvable ou illisible — réimporte la clé.'); return { error: 'CANCELLED' }; }
+      }
       else if (imp && imp.error === 'CANCELLED') return { error: 'CANCELLED' };
-      else { toast('Import de la clé impossible : ' + ((imp && imp.error) || 'inconnu')); return r; }
+      else { toast('Import de la clé impossible : ' + ((imp && imp.error) || 'inconnu')); return { error: 'CANCELLED' }; }
     }
     return r;
   }
