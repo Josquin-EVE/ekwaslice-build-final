@@ -453,6 +453,15 @@ export function initLibrary(store, ctx = {}) {
     if (r.error) { toast('Échec : ' + r.error); return; }
     if (!r.ok) { toast("Refusé : tu n'es pas le propriétaire."); return; }
     SHARED = SHARED.filter((x) => x.id !== row.id);
+    // La slice locale liée (ma publication) n'est plus en ligne → on retire le lien remoteId
+    // sinon sa carte garde à tort le badge/état « cloud » (bug : délien non propagé).
+    const localItem = LIB.find((x) => x.remoteId === row.id);
+    if (localItem) {
+      if (a.librarySave) {
+        try { const res = await a.librarySave(Object.assign({}, localItem, { remoteId: null })); if (res && res.list) LIB = res.list; } catch (_) { }
+      } else { localItem.remoteId = null; lsSave(); }
+      renderGrid();
+    }
     renderSharedGrid();
     toast('Supprimé du cloud ✓');
   }
