@@ -1,6 +1,17 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { parsePrismicDocId, buildVerbatimSliceHTML, extractTrioFromClaudeResult } = require('../lib/prismic-slice.js');
+const { parsePrismicDocId, buildVerbatimSliceHTML, extractTrioFromClaudeResult, cleanSliceName } = require('../lib/prismic-slice.js');
+
+test('cleanSliceName: rejette le CSS fuité et tombe sur un libellé lisible', () => {
+  assert.strictEqual(cleanSliceName("@font-face { font-family:'GothicA1_regular'; src:url('http", 'abc123').startsWith('@font-face'), false);
+  assert.ok(cleanSliceName("@font-face { font-family:'X'", 'abc123').length > 0);
+});
+test('cleanSliceName: garde un vrai nom', () => {
+  assert.strictEqual(cleanSliceName('Recharge en borne', 'x'), 'Recharge en borne');
+});
+test('cleanSliceName: vide -> libellé dérivé de l id', () => {
+  assert.ok(cleanSliceName('', 'abc123').length > 0);
+});
 
 test('parsePrismicDocId: URL builder avec query', () => {
   assert.strictEqual(

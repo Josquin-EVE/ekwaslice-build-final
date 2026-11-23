@@ -429,10 +429,6 @@
             </h1>
         </div>
         <div class="flex gap-3 items-center">
-            <button id="btn-import-prismic" title="Importer une slice existante depuis Prismic (verbatim)"
-                class="px-3 py-2 text-sm bg-slate-700 hover:bg-slate-600 rounded-lg transition text-slate-200 font-medium flex items-center gap-2">
-                <i class="fa-solid fa-cloud-arrow-down"></i>Importer Prismic
-            </button>
             <button id="btn-push-prismic" title="Envoyer la slice du canvas directement vers Prismic (brouillon)"
                 class="px-3 py-2 text-sm bg-[#d97757] hover:brightness-110 rounded-lg transition text-white font-semibold flex items-center gap-2">
                 <i class="fa-solid fa-cloud-arrow-up"></i>Envoi Prismic
@@ -464,35 +460,26 @@
             <!-- Vue bibliothèque (par défaut) -->
             <div id="library-panel" class="flex flex-col flex-1 overflow-hidden">
                 <div class="p-4 pb-2 flex flex-col flex-1 min-h-0 border-b border-slate-700">
-                    <div class="flex items-center justify-between mb-2 gap-2">
-                        <div class="inline-flex rounded-lg bg-slate-900 border border-slate-700 p-0.5 text-[11px] font-semibold shrink-0">
-                            <button id="tab-local" class="px-2.5 py-1 rounded-md transition bg-secondary text-ink-deep">Local</button>
-                            <button id="tab-shared" class="px-2.5 py-1 rounded-md transition flex items-center gap-1 text-slate-400 hover:text-slate-200"><i class="fa-solid fa-cloud text-[10px]"></i>Partagée</button>
-                            <button id="tab-prismic" class="px-2.5 py-1 rounded-md transition flex items-center gap-1 text-slate-400 hover:text-slate-200"><i class="fa-solid fa-cloud-arrow-down text-[10px]"></i>Prismic</button>
-                        </div>
-                        <button id="shared-reload" title="Recharger la bibliothèque partagée" class="hidden items-center gap-1 text-[11px] text-slate-400 hover:text-secondary px-2 py-1 rounded-md transition shrink-0"><i class="fa-solid fa-rotate text-[10px]"></i></button>
+                    <div id="lib-header" class="flex items-center gap-2 mb-2.5">
+                        <i class="fa-solid fa-book-bookmark text-secondary text-sm"></i>
+                        <span class="font-semibold text-[15px] text-slate-100">Bibliothèque</span>
+                        <span id="lib-count" class="ml-auto text-xs text-slate-400"></span>
+                        <button id="shared-reload" title="Recharger la bibliothèque partagée" class="hidden items-center text-[11px] text-slate-400 hover:text-secondary px-1.5 py-1 rounded-md transition"><i class="fa-solid fa-rotate text-[11px]"></i></button>
                     </div>
+                    <div class="flex w-full rounded-lg bg-slate-900 border border-slate-700 p-0.5 text-[13px] font-semibold mb-2">
+                        <button id="tab-local" class="flex-1 justify-center px-2 py-1 rounded-md transition flex items-center gap-1 bg-secondary text-ink-deep">Local</button>
+                        <button id="tab-shared" class="flex-1 justify-center px-2 py-1 rounded-md transition flex items-center gap-1 text-slate-400 hover:text-slate-200"><i class="fa-solid fa-cloud text-[10px]"></i>Partagée</button>
+                        <button id="tab-prismic" class="flex-1 justify-center px-2 py-1 rounded-md transition flex items-center gap-1 text-slate-400 hover:text-slate-200"><i class="fa-solid fa-cloud-arrow-down text-[10px]"></i>Prismic</button>
+                    </div>
+                    <input id="comp-grid-search" type="text" placeholder="Filtrer par nom…"
+                        class="w-full mb-2 bg-slate-900 border border-slate-600/50 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-secondary shrink-0">
                     <div id="comp-grid" class="flex flex-col gap-2 overflow-y-auto flex-1 min-h-0 pr-1"></div>
+                    <input id="shared-grid-search" type="text" placeholder="Filtrer par nom ou auteur…"
+                        class="hidden w-full mb-2 bg-slate-900 border border-slate-600/50 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-secondary shrink-0">
                     <div id="shared-grid" class="hidden flex-col gap-2 overflow-y-auto flex-1 min-h-0 pr-1"></div>
                     <input id="prismic-grid-search" type="text" placeholder="Filtrer par nom…"
                         class="hidden w-full mb-2 bg-slate-900 border border-slate-600/50 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-secondary shrink-0">
                     <div id="prismic-grid" class="hidden flex-col gap-2 overflow-y-auto flex-1 min-h-0 pr-1"></div>
-                </div>
-                <!-- Section : Pictogrammes (accordéon repliable) — masquée hors mode édition -->
-                <div class="shrink-0 flex flex-col" data-editor-only>
-                    <button id="toggle-pictos" type="button"
-                        class="px-4 py-2.5 flex items-center gap-2 text-left hover:bg-slate-700/40 transition">
-                        <i class="fa-solid fa-shapes text-slate-400 text-xs"></i>
-                        <span class="flex-1 font-semibold text-sm text-slate-300 tracking-wide">Pictogrammes</span>
-                        <i data-picto-chev class="fa-solid fa-chevron-down text-[10px] text-slate-500 transition-transform"></i>
-                    </button>
-                    <div id="picto-body" class="px-4 pb-4 flex flex-col overflow-hidden" style="max-height:42vh">
-                        <input data-picto-search type="text" placeholder="Rechercher un picto…"
-                            class="w-full mb-2 bg-slate-900 border border-slate-600/50 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-secondary">
-                        <div data-picto-grid class="grid grid-cols-4 gap-1.5 overflow-y-auto flex-1 min-h-0 pr-1"></div>
-                        <p class="text-[10px] text-slate-600 mt-1.5 leading-snug">Clic = insérer dans l'élément
-                            sélectionné (sinon nouveau bloc).</p>
-                    </div>
                 </div>
             </div><!-- /#library-panel -->
 

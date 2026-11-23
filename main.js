@@ -803,6 +803,14 @@ ipcMain.handle('list-prismic-slices', async (e, opts) => {
     const apiJson = await apiRes.json();
     const master = (apiJson.refs || []).find(r => r.isMasterRef) || (apiJson.refs || [])[0];
     if (!master) return stale() || { error: 'Réponse API Prismic inattendue (pas de ref).' };
+    // Fraîcheur exacte : le masterRef change à chaque publication Prismic. Si le cache a le
+    // même ref (et le même token), rien n'a été publié → on sert le cache sans refaire le
+    // gros fetch des documents. Rafraîchit juste l'horodatage.
+    if (!force && cacheOkForToken && _sliceCache.ref === master.ref) {
+      _sliceCache.at = Date.now();
+      saveSliceCache(_sliceCache);
+      return { ok: true, slices: _sliceCache.slices, cached: true, at: _sliceCache.at };
+    }
     const q = '[[at(document.type,"custom_slice")]]';
     const out = [];
     let page = 1, totalPages = 1;
@@ -820,10 +828,13 @@ ipcMain.handle('list-prismic-slices', async (e, opts) => {
           ? data.document_title[0].text.trim() : '';
         let name = titleText.replace(/^\[Custom Slice\]\s*/i, '').trim();
         if (!name) {
-          const src = (typeof data.html_only === 'string' && data.html_only) ? data.html_only : (typeof data.html === 'string' ? data.html : '');
+          let src = (typeof data.html_only === 'string' && data.html_only) ? data.html_only : (typeof data.html === 'string' ? data.html : '');
+          // Retire <style>/<script> AVANT de dénuder les balises, sinon le CSS (ex. @font-face)
+          // fuit dans le nom dérivé.
+          src = src.replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<script[\s\S]*?<\/script>/gi, ' ');
           name = src.replace(/<[^>]+>/g, ' ').replace(/&[a-z#0-9]+;/gi, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
         }
-        if (!name) name = '(sans texte)';
+        name = PrismicSlice.cleanSliceName(name, d.id);
         // HTML auto-suffisant (style inclus, scripts neutralisés) pour la preview
         // dans la grille d'import. Même assemblage qu'à l'import (verbatim).
         const S = (x) => (typeof x === 'string' ? x : '');
@@ -836,7 +847,7 @@ ipcMain.handle('list-prismic-slices', async (e, opts) => {
     } while (page <= totalPages);
     out.sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
     const at = Date.now();
-    saveSliceCache({ at, token, slices: out });
+    saveSliceCache({ at, token, slices: out, ref: master.ref });
     return { ok: true, slices: out, cached: false, at };
   } catch (e2) { return stale() || { error: 'API Content Prismic: ' + e2.message }; }
 });
