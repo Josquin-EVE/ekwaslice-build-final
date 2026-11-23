@@ -90,3 +90,39 @@ test('importKey refuse un mauvais fichier sans rien copier', () => {
   assert.ok(!fs.existsSync(gsheet.credPath()));
   assert.deepStrictEqual(gsheet.keyStatus(), { present: false });
 });
+
+test('rowToObject / objectToRow sont reciproques dans l ordre COLUMNS', () => {
+  const o = { id: '1', name: 'n', author: 'a', html: '<i>', created_at: 't', updated_at: '', owner_key: 'k' };
+  assert.deepStrictEqual(gsheet.COLUMNS, ['id', 'name', 'author', 'html', 'created_at', 'updated_at', 'owner_key']);
+  assert.deepStrictEqual(gsheet.objectToRow(o), ['1', 'n', 'a', '<i>', 't', '', 'k']);
+  assert.deepStrictEqual(gsheet.rowToObject(gsheet.objectToRow(o)), o);
+  // ligne tronquee (cellules vides finales omises par l'API) -> chaines vides
+  assert.deepStrictEqual(gsheet.rowToObject(['1', 'n']).owner_key, '');
+});
+
+test('stripOwnerKey retire owner_key', () => {
+  const r = gsheet.stripOwnerKey({ id: '1', owner_key: 'k' });
+  assert.strictEqual('owner_key' in r, false);
+  assert.strictEqual(r.id, '1');
+});
+
+test('le mapping de list ne renvoie jamais owner_key', () => {
+  const mapped = [['1', 'n', 'a', '<i>', 't', '', 'SECRET']].map(gsheet.rowToObject).map(gsheet.stripOwnerKey);
+  assert.strictEqual(JSON.stringify(mapped).includes('SECRET'), false);
+  assert.strictEqual(mapped[0].name, 'n');
+});
+
+test('getAccessToken refuse un token_uri hors oauth2.googleapis.com', async () => {
+  const userData = tmpDir();
+  gsheet.__setUserDataDir(userData);
+  fs.writeFileSync(
+    gsheet.credPath(),
+    JSON.stringify({
+      type: 'service_account',
+      client_email: 'svc@proj.iam.gserviceaccount.com',
+      private_key: TEST_RSA_PEM,
+      token_uri: 'https://evil.example.com/token',
+    })
+  );
+  await assert.rejects(() => gsheet.getAccessToken(), /token_uri/);
+});
