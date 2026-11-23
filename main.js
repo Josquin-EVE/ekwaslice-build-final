@@ -1,4 +1,5 @@
-const { app, BrowserWindow, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron');
+const gsheet = require('./lib/gsheet');
 const path = require('path');
 const os = require('os');
 const PrismicSlice = require('./lib/prismic-slice.js');
@@ -531,107 +532,53 @@ ipcMain.handle('library-delete', async (event, id) => {
 });
 
 // ---------------------------------------------------------------------------
-// BIBLIOTHÈQUE PARTAGÉE EN LIGNE (Supabase) — publier / recharger.
-// La clé "publishable" est PUBLIQUE par design (protégée par les policies RLS
-// select+insert de la table `components`) → OK de l'embarquer dans l'app. On
-// n'embarque JAMAIS la clé service_role. Aucune suppression distante depuis
-// l'app en v1 (évite qu'un user efface la biblio de toute l'équipe).
+// BIBLIOTHÈQUE PARTAGÉE EN LIGNE (Google Sheets) — délègue à lib/gsheet.js.
+// Nécessite la clé de service account importée (userData). Sans clé → NO_KEY
+// (le renderer propose l'import). La clé privée n'est jamais loguée ni renvoyée.
 // ---------------------------------------------------------------------------
-const SUPABASE_URL = 'https://pmkyywodvhpuigpaauil.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_8qiTIeB0EQauo9OhZ7vrMw_3s3AhYzG';
-function sbHeaders(extra) {
-  return Object.assign({ apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY }, extra || {});
-}
+const NO_KEY = () => ({ error: 'NO_KEY' });
 ipcMain.handle('shared-list', async () => {
-  try {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 10000);
-    const res = await fetch(
-      SUPABASE_URL + '/rest/v1/components?select=id,name,author,html,created_at,updated_at&order=created_at.desc',
-      { headers: sbHeaders(), signal: ctrl.signal }
-    );
-    clearTimeout(t);
-    if (!res.ok) return { error: 'HTTP ' + res.status };
-    const rows = await res.json();
-    return { list: Array.isArray(rows) ? rows : [] };
-  } catch (e) { return { error: e.message }; }
+  if (!gsheet.keyStatus().present) return NO_KEY();
+  return await gsheet.list();
 });
+const MAX_HTML = 50000; // plafond d'une cellule Google Sheets
+const TOO_BIG = () => ({ error: 'Composant trop volumineux (max 50000 caractères).' });
 ipcMain.handle('shared-publish', async (event, item) => {
   if (!item || !item.html || !item.name) return { error: 'Composant vide.' };
-  try {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 10000);
-    const body = {
-      name: String(item.name).slice(0, 120),
-      author: String(item.author || '').slice(0, 80),
-      html: String(item.html)
-    };
-    if (item.ownerKey) body.owner_key = String(item.ownerKey); // clé de propriété (secrète)
-    // ?select=id : ne renvoie QUE l'id (return=representation ferait un SELECT * qui inclut
-    // owner_key, non lisible par anon → "permission denied").
-    const res = await fetch(SUPABASE_URL + '/rest/v1/components?select=id', {
-      method: 'POST',
-      headers: sbHeaders({ 'Content-Type': 'application/json', Prefer: 'return=representation' }),
-      body: JSON.stringify(body),
-      signal: ctrl.signal
-    });
-    clearTimeout(t);
-    if (!res.ok) {
-      const txt = await res.text().catch(() => '');
-      return { error: 'HTTP ' + res.status + (txt ? ' ' + txt.slice(0, 120) : '') };
-    }
-    const rows = await res.json();
-    return { row: Array.isArray(rows) ? rows[0] : rows };
-  } catch (e) { return { error: e.message }; }
+  if (String(item.html).length > MAX_HTML) return TOO_BIG();
+  if (!gsheet.keyStatus().present) return NO_KEY();
+  return await gsheet.publish(Object.assign({}, item, {
+    name: String(item.name).slice(0, 120),
+    author: String(item.author || '').slice(0, 80),
+    html: String(item.html)
+  }));
 });
-// Appel générique d'une fonction RPC Postgres (renvoie le corps décodé).
-async function sbRpc(fn, args) {
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), 10000);
-  try {
-    const res = await fetch(SUPABASE_URL + '/rest/v1/rpc/' + fn, {
-      method: 'POST',
-      headers: sbHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify(args || {}),
-      signal: ctrl.signal
-    });
-    clearTimeout(t);
-    if (!res.ok) {
-      const txt = await res.text().catch(() => '');
-      return { error: 'HTTP ' + res.status + (txt ? ' ' + txt.slice(0, 120) : '') };
-    }
-    return { result: await res.json() };
-  } catch (e) { clearTimeout(t); return { error: e.message }; }
-}
-// SUPPRIMER sa publication (la RPC vérifie owner_key côté serveur → renvoie true si effacé).
 ipcMain.handle('shared-delete', async (event, payload) => {
   const id = payload && payload.id, ownerKey = payload && payload.ownerKey;
   if (!id || !ownerKey) return { error: 'id/clé manquant.' };
-  const r = await sbRpc('delete_component', { p_id: id, p_owner_key: ownerKey });
-  if (r.error) return r;
-  return { ok: r.result === true };
+  if (!gsheet.keyStatus().present) return NO_KEY();
+  return await gsheet.remove(payload);
 });
-// METTRE À JOUR sa publication (idem, true si mis à jour).
 ipcMain.handle('shared-update', async (event, payload) => {
   const id = payload && payload.id, ownerKey = payload && payload.ownerKey;
   if (!id || !ownerKey) return { error: 'id/clé manquant.' };
-  // name et html optionnels (null → la RPC garde l'ancien via coalesce) → permet un
-  // simple renommage sans toucher au html.
-  const r = await sbRpc('update_component', {
-    p_id: id, p_owner_key: ownerKey,
-    p_name: (payload.name != null && payload.name !== '') ? String(payload.name).slice(0, 120) : null,
-    p_html: (payload.html != null) ? String(payload.html) : null
-  });
-  if (r.error) return r;
-  return { ok: r.result === true };
+  if (payload.html != null && String(payload.html).length > MAX_HTML) return TOO_BIG();
+  if (!gsheet.keyStatus().present) return NO_KEY();
+  const p = Object.assign({}, payload);
+  if (p.name != null) p.name = String(p.name).slice(0, 120);
+  return await gsheet.update(p);
 });
-// Renommer l'auteur sur TOUTES ses publications (owner). Renvoie le nb de lignes touchées.
 ipcMain.handle('shared-rename-author', async (event, payload) => {
   const ownerKey = payload && payload.ownerKey;
   if (!ownerKey) return { error: 'clé manquante.' };
-  const r = await sbRpc('rename_author', { p_owner_key: ownerKey, p_author: String((payload && payload.author) || '').slice(0, 80) });
-  if (r.error) return r;
-  return { count: (typeof r.result === 'number') ? r.result : 0 };
+  if (!gsheet.keyStatus().present) return NO_KEY();
+  return await gsheet.renameAuthor(Object.assign({}, payload, { author: String(payload.author || '').slice(0, 80) }));
+});
+ipcMain.handle('gsheet-key-status', async () => gsheet.keyStatus());
+ipcMain.handle('gsheet-import-key', async () => {
+  const result = await dialog.showOpenDialog({ properties: ['openFile'], filters: [{ name: 'JSON', extensions: ['json'] }] });
+  if (result.canceled || !result.filePaths || !result.filePaths.length) return { error: 'CANCELLED' };
+  return gsheet.importKey(result.filePaths[0]);
 });
 
 // ---------------------------------------------------------------------------

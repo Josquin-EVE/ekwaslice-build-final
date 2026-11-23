@@ -18,7 +18,9 @@ contextBridge.exposeInMainWorld('api', {
   // Réglages persistés (userData/settings.json) — nom d'auteur, etc.
   settingsGet: () => ipcRenderer.invoke('settings-get'),
   settingsSet: (patch) => ipcRenderer.invoke('settings-set', patch),
-  // Bibliothèque partagée en ligne (Supabase)
+  // Bibliothèque partagée en ligne (Google Sheets)
+  gsheetImportKey: () => ipcRenderer.invoke('gsheet-import-key'),
+  gsheetKeyStatus: () => ipcRenderer.invoke('gsheet-key-status'),
   sharedList: () => ipcRenderer.invoke('shared-list'),
   sharedPublish: (item) => ipcRenderer.invoke('shared-publish', item),
   sharedDelete: (payload) => ipcRenderer.invoke('shared-delete', payload),

@@ -11,8 +11,10 @@
 //    cleanForSave. Ce que la biblio stocke est donc le contenu de la racine (pas l'enveloppe).
 //  - Persistance : IPC window.api.library{List,Save,Delete} (userData/library.json) ; repli
 //    localStorage hors Electron (comportement historique conservé).
-//  - Bibliothèque PARTAGÉE cloud (publish/shared) : en standby dans l'app (CLOUD_LIB=false),
-//    NON portée ici.
+//  - Bibliothèque PARTAGÉE cloud (Google Sheets) : PORTÉE ici (onglet « Partagée »). Les cartes
+//    locales exposent publier/MAJ cloud ; l'onglet partagé liste le catalogue cloud (badge auteur,
+//    renommer/supprimer si propriétaire via ownedIds()). Clé de service absente → {error:'NO_KEY'}
+//    sur toute action cloud → on propose gsheetImportKey() puis on réessaie une fois.
 //
 // -------------------------------------------------------------------------------------
 // Contrat `ctx` (fourni par le bootstrap — Task 12). Tout est OPTIONNEL et gardé :
@@ -54,6 +56,8 @@ export function initLibrary(store, ctx = {}) {
   const byId = (id) => (doc ? doc.getElementById(id) : null);
   const grid = () => ctx.grid || byId('comp-grid');
 
+  const sharedGridEl = () => ctx.sharedGrid || byId('shared-grid');
+
   const call = (name, ...args) => { const fn = hooks[name]; return typeof fn === 'function' ? fn(...args) : undefined; };
   const toast = (m) => call('toast', m);
   const getSelected = () => (typeof editing.getSelected === 'function' ? editing.getSelected()
@@ -66,8 +70,19 @@ export function initLibrary(store, ctx = {}) {
     if (typeof hooks.selectElement === 'function') hooks.selectElement(el);
     else if (typeof editing.selectElement === 'function') editing.selectElement(el);
   };
+  const askConfirm = async (m) => (typeof hooks.confirm === 'function' ? await hooks.confirm(m)
+    : (win && typeof win.confirm === 'function' ? win.confirm(m) : true));
+  // Modale de saisie générique (réutilise #authorModal via le bootstrap) ; repli window.prompt.
+  const askName = async (opts) => {
+    opts = opts || {};
+    if (typeof hooks.askName === 'function') return await hooks.askName(opts);
+    if (win && typeof win.prompt === 'function') { const v = win.prompt(opts.label || opts.title || 'Nom', opts.pre || ''); return v ? v.trim() : null; }
+    return null;
+  };
 
   let LIB = [];
+  let SHARED = [];                 // catalogue cloud (live, NON persisté — le cloud est la source)
+  let currentLibTab = 'local';
 
   // --- persistance (IPC, repli localStorage) --------------------------------------------
 
@@ -171,8 +186,7 @@ export function initLibrary(store, ctx = {}) {
   }
 
   async function remove(id) {
-    const ok = typeof hooks.confirm === 'function' ? await hooks.confirm('Retirer ce composant de la bibliothèque locale ?')
-      : (win && typeof win.confirm === 'function' ? win.confirm('Retirer ce composant de la bibliothèque locale ?') : true);
+    const ok = await askConfirm('Retirer ce composant de la bibliothèque locale ?');
     if (!ok) return false;
     const a = api();
     if (a && a.libraryDelete) {
@@ -185,8 +199,18 @@ export function initLibrary(store, ctx = {}) {
     return true;
   }
 
-  // --- grille locale --------------------------------------------------------------------
+  // --- grilles (vignette commune local / partagé) ---------------------------------------
 
+  // Cadre carte : aperçu scalé + libellé. (Boutons d'action ajoutés par l'appelant.)
+  function libCardShell(card, html, name) {
+    card.className = 'relative group w-full rounded-lg border border-slate-700 bg-slate-900 overflow-hidden cursor-pointer hover:border-secondary transition';
+    card.innerHTML =
+      '<div class="h-24 w-full overflow-hidden bg-night pointer-events-none">'
+      + '<div class="origin-top-left" style="transform:scale(0.27);width:370%;">' + (html || '') + '</div></div>'
+      + '<div class="px-2 py-1.5 text-[11px] text-slate-300 truncate border-t border-slate-800">' + escHtml(name) + '</div>';
+  }
+
+  // Grille LOCALE — cartes avec publier/MAJ cloud (la biblio partagée est active ici).
   function renderGrid() {
     const g = grid();
     if (!g || !doc) return;
@@ -196,16 +220,20 @@ export function initLibrary(store, ctx = {}) {
       return;
     }
     LIB.forEach((item) => {
+      const linked = !!item.remoteId;
       const card = doc.createElement('div');
       card.title = 'Insérer : ' + item.name;
-      card.className = 'relative group w-full rounded-lg border border-slate-700 bg-slate-900 overflow-hidden cursor-pointer hover:border-secondary transition';
-      card.innerHTML =
-        '<div class="h-24 w-full overflow-hidden bg-night pointer-events-none">'
-        + '<div class="origin-top-left" style="transform:scale(0.27);width:370%;">' + (item.html || '') + '</div></div>'
-        + '<div class="px-2 py-1.5 text-[11px] text-slate-300 truncate border-t border-slate-800">' + escHtml(item.name) + '</div>'
-        + '<button data-del title="Retirer du local" class="absolute top-1 right-1 w-5 h-5 rounded bg-black/60 text-red-300 opacity-0 group-hover:opacity-100 transition text-[10px] flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>';
+      libCardShell(card, item.html, item.name);
+      const cloudTag = linked ? '<div class="absolute top-1 left-1 w-4 h-4 rounded bg-secondary/90 text-ink-deep text-[9px] font-bold flex items-center justify-center" title="Publié en ligne"><i class="fa-solid fa-cloud"></i></div>' : '';
+      const actBtn = linked
+        ? '<button data-upd title="Mettre à jour la version en ligne" class="absolute top-1 right-7 w-5 h-5 rounded bg-black/60 text-secondary opacity-0 group-hover:opacity-100 transition text-[10px] flex items-center justify-center"><i class="fa-solid fa-rotate"></i></button>'
+        : '<button data-pub title="Publier en ligne" class="absolute top-1 right-7 w-5 h-5 rounded bg-black/60 text-secondary opacity-0 group-hover:opacity-100 transition text-[10px] flex items-center justify-center"><i class="fa-solid fa-cloud-arrow-up"></i></button>';
+      card.insertAdjacentHTML('beforeend', cloudTag + actBtn
+        + '<button data-del title="Retirer du local" class="absolute top-1 right-1 w-5 h-5 rounded bg-black/60 text-red-300 opacity-0 group-hover:opacity-100 transition text-[10px] flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>');
       card.addEventListener('click', (e) => {
         if (e.target.closest('[data-del]')) { e.stopPropagation(); remove(item.id); return; }
+        if (e.target.closest('[data-pub]')) { e.stopPropagation(); publish(item); return; }
+        if (e.target.closest('[data-upd]')) { e.stopPropagation(); updateShared(item); return; }
         insert(item);
       });
       call('resolvePictos', card);
@@ -213,9 +241,257 @@ export function initLibrary(store, ctx = {}) {
     });
   }
 
+  // =====================================================================================
+  // BIBLIOTHÈQUE PARTAGÉE (Google Sheets) — onglets, identité auteur, publier/MAJ/suppr.
+  // =====================================================================================
+
+  // Clé de propriété : générée une fois par install (secrète, jamais exposée aux autres).
+  const OWNER_LS = 'ekwa_owner_key';
+  function ownerKey() {
+    try {
+      const s = storage();
+      if (!s) return null;
+      let k = s.getItem(OWNER_LS);
+      if (!k) {
+        k = (win && win.crypto && typeof win.crypto.randomUUID === 'function')
+          ? win.crypto.randomUUID()
+          : ('ok-' + Date.now() + '-' + Math.random().toString(36).slice(2));
+        s.setItem(OWNER_LS, k);
+      }
+      return k;
+    } catch (_) { return null; }
+  }
+  // « Mes » publications = celles dont je détiens le remoteId en local (pas besoin d'exposer la clé).
+  function ownedIds() { return new Set(LIB.map((x) => x.remoteId).filter(Boolean)); }
+
+  // --- identité auteur (settings.json via IPC ; repli localStorage) ----------------------
+  const AUTHOR_LS = 'ekwa_author';
+  let authorCache = null;
+  function authorName() {
+    if (typeof hooks.authorName === 'function') return hooks.authorName() || '';
+    if (authorCache) return authorCache;
+    try { const s = storage(); return (s && s.getItem(AUTHOR_LS)) || ''; } catch (_) { return ''; }
+  }
+  async function refreshAuthor() {
+    if (typeof hooks.authorName === 'function') return; // source gérée par le bootstrap
+    const a = api();
+    if (a && a.settingsGet) { try { const s = await a.settingsGet(); if (s && s.author) { authorCache = s.author; return; } } catch (_) { } }
+    try { const st = storage(); const ls = st && st.getItem(AUTHOR_LS); if (ls) authorCache = ls; } catch (_) { }
+  }
+  async function setAuthorName(v) {
+    if (typeof hooks.setAuthorName === 'function') { await hooks.setAuthorName(v); authorCache = v; return; }
+    authorCache = v;
+    try { const s = storage(); if (s) s.setItem(AUTHOR_LS, v); } catch (_) { }
+    const a = api();
+    if (a && a.settingsSet) { try { await a.settingsSet({ author: v }); } catch (_) { } }
+  }
+
+  // Enveloppe « clé absente » : toute action cloud renvoyant {error:'NO_KEY'} propose l'import
+  // de la clé de service puis réessaie UNE fois ; annulation → {error:'CANCELLED'} (silencieux).
+  async function runShared(action) {
+    const a = api();
+    let r;
+    try { r = await action(); } catch (e) { return { error: (e && e.message) || 'erreur' }; }
+    if (r && r.error === 'NO_KEY') {
+      if (!a || !a.gsheetImportKey) { toast('Clé de service Google requise (indisponible).'); return { error: 'CANCELLED' }; }
+      let imp; try { imp = await a.gsheetImportKey(); } catch (_) { imp = null; }
+      if (imp && imp.ok) {
+        try { r = await action(); } catch (e) { return { error: (e && e.message) || 'erreur' }; }
+        // NO_KEY persistant après import : message clair (toast ici), puis silencieux pour les appelants.
+        if (r && r.error === 'NO_KEY') { toast('Clé Google Sheets introuvable ou illisible — réimporte la clé.'); return { error: 'CANCELLED' }; }
+      }
+      else if (imp && imp.error === 'CANCELLED') return { error: 'CANCELLED' };
+      else { toast('Import de la clé impossible : ' + ((imp && imp.error) || 'inconnu')); return { error: 'CANCELLED' }; }
+    }
+    return r;
+  }
+
+  // Insère une slice partagée comme nouvelle slice (autorité store, origin 'library').
+  function insertShared(row) {
+    if (!row || !row.html) return null;
+    deselect();
+    const slice = store.add(row.html, 'library');
+    selectElement(slice.root);
+    if (typeof slice.root.scrollIntoView === 'function') slice.root.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    return slice;
+  }
+
+  // Grille PARTAGÉE — bandeau identité + cartes (badge auteur ; renommer/suppr si propriétaire).
+  function renderSharedGrid() {
+    const g = sharedGridEl();
+    if (!g || !doc) return;
+    g.innerHTML = '';
+    const owned = ownedIds();
+    const bar = doc.createElement('div');
+    bar.className = 'flex items-center justify-between text-[10px] text-slate-400 px-0.5 pb-1';
+    bar.innerHTML = '<span>Publié en tant que <b class="text-secondary">' + escHtml(authorName() || '—') + '</b></span>'
+      + '<button data-editauthor class="hover:text-secondary underline">Modifier</button>';
+    const eb = bar.querySelector('[data-editauthor]');
+    if (eb) eb.addEventListener('click', () => editAuthorName());
+    g.appendChild(bar);
+    if (!SHARED.length) {
+      g.insertAdjacentHTML('beforeend', '<p class="text-[10px] text-slate-600 leading-snug">Bibliothèque partagée vide (ou pas encore chargée). Clique « Recharger ».</p>');
+      return;
+    }
+    SHARED.forEach((row) => {
+      const mine = owned.has(row.id);
+      const card = doc.createElement('div');
+      card.setAttribute('data-shared-card', row.id || '');  // Ruling B : point d'ancrage du test
+      card.title = 'Insérer : ' + row.name;
+      libCardShell(card, row.html, row.name);
+      const badge = '<div class="absolute top-1 left-1 max-w-[70%] px-1.5 py-0.5 rounded bg-secondary/90 text-ink-deep text-[9px] font-bold flex items-center gap-1 truncate"><i class="fa-solid fa-cloud"></i>' + escHtml(row.author || 'anonyme') + '</div>';
+      const ownerBtns = mine
+        ? '<button data-rename title="Renommer (ma publication)" class="absolute top-1 right-7 w-5 h-5 rounded bg-black/60 text-secondary opacity-0 group-hover:opacity-100 transition text-[10px] flex items-center justify-center"><i class="fa-solid fa-pen"></i></button>'
+        + '<button data-del title="Supprimer du cloud (ma publication)" class="absolute top-1 right-1 w-5 h-5 rounded bg-black/60 text-red-300 opacity-0 group-hover:opacity-100 transition text-[10px] flex items-center justify-center"><i class="fa-solid fa-trash"></i></button>'
+        : '';
+      card.insertAdjacentHTML('beforeend', badge + ownerBtns);
+      card.addEventListener('click', (e) => {
+        if (e.target.closest('[data-del]')) { e.stopPropagation(); deleteSharedComponent(row); return; }
+        if (e.target.closest('[data-rename]')) { e.stopPropagation(); renameSharedComponent(row); return; }
+        insertShared(row);
+      });
+      call('resolvePictos', card);
+      g.appendChild(card);
+    });
+  }
+
+  // Bascule d'onglet local/partagé (styles, bouton recharger, visibilité des grilles).
+  function setLibTab(t) {
+    currentLibTab = (t === 'shared') ? 'shared' : 'local';
+    const on = 'bg-secondary text-ink-deep', off = 'text-slate-400 hover:text-slate-200';
+    const loc = byId('tab-local'), sh = byId('tab-shared');
+    if (loc) loc.className = 'px-2.5 py-1 rounded-md transition ' + (currentLibTab === 'local' ? on : off);
+    if (sh) sh.className = 'px-2.5 py-1 rounded-md transition flex items-center gap-1 ' + (currentLibTab === 'shared' ? on : off);
+    const rl = byId('shared-reload');
+    if (rl) { rl.classList.toggle('hidden', currentLibTab !== 'shared'); rl.classList.toggle('flex', currentLibTab === 'shared'); }
+    const g = grid(), sg = sharedGridEl();
+    if (g) { g.classList.toggle('hidden', currentLibTab !== 'local'); g.classList.toggle('flex', currentLibTab === 'local'); }
+    if (sg) { sg.classList.toggle('hidden', currentLibTab !== 'shared'); sg.classList.toggle('flex', currentLibTab === 'shared'); }
+    if (currentLibTab === 'shared') { renderSharedGrid(); if (!SHARED.length) loadShared(); }
+    else renderGrid();
+  }
+
+  // Charge le catalogue cloud et peuple la grille partagée.
+  async function loadShared() {
+    const a = api();
+    if (!a || !a.sharedList) { toast("Bibliothèque partagée dispo seulement dans l'app"); return; }
+    await refreshAuthor();
+    toast('Chargement de la bibliothèque partagée…');
+    const r = await runShared(() => a.sharedList());
+    if (!r || r.error === 'CANCELLED') return;
+    if (r.error) { toast('Échec : ' + r.error); return; }
+    SHARED = r.list || [];
+    renderSharedGrid();
+    toast(SHARED.length + ' composant(s) en ligne');
+  }
+
+  // Publier un composant local en ligne (demande le nom d'auteur une fois si vide).
+  async function publish(item) {
+    if (!item || !item.html) return;
+    const a = api();
+    if (!a || !a.sharedPublish) { toast("Publication dispo seulement dans l'app"); return; }
+    await refreshAuthor();
+    let author = authorName();
+    if (!author) {
+      author = await askName({ title: 'Ton nom (auteur)', label: 'Affiché sur les composants que tu publies', placeholder: 'Ex : Josquin', pre: '' });
+      if (!author) return; // annulé
+      await setAuthorName(author);
+    }
+    toast('Publication en ligne…');
+    const r = await runShared(() => a.sharedPublish({ name: item.name, html: item.html, author, ownerKey: ownerKey() }));
+    if (!r || r.error === 'CANCELLED') return;
+    if (r.error) { toast('Échec publication : ' + r.error); return; }
+    // Marque l'item local comme publié (remoteId) → carte « liée au cloud » (bouton MAJ).
+    const remoteId = r.row && r.row.id;
+    if (remoteId && a.librarySave) {
+      try { const res = await a.librarySave(Object.assign({}, item, { remoteId, author })); if (res && res.list) LIB = res.list; } catch (_) { }
+    }
+    renderGrid();
+    toast('Publié en ligne ✓');
+  }
+
+  // Mettre à jour la version en ligne d'un item local déjà publié (sinon, publier).
+  async function updateShared(item) {
+    if (!item || !item.remoteId) return publish(item);
+    const a = api();
+    if (!a || !a.sharedUpdate) { toast("Dispo seulement dans l'app"); return; }
+    const ok = await askConfirm('Mettre à jour « ' + item.name + ' » en ligne avec la version locale actuelle ?');
+    if (!ok) return;
+    toast('Mise à jour en ligne…');
+    const r = await runShared(() => a.sharedUpdate({ id: item.remoteId, ownerKey: ownerKey(), name: item.name, html: item.html }));
+    if (!r || r.error === 'CANCELLED') return;
+    if (r.error) { toast('Échec MAJ : ' + r.error); return; }
+    if (!r.ok) { toast("Refusé : tu n'es pas le propriétaire de cette publication."); return; }
+    if (currentLibTab === 'shared') loadShared();
+    toast('Mis à jour en ligne ✓');
+  }
+
+  // Renommer un composant publié (owner) — name seul, html inchangé.
+  async function renameSharedComponent(row) {
+    const a = api();
+    if (!a || !a.sharedUpdate) { toast("Dispo seulement dans l'app"); return; }
+    const raw = await askName({ title: 'Renommer le composant', label: 'Nouveau nom du composant', placeholder: 'Nom du composant', pre: row.name || '' });
+    const v = (raw || '').trim();
+    if (!v || v === row.name) return;
+    toast('Renommage…');
+    const r = await runShared(() => a.sharedUpdate({ id: row.id, ownerKey: ownerKey(), name: v }));
+    if (!r || r.error === 'CANCELLED') return;
+    if (r.error) { toast('Échec : ' + r.error); return; }
+    if (!r.ok) { toast("Refusé : tu n'es pas le propriétaire."); return; }
+    row.name = v; renderSharedGrid(); toast('Renommé ✓');
+  }
+
+  // Supprimer un composant publié (owner) — définitif pour toute l'équipe.
+  async function deleteSharedComponent(row) {
+    const a = api();
+    if (!a || !a.sharedDelete) { toast("Dispo seulement dans l'app"); return; }
+    const ok = await askConfirm('Supprimer « ' + row.name + ' » de la bibliothèque partagée ?\n(Définitif, pour toute l\'équipe.)');
+    if (!ok) return;
+    toast('Suppression en ligne…');
+    const r = await runShared(() => a.sharedDelete({ id: row.id, ownerKey: ownerKey() }));
+    if (!r || r.error === 'CANCELLED') return;
+    if (r.error) { toast('Échec : ' + r.error); return; }
+    if (!r.ok) { toast("Refusé : tu n'es pas le propriétaire."); return; }
+    SHARED = SHARED.filter((x) => x.id !== row.id);
+    // La slice locale liée (ma publication) n'est plus en ligne → on retire le lien remoteId
+    // sinon sa carte garde à tort le badge/état « cloud » (bug : délien non propagé).
+    const localItem = LIB.find((x) => x.remoteId === row.id);
+    if (localItem) {
+      if (a.librarySave) {
+        try { const res = await a.librarySave(Object.assign({}, localItem, { remoteId: null })); if (res && res.list) LIB = res.list; } catch (_) { }
+      } else { localItem.remoteId = null; lsSave(); }
+      renderGrid();
+    }
+    renderSharedGrid();
+    toast('Supprimé du cloud ✓');
+  }
+
+  // Éditer son nom d'auteur + le propager à toutes ses publications cloud (owner).
+  async function editAuthorName() {
+    const raw = await askName({ title: 'Ton nom (auteur)', label: 'Affiché sur les composants que tu publies', placeholder: 'Ex : Josquin', pre: authorName() });
+    const v = (raw || '').trim();
+    if (!v || v === authorName()) return;
+    await setAuthorName(v);
+    const a = api();
+    if (a && a.sharedRenameAuthor) {
+      const r = await runShared(() => a.sharedRenameAuthor({ ownerKey: ownerKey(), author: v }));
+      if (r && !r.error) {
+        if (currentLibTab === 'shared') loadShared(); else renderSharedGrid();
+        toast('Nom mis à jour' + (r.count ? ' (' + r.count + ' publication·s)' : ''));
+        return;
+      }
+      if (r && r.error === 'CANCELLED') { renderSharedGrid(); return; }
+    }
+    renderSharedGrid(); toast('Nom mis à jour');
+  }
+
   return {
     load, saveComponent, confirmSave, closeSaveModal, insert, remove, renderGrid,
+    // Bibliothèque partagée.
+    loadShared, publish, setLibTab, renderSharedGrid, editAuthorName,
+    authorName, ownerKey,
     getItems: () => LIB.slice(),
+    getShared: () => SHARED.slice(),
     dispose() { pendingHtml = null; pendingOriginId = null; },
   };
 }
